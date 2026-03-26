@@ -1,4 +1,29 @@
 # 中间件配置
+# 中间件配置
+spring:
+  # Redis 连接配置
+  data:
+    redis:
+      host: 192.168.100.102
+      port: 6379
+      password: 1234
+      database: 0
+  
+  # RabbitMQ 连接配置
+  rabbitmq:
+    host: 192.168.100.102
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
+  
+  # MySQL 连接配置
+  datasource:
+    url: jdbc:mysql://192.168.100.102:3306/ms_middleware
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
 ms:
   middleware:
     # 环境配置
@@ -43,7 +68,7 @@ ms:
       # 是否启用
       enabled: false
       # AI 服务地址
-      url: http://localhost:8000
+      url: http://192.168.100.102:8000
       # 热点识别配置
       hotspot:
         # 是否启用
