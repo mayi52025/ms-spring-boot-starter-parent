@@ -15,11 +15,11 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring-boot.version>4.0.4</spring-boot.version>
-        <redisson.version>4.3.0</redisson.version>
-        <resilience4j.version>2.4.0</resilience4j.version>
+        <spring-boot.version>3.2.4</spring-boot.version>
+        <redisson.version>3.34.0</redisson.version>
+        <resilience4j.version>2.1.0</resilience4j.version>
         <caffeine.version>3.1.8</caffeine.version>
-        <micrometer.version>1.13.0</micrometer.version>
+        <micrometer.version>1.12.4</micrometer.version>
     </properties>
 
     <modules>
@@ -51,11 +51,8 @@
                 <artifactId>caffeine</artifactId>
                 <version>${caffeine.version}</version>
             </dependency>
-            <dependency>
-                <groupId>io.micrometer</groupId>
-                <artifactId>micrometer-tracing-bridge-brave</artifactId>
-                <version>${micrometer.version}</version>
-            </dependency>
+
+
         </dependencies>
     </dependencyManagement>
 

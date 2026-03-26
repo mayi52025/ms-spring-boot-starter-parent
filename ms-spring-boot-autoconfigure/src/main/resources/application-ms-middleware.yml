@@ -1,0 +1,62 @@
+# 中间件配置
+ms:
+  middleware:
+    # 环境配置
+    env:
+      # 环境类型：dev、test、prod
+      type: dev
+      # 是否启用本地开发模式
+      localDevMode: true
+    
+    # 缓存配置
+    cache:
+      # 本地缓存配置
+      local:
+        # 缓存大小
+        size: 1000
+        # 缓存过期时间（秒）
+        ttl: 60
+        # 缓存刷新时间（秒）
+        refreshInterval: 30
+      # 分布式缓存配置
+      distributed:
+        # 缓存过期时间（秒）
+        ttl: 300
+        # 是否启用
+        enabled: true
+    
+    # 消息队列配置
+    mq:
+      # 是否启用
+      enabled: true
+      # 死信队列配置
+      deadLetter:
+        # 是否启用
+        enabled: true
+        # 死信交换机名称
+        exchange: ms.dead.letter.exchange
+        # 死信路由键
+        routingKey: ms.dead.letter.key
+    
+    # AI 服务配置
+    ai:
+      # 是否启用
+      enabled: false
+      # AI 服务地址
+      url: http://localhost:8000
+      # 热点识别配置
+      hotspot:
+        # 是否启用
+        enabled: false
+        # 预测间隔（秒）
+        predictInterval: 60
+      # 故障预测配置
+      faultPrediction:
+        # 是否启用
+        enabled: false
+        # 预测间隔（秒）
+        predictInterval: 300
+      # 消息轨迹分析配置
+      messageTrace:
+        # 是否启用
+        enabled: false
