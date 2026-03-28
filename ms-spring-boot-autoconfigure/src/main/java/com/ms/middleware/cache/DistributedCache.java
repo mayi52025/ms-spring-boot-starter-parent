@@ -1,6 +1,7 @@
 package com.ms.middleware.cache;
 
 import com.ms.middleware.MsMiddlewareProperties;
+import com.ms.middleware.cache.stats.CacheStats;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 
@@ -14,70 +15,136 @@ public class DistributedCache implements MsCache {
 
     private final RedissonClient redissonClient;
     private final MsMiddlewareProperties.DistributedCacheProperties distributedCacheProperties;
+    private final CacheStats stats;
 
     public DistributedCache(RedissonClient redissonClient, 
                            MsMiddlewareProperties.DistributedCacheProperties distributedCacheProperties) {
         this.redissonClient = redissonClient;
         this.distributedCacheProperties = distributedCacheProperties;
+        this.stats = new CacheStats();
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public <T> T get(String key) {
-        RBucket<T> bucket = redissonClient.getBucket(key);
-        return bucket.get();
+        try {
+            RBucket<T> bucket = redissonClient.getBucket(key);
+            T value = bucket.get();
+            if (value != null) {
+                stats.recordHit();
+            } else {
+                stats.recordMiss();
+            }
+            return value;
+        } catch (Exception e) {
+            stats.recordError();
+            throw new CacheException("Failed to get value from distributed cache", e);
+        }
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public <T> T get(String key, T defaultValue) {
-        RBucket<T> bucket = redissonClient.getBucket(key);
-        T value = bucket.get();
-        return value != null ? value : defaultValue;
+        try {
+            RBucket<T> bucket = redissonClient.getBucket(key);
+            T value = bucket.get();
+            if (value != null) {
+                stats.recordHit();
+            } else {
+                stats.recordMiss();
+            }
+            return value != null ? value : defaultValue;
+        } catch (Exception e) {
+            stats.recordError();
+            throw new CacheException("Failed to get value from distributed cache", e);
+        }
     }
 
     @Override
     public void put(String key, Object value) {
-        RBucket<Object> bucket = redissonClient.getBucket(key);
-        bucket.set(value, distributedCacheProperties.getTtl(), TimeUnit.SECONDS);
+        try {
+            RBucket<Object> bucket = redissonClient.getBucket(key);
+            bucket.set(value, distributedCacheProperties.getTtl(), TimeUnit.SECONDS);
+            stats.recordPut();
+        } catch (Exception e) {
+            stats.recordError();
+            throw new CacheException("Failed to put value to distributed cache", e);
+        }
     }
 
     @Override
     public void put(String key, Object value, long expire, TimeUnit timeUnit) {
-        RBucket<Object> bucket = redissonClient.getBucket(key);
-        bucket.set(value, expire, timeUnit);
+        try {
+            RBucket<Object> bucket = redissonClient.getBucket(key);
+            bucket.set(value, expire, timeUnit);
+            stats.recordPut();
+        } catch (Exception e) {
+            stats.recordError();
+            throw new CacheException("Failed to put value to distributed cache", e);
+        }
     }
 
     @Override
     public void remove(String key) {
-        redissonClient.getBucket(key).delete();
+        try {
+            redissonClient.getBucket(key).delete();
+            stats.recordRemove();
+        } catch (Exception e) {
+            stats.recordError();
+            throw new CacheException("Failed to remove value from distributed cache", e);
+        }
     }
 
     @Override
     public void remove(String... keys) {
-        for (String key : keys) {
-            redissonClient.getBucket(key).delete();
+        try {
+            for (String key : keys) {
+                redissonClient.getBucket(key).delete();
+                stats.recordRemove();
+            }
+        } catch (Exception e) {
+            stats.recordError();
+            throw new CacheException("Failed to remove values from distributed cache", e);
         }
     }
 
     @Override
     public void clear() {
-        redissonClient.getKeys().deleteByPattern("*");
+        try {
+            redissonClient.getKeys().deleteByPattern("*");
+            stats.recordClear();
+        } catch (Exception e) {
+            stats.recordError();
+            throw new CacheException("Failed to clear distributed cache", e);
+        }
     }
 
     @Override
     public boolean exists(String key) {
-        return redissonClient.getBucket(key).isExists();
+        try {
+            return redissonClient.getBucket(key).isExists();
+        } catch (Exception e) {
+            stats.recordError();
+            throw new CacheException("Failed to check existence in distributed cache", e);
+        }
     }
 
     @Override
     public long size() {
-        // 注意：这个方法会遍历所有键，可能影响性能
-        return redissonClient.getKeys().count();
+        try {
+            return redissonClient.getKeys().count();
+        } catch (Exception e) {
+            stats.recordError();
+            throw new CacheException("Failed to get distributed cache size", e);
+        }
     }
 
     @Override
     public CacheType getCacheType() {
         return CacheType.DISTRIBUTED;
+    }
+
+    public CacheStats getStats() {
+        return stats;
     }
 }

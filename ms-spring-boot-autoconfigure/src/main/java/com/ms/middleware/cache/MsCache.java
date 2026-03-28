@@ -1,5 +1,6 @@
 package com.ms.middleware.cache;
 
+import com.ms.middleware.cache.stats.CacheStats;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -75,4 +76,12 @@ public interface MsCache {
      * @return 缓存类型
      */
     CacheType getCacheType();
+    
+    /**
+     * 获取缓存统计信息
+     * @return 缓存统计信息
+     */
+    default CacheStats getStats() {
+        return null;
+    }
 }
