@@ -19,6 +19,11 @@ public class MsMiddlewareProperties {
     private MqProperties mq = new MqProperties();
 
     /**
+     * Redis配置
+     */
+    private RedisProperties redis = new RedisProperties();
+
+    /**
      * AI配置
      */
     private AiProperties ai = new AiProperties();
@@ -46,6 +51,14 @@ public class MsMiddlewareProperties {
 
     public void setAi(AiProperties ai) {
         this.ai = ai;
+    }
+
+    public RedisProperties getRedis() {
+        return redis;
+    }
+
+    public void setRedis(RedisProperties redis) {
+        this.redis = redis;
     }
 
     /**
@@ -267,7 +280,7 @@ public class MsMiddlewareProperties {
         /**
          * 主机
          */
-        private String host = "localhost";
+        private String host = "192.168.100.102";
 
         /**
          * 端口
@@ -560,6 +573,64 @@ public class MsMiddlewareProperties {
 
         public void setExpireSeconds(int expireSeconds) {
             this.expireSeconds = expireSeconds;
+        }
+    }
+
+    /**
+     * Redis配置
+     */
+    public static class RedisProperties {
+        /**
+         * 主机
+         */
+        private String host = "192.168.100.102";
+
+        /**
+         * 端口
+         */
+        private int port = 6379;
+
+        /**
+         * 密码
+         */
+        private String password = "1234";
+
+        /**
+         * 数据库
+         */
+        private int database = 0;
+
+        // Getters and Setters
+        public String getHost() {
+            return host;
+        }
+
+        public void setHost(String host) {
+            this.host = host;
+        }
+
+        public int getPort() {
+            return port;
+        }
+
+        public void setPort(int port) {
+            this.port = port;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+
+        public int getDatabase() {
+            return database;
+        }
+
+        public void setDatabase(int database) {
+            this.database = database;
         }
     }
 }

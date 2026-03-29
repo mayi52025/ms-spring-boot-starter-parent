@@ -132,9 +132,9 @@ public class MsMiddlewareAutoConfiguration {
         // 注册Redis健康检查和恢复策略
         Config config = new Config();
         config.useSingleServer()
-              .setAddress("redis://127.0.0.1:6379")
-              .setPassword("")
-              .setDatabase(0);
+              .setAddress("redis://" + properties.getRedis().getHost() + ":" + properties.getRedis().getPort())
+              .setPassword(properties.getRedis().getPassword())
+              .setDatabase(properties.getRedis().getDatabase());
         RedisRecoveryStrategy strategy = new RedisRecoveryStrategy(redissonClient, config);
         faultSelfHealing.registerComponent("Redis", checker, strategy);
         return checker;
@@ -180,9 +180,9 @@ public class MsMiddlewareAutoConfiguration {
     public RedissonClient redissonClient() {
         Config config = new Config();
         config.useSingleServer()
-              .setAddress("redis://127.0.0.1:6379")
-              .setPassword("")
-              .setDatabase(0);
+              .setAddress("redis://" + properties.getRedis().getHost() + ":" + properties.getRedis().getPort())
+              .setPassword(properties.getRedis().getPassword())
+              .setDatabase(properties.getRedis().getDatabase());
         return org.redisson.Redisson.create(config);
     }
 

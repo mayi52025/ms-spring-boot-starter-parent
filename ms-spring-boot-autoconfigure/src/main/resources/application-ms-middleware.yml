@@ -30,7 +30,7 @@ ms:
       # RabbitMQ配置
       rabbit:
         # 主机
-        host: localhost
+        host: 192.168.100.102
         # 端口
         port: 5672
         # 用户名
@@ -59,3 +59,13 @@ ms:
         prefix: "mq:idempotent:"
         # 过期时间（小时）
         expirationHours: 24
+    # Redis配置
+    redis:
+      # 主机
+      host: 192.168.100.102
+      # 端口
+      port: 6379
+      # 密码
+      password: 1234
+      # 数据库
+      database: 0

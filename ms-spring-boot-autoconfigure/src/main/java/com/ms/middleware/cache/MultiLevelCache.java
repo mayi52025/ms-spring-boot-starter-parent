@@ -81,11 +81,17 @@ public class MultiLevelCache implements MsCache {
                 return value;
             }
 
-            value = distributedCache.get(key);
-            if (value != null) {
-                localCache.put(key, value);
-                stats.recordHit();
-                return value;
+            try {
+                value = distributedCache.get(key);
+                if (value != null) {
+                    localCache.put(key, value);
+                    stats.recordHit();
+                    return value;
+                }
+            } catch (Exception e) {
+                // 分布式缓存不可用，降级到本地缓存
+                stats.recordError();
+                // 只返回本地缓存的值（已经检查过为null）
             }
 
             stats.recordMiss();
@@ -112,7 +118,12 @@ public class MultiLevelCache implements MsCache {
     public void put(String key, Object value) {
         try {
             localCache.put(key, value);
-            distributedCache.put(key, value);
+            try {
+                distributedCache.put(key, value);
+            } catch (Exception e) {
+                // 分布式缓存不可用，只写入本地缓存
+                stats.recordError();
+            }
             stats.recordPut();
         } catch (Exception e) {
             stats.recordError();
@@ -124,7 +135,12 @@ public class MultiLevelCache implements MsCache {
     public void put(String key, Object value, long expire, TimeUnit timeUnit) {
         try {
             localCache.put(key, value, expire, timeUnit);
-            distributedCache.put(key, value, expire, timeUnit);
+            try {
+                distributedCache.put(key, value, expire, timeUnit);
+            } catch (Exception e) {
+                // 分布式缓存不可用，只写入本地缓存
+                stats.recordError();
+            }
             stats.recordPut();
         } catch (Exception e) {
             stats.recordError();
@@ -136,11 +152,16 @@ public class MultiLevelCache implements MsCache {
     public void remove(String key) {
         try {
             localCache.remove(key);
-            distributedCache.remove(key);
-            stats.recordRemove();
-            if (consistencyManager != null && !invalidating.get()) {
-                consistencyManager.invalidate(key);
+            try {
+                distributedCache.remove(key);
+                if (consistencyManager != null && !invalidating.get()) {
+                    consistencyManager.invalidate(key);
+                }
+            } catch (Exception e) {
+                // 分布式缓存不可用，只从本地缓存删除
+                stats.recordError();
             }
+            stats.recordRemove();
         } catch (Exception e) {
             stats.recordError();
             throw new CacheException("Failed to remove value from multi-level cache", e);
@@ -151,12 +172,17 @@ public class MultiLevelCache implements MsCache {
     public void remove(String... keys) {
         try {
             localCache.remove(keys);
-            distributedCache.remove(keys);
+            try {
+                distributedCache.remove(keys);
+                if (consistencyManager != null && !invalidating.get()) {
+                    consistencyManager.invalidateBatch(java.util.Set.of(keys));
+                }
+            } catch (Exception e) {
+                // 分布式缓存不可用，只从本地缓存删除
+                stats.recordError();
+            }
             for (String key : keys) {
                 stats.recordRemove();
-            }
-            if (consistencyManager != null && !invalidating.get()) {
-                consistencyManager.invalidateBatch(java.util.Set.of(keys));
             }
         } catch (Exception e) {
             stats.recordError();
@@ -168,11 +194,16 @@ public class MultiLevelCache implements MsCache {
     public void clear() {
         try {
             localCache.clear();
-            distributedCache.clear();
-            stats.recordClear();
-            if (consistencyManager != null && !invalidating.get()) {
-                consistencyManager.invalidateAll();
+            try {
+                distributedCache.clear();
+                if (consistencyManager != null && !invalidating.get()) {
+                    consistencyManager.invalidateAll();
+                }
+            } catch (Exception e) {
+                // 分布式缓存不可用，只清除本地缓存
+                stats.recordError();
             }
+            stats.recordClear();
         } catch (Exception e) {
             stats.recordError();
             throw new CacheException("Failed to clear multi-level cache", e);
@@ -182,7 +213,17 @@ public class MultiLevelCache implements MsCache {
     @Override
     public boolean exists(String key) {
         try {
-            return localCache.exists(key) || distributedCache.exists(key);
+            boolean existsInLocal = localCache.exists(key);
+            if (existsInLocal) {
+                return true;
+            }
+            try {
+                return distributedCache.exists(key);
+            } catch (Exception e) {
+                // 分布式缓存不可用，只检查本地缓存
+                stats.recordError();
+                return false;
+            }
         } catch (Exception e) {
             stats.recordError();
             throw new CacheException("Failed to check existence in multi-level cache", e);
