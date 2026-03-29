@@ -1,6 +1,7 @@
 package com.ms.middleware;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ms.middleware.ai.*;
 import com.ms.middleware.cache.*;
 import com.ms.middleware.cache.consistency.CacheConsistencyManager;
 import com.ms.middleware.health.*;
@@ -148,6 +149,30 @@ public class MsMiddlewareAutoConfiguration {
         RabbitMQRecoveryStrategy strategy = new RabbitMQRecoveryStrategy(connectionFactory);
         faultSelfHealing.registerComponent("RabbitMQ", checker, strategy);
         return checker;
+    }
+
+    // ==================== AI热点识别配置 ====================
+
+    @Bean
+    @ConditionalOnMissingBean(HotKeyConfig.class)
+    @ConditionalOnProperty(prefix = "ms.middleware.ai.hotKey", name = "enabled", havingValue = "true")
+    public HotKeyConfig hotKeyConfig() {
+        MsMiddlewareProperties.HotKeyProperties props = properties.getAi().getHotKey();
+        return new HotKeyConfig(
+            props.isEnabled(),
+            props.getThreshold(),
+            props.getTopN(),
+            props.getStatisticsIntervalMs(),
+            props.isAutoWarmup(),
+            props.getExpireSeconds()
+        );
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(HotKeyManager.class)
+    @ConditionalOnProperty(prefix = "ms.middleware.ai.hotKey", name = "enabled", havingValue = "true")
+    public HotKeyManager hotKeyManager(HotKeyConfig hotKeyConfig, MultiLevelCache multiLevelCache) {
+        return new HotKeyManager(hotKeyConfig, multiLevelCache);
     }
 
     @Bean

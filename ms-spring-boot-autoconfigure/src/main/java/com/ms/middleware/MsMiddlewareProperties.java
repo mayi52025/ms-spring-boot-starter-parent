@@ -2,8 +2,6 @@ package com.ms.middleware;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import java.time.Duration;
-
 /**
  * 中间件配置属性
  */
@@ -20,6 +18,11 @@ public class MsMiddlewareProperties {
      */
     private MqProperties mq = new MqProperties();
 
+    /**
+     * AI配置
+     */
+    private AiProperties ai = new AiProperties();
+
     // Getters and Setters
     public CacheProperties getCache() {
         return cache;
@@ -35,6 +38,14 @@ public class MsMiddlewareProperties {
 
     public void setMq(MqProperties mq) {
         this.mq = mq;
+    }
+
+    public AiProperties getAi() {
+        return ai;
+    }
+
+    public void setAi(AiProperties ai) {
+        this.ai = ai;
     }
 
     /**
@@ -433,6 +444,122 @@ public class MsMiddlewareProperties {
 
         public void setExpirationHours(int expirationHours) {
             this.expirationHours = expirationHours;
+        }
+    }
+
+    /**
+     * AI配置
+     */
+    public static class AiProperties {
+        /**
+         * 是否启用
+         */
+        private boolean enabled = true;
+
+        /**
+         * 热点识别配置
+         */
+        private HotKeyProperties hotKey = new HotKeyProperties();
+
+        // Getters and Setters
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public HotKeyProperties getHotKey() {
+            return hotKey;
+        }
+
+        public void setHotKey(HotKeyProperties hotKey) {
+            this.hotKey = hotKey;
+        }
+    }
+
+    /**
+     * 热点识别配置
+     */
+    public static class HotKeyProperties {
+        /**
+         * 是否启用
+         */
+        private boolean enabled = true;
+
+        /**
+         * 热点key阈值（访问频率超过此值被认为是热点）
+         */
+        private double threshold = 0.1;
+
+        /**
+         * Top N热点key数量
+         */
+        private int topN = 10;
+
+        /**
+         * 统计间隔（毫秒）
+         */
+        private long statisticsIntervalMs = 60000;
+
+        /**
+         * 是否自动预热热点数据
+         */
+        private boolean autoWarmup = true;
+
+        /**
+         * 热点数据过期时间（秒）
+         */
+        private int expireSeconds = 3600;
+
+        // Getters and Setters
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public double getThreshold() {
+            return threshold;
+        }
+
+        public void setThreshold(double threshold) {
+            this.threshold = threshold;
+        }
+
+        public int getTopN() {
+            return topN;
+        }
+
+        public void setTopN(int topN) {
+            this.topN = topN;
+        }
+
+        public long getStatisticsIntervalMs() {
+            return statisticsIntervalMs;
+        }
+
+        public void setStatisticsIntervalMs(long statisticsIntervalMs) {
+            this.statisticsIntervalMs = statisticsIntervalMs;
+        }
+
+        public boolean isAutoWarmup() {
+            return autoWarmup;
+        }
+
+        public void setAutoWarmup(boolean autoWarmup) {
+            this.autoWarmup = autoWarmup;
+        }
+
+        public int getExpireSeconds() {
+            return expireSeconds;
+        }
+
+        public void setExpireSeconds(int expireSeconds) {
+            this.expireSeconds = expireSeconds;
         }
     }
 }
