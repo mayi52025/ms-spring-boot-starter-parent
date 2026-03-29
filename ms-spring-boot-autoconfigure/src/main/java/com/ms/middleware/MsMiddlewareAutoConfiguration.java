@@ -3,6 +3,7 @@ package com.ms.middleware;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ms.middleware.cache.*;
 import com.ms.middleware.cache.consistency.CacheConsistencyManager;
+import com.ms.middleware.health.*;
 import com.ms.middleware.mq.MsMessageQueue;
 import com.ms.middleware.mq.RabbitMessageQueue;
 import com.ms.middleware.mq.idempotent.IdempotentStore;
@@ -18,6 +19,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
 
 /**
  * 中间件自动配置
@@ -112,6 +114,40 @@ public class MsMiddlewareAutoConfiguration {
                                          ObjectMapper objectMapper, 
                                          IdempotentStore idempotentStore) {
         return new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper, idempotentStore);
+    }
+
+    // ==================== 故障自愈配置 ====================
+
+    @Bean
+    @ConditionalOnMissingBean(FaultSelfHealing.class)
+    public FaultSelfHealing faultSelfHealing() {
+        return FaultSelfHealing.getInstance();
+    }
+
+    @Bean
+    @DependsOn({"redissonClient", "faultSelfHealing"})
+    public RedisHealthChecker redisHealthChecker(RedissonClient redissonClient, FaultSelfHealing faultSelfHealing) {
+        RedisHealthChecker checker = new RedisHealthChecker(redissonClient);
+        // 注册Redis健康检查和恢复策略
+        Config config = new Config();
+        config.useSingleServer()
+              .setAddress("redis://127.0.0.1:6379")
+              .setPassword("")
+              .setDatabase(0);
+        RedisRecoveryStrategy strategy = new RedisRecoveryStrategy(redissonClient, config);
+        faultSelfHealing.registerComponent("Redis", checker, strategy);
+        return checker;
+    }
+
+    @Bean
+    @DependsOn({"cachingConnectionFactory", "faultSelfHealing"})
+    @ConditionalOnProperty(prefix = "ms.middleware.mq", name = "enabled", havingValue = "true")
+    public RabbitMQHealthChecker rabbitMQHealthChecker(CachingConnectionFactory connectionFactory, FaultSelfHealing faultSelfHealing) {
+        RabbitMQHealthChecker checker = new RabbitMQHealthChecker(connectionFactory);
+        // 注册RabbitMQ健康检查和恢复策略
+        RabbitMQRecoveryStrategy strategy = new RabbitMQRecoveryStrategy(connectionFactory);
+        faultSelfHealing.registerComponent("RabbitMQ", checker, strategy);
+        return checker;
     }
 
     @Bean
