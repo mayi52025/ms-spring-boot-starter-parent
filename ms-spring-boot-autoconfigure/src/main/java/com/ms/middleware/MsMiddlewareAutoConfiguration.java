@@ -1,33 +1,30 @@
 package com.ms.middleware;
 
-import com.ms.middleware.cache.DistributedCache;
-import com.ms.middleware.cache.LocalCache;
-import com.ms.middleware.cache.MultiLevelCache;
-import com.ms.middleware.cache.MsCache;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ms.middleware.cache.*;
 import com.ms.middleware.cache.consistency.CacheConsistencyManager;
-import com.ms.middleware.cache.warmup.CacheWarmup;
-import com.ms.middleware.cache.warmup.CacheWarmupExecutor;
-import org.redisson.Redisson;
+import com.ms.middleware.mq.MsMessageQueue;
+import com.ms.middleware.mq.RabbitMessageQueue;
+import com.ms.middleware.mq.idempotent.IdempotentStore;
+import com.ms.middleware.mq.idempotent.RedisIdempotentStore;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.redisson.spring.starter.RedissonAutoConfiguration;
+import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 
 /**
- * 中间件自动配置类
- * 自动注册缓存、消息队列等中间件组件
+ * 中间件自动配置
  */
 @Configuration
 @EnableConfigurationProperties(MsMiddlewareProperties.class)
-@AutoConfigureAfter(name = "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration")
+@AutoConfigureAfter(RedissonAutoConfiguration.class)
 public class MsMiddlewareAutoConfiguration {
 
     private final MsMiddlewareProperties properties;
@@ -36,115 +33,101 @@ public class MsMiddlewareAutoConfiguration {
         this.properties = properties;
     }
 
-    /**
-     * 本地缓存 Bean
-     */
+    // ==================== 缓存配置 ====================
+
     @Bean
     @ConditionalOnMissingBean(LocalCache.class)
+    @ConditionalOnProperty(prefix = "ms.middleware.cache.local", name = "enabled", havingValue = "true")
     public LocalCache localCache() {
         return new LocalCache(properties.getCache().getLocal());
     }
 
-    /**
-     * Redisson 客户端 Bean
-     */
     @Bean
-    @ConditionalOnProperty(prefix = "ms.middleware.cache.distributed", name = "enabled", havingValue = "true")
-    @ConditionalOnMissingBean(RedissonClient.class)
-    public RedissonClient redissonClient() {
-        Config config = new Config();
-        
-        // 从配置中读取 Redis 连接信息
-        // 注意：这里简化处理，实际项目中应该从 Spring 环境中读取完整的 Redis 配置
-        config.useSingleServer()
-                .setAddress("redis://192.168.100.102:6379")
-                .setPassword("1234")
-                .setDatabase(0);
-        
-        return Redisson.create(config);
-    }
-
-    /**
-     * 分布式缓存 Bean
-     */
-    @Bean
-    @ConditionalOnProperty(prefix = "ms.middleware.cache.distributed", name = "enabled", havingValue = "true")
     @ConditionalOnMissingBean(DistributedCache.class)
+    @ConditionalOnProperty(prefix = "ms.middleware.cache.distributed", name = "enabled", havingValue = "true")
     public DistributedCache distributedCache(RedissonClient redissonClient) {
         return new DistributedCache(redissonClient, properties.getCache().getDistributed());
     }
 
-    /**
-     * 缓存一致性管理器 Bean
-     */
     @Bean
-    @ConditionalOnProperty(prefix = "ms.middleware.cache.consistency", name = "enabled", havingValue = "true")
     @ConditionalOnMissingBean(CacheConsistencyManager.class)
+    @ConditionalOnProperty(prefix = "ms.middleware.cache.consistency", name = "enabled", havingValue = "true")
     public CacheConsistencyManager cacheConsistencyManager() {
         return new CacheConsistencyManager();
     }
 
-    /**
-     * 多级缓存 Bean
-     */
     @Bean
     @ConditionalOnMissingBean(MultiLevelCache.class)
-    public MultiLevelCache multiLevelCache(LocalCache localCache, DistributedCache distributedCache, 
-                                          @Autowired(required = false) CacheConsistencyManager cacheConsistencyManager) {
+    public MultiLevelCache multiLevelCache(LocalCache localCache, 
+                                          DistributedCache distributedCache, 
+                                          CacheConsistencyManager cacheConsistencyManager) {
         MultiLevelCache multiLevelCache = new MultiLevelCache(localCache, distributedCache);
         
         if (properties.getCache().getConsistency().isEnabled() && 
-            properties.getCache().getConsistency().isMultiLevelEnabled() && 
-            cacheConsistencyManager != null) {
+            properties.getCache().getConsistency().isMultiLevelEnabled()) {
             multiLevelCache.setConsistencyManager(cacheConsistencyManager);
         }
         
         return multiLevelCache;
     }
 
-    /**
-     * 缓存接口 Bean（默认使用多级缓存）
-     */
+    // ==================== 消息队列配置 ====================
+
     @Bean
-    @ConditionalOnMissingBean(MsCache.class)
-    public MsCache msCache(MultiLevelCache multiLevelCache) {
-        return multiLevelCache;
+    @ConditionalOnMissingBean(CachingConnectionFactory.class)
+    @ConditionalOnProperty(prefix = "ms.middleware.mq", name = "enabled", havingValue = "true")
+    public CachingConnectionFactory cachingConnectionFactory() {
+        CachingConnectionFactory factory = new CachingConnectionFactory();
+        factory.setHost(properties.getMq().getRabbit().getHost());
+        factory.setPort(properties.getMq().getRabbit().getPort());
+        factory.setUsername(properties.getMq().getRabbit().getUsername());
+        factory.setPassword(properties.getMq().getRabbit().getPassword());
+        factory.setVirtualHost(properties.getMq().getRabbit().getVirtualHost());
+        factory.setConnectionTimeout(properties.getMq().getRabbit().getConnectionTimeout());
+        return factory;
     }
 
-    /**
-     * 缓存预热执行器 Bean
-     */
     @Bean
-    @ConditionalOnProperty(prefix = "ms.middleware.cache.warmup", name = "enabled", havingValue = "true")
-    @ConditionalOnMissingBean(CacheWarmupExecutor.class)
-    public CacheWarmupExecutor cacheWarmupExecutor(MsCache msCache, CacheWarmup warmupProvider) {
-        return new CacheWarmupExecutor(msCache, warmupProvider);
+    @ConditionalOnMissingBean(RabbitTemplate.class)
+    @ConditionalOnProperty(prefix = "ms.middleware.mq", name = "enabled", havingValue = "true")
+    public RabbitTemplate rabbitTemplate(CachingConnectionFactory connectionFactory) {
+        RabbitTemplate template = new RabbitTemplate(connectionFactory);
+        template.setExchange("ms-exchange");
+        template.setRoutingKey("ms-routing-key");
+        return template;
     }
 
-    /**
-     * 应用启动监听器，执行缓存预热
-     */
     @Bean
-    @ConditionalOnProperty(prefix = "ms.middleware.cache.warmup", name = "enabled", havingValue = "true")
-    public ApplicationListener<ApplicationReadyEvent> cacheWarmupListener(CacheWarmupExecutor warmupExecutor) {
-        return event -> warmupExecutor.executeWarmup();
+    @ConditionalOnMissingBean(IdempotentStore.class)
+    @ConditionalOnProperty(prefix = "ms.middleware.mq.idempotent", name = "enabled", havingValue = "true")
+    public IdempotentStore idempotentStore(RedissonClient redissonClient) {
+        return new RedisIdempotentStore(redissonClient);
     }
 
-    /**
-     * 开发环境配置
-     */
-    @Configuration
-    @Profile("dev")
-    public static class DevConfiguration {
-        // 开发环境特定配置
+    @Bean
+    @ConditionalOnMissingBean(MsMessageQueue.class)
+    @ConditionalOnProperty(prefix = "ms.middleware.mq", name = "enabled", havingValue = "true")
+    public MsMessageQueue msMessageQueue(RabbitTemplate rabbitTemplate, 
+                                         CachingConnectionFactory connectionFactory, 
+                                         ObjectMapper objectMapper, 
+                                         IdempotentStore idempotentStore) {
+        return new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper, idempotentStore);
     }
 
-    /**
-     * 生产环境配置
-     */
-    @Configuration
-    @Profile("prod")
-    public static class ProdConfiguration {
-        // 生产环境特定配置
+    @Bean
+    @ConditionalOnMissingBean(RedissonClient.class)
+    public RedissonClient redissonClient() {
+        Config config = new Config();
+        config.useSingleServer()
+              .setAddress("redis://127.0.0.1:6379")
+              .setPassword("")
+              .setDatabase(0);
+        return org.redisson.Redisson.create(config);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(ObjectMapper.class)
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper();
     }
 }

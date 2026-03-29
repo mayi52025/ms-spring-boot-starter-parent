@@ -1,60 +1,65 @@
 package com.ms.middleware;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Configuration;
+import static org.junit.jupiter.api.Assertions.*;
 
-import org.springframework.beans.factory.annotation.Autowired;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-/**
- * 中间件配置属性测试
- */
-@SpringBootTest(classes = TestConfiguration.class)
-public class MsMiddlewarePropertiesTest {
-
-    @Autowired
-    private MsMiddlewareProperties properties;
+class MsMiddlewarePropertiesTest {
 
     @Test
-    public void testDefaultValues() {
-        // 测试环境配置
-        assertEquals("dev", properties.getEnv().getType());
-        assertTrue(properties.getEnv().isLocalDevMode());
-
-        // 测试本地缓存配置
+    void testDefaultValues() {
+        MsMiddlewareProperties properties = new MsMiddlewareProperties();
+        
+        // 测试缓存配置
+        assertNotNull(properties.getCache());
+        assertNotNull(properties.getCache().getLocal());
         assertEquals(1000, properties.getCache().getLocal().getSize());
-        assertEquals(60, properties.getCache().getLocal().getTtl());
-        assertEquals(30, properties.getCache().getLocal().getRefreshInterval());
-
-        // 测试分布式缓存配置
-        assertEquals(300, properties.getCache().getDistributed().getTtl());
+        assertEquals(3600, properties.getCache().getLocal().getTtl());
+        assertTrue(properties.getCache().getLocal().isEnabled());
+        
+        assertNotNull(properties.getCache().getDistributed());
+        assertEquals(7200, properties.getCache().getDistributed().getTtl());
         assertTrue(properties.getCache().getDistributed().isEnabled());
-
+        
+        assertNotNull(properties.getCache().getConsistency());
+        assertFalse(properties.getCache().getConsistency().isEnabled());
+        assertTrue(properties.getCache().getConsistency().isMultiLevelEnabled());
+        
         // 测试消息队列配置
+        assertNotNull(properties.getMq());
         assertTrue(properties.getMq().isEnabled());
-        assertTrue(properties.getMq().getDeadLetter().isEnabled());
-        assertEquals("ms.dead.letter.exchange", properties.getMq().getDeadLetter().getExchange());
-        assertEquals("ms.dead.letter.key", properties.getMq().getDeadLetter().getRoutingKey());
-
-        // 测试 AI 服务配置
-        assertEquals(false, properties.getAi().isEnabled());
-        assertEquals("http://localhost:8000", properties.getAi().getUrl());
-        assertEquals(false, properties.getAi().getHotspot().isEnabled());
-        assertEquals(60, properties.getAi().getHotspot().getPredictInterval());
-        assertEquals(false, properties.getAi().getFaultPrediction().isEnabled());
-        assertEquals(300, properties.getAi().getFaultPrediction().getPredictInterval());
-        assertEquals(false, properties.getAi().getMessageTrace().isEnabled());
+        
+        assertNotNull(properties.getMq().getRabbit());
+        assertEquals("localhost", properties.getMq().getRabbit().getHost());
+        assertEquals(5672, properties.getMq().getRabbit().getPort());
+        assertEquals("guest", properties.getMq().getRabbit().getUsername());
+        assertEquals("guest", properties.getMq().getRabbit().getPassword());
+        assertEquals("/", properties.getMq().getRabbit().getVirtualHost());
+        assertEquals(30000, properties.getMq().getRabbit().getConnectionTimeout());
+        assertTrue(properties.getMq().getRabbit().isAutoDeclare());
+        
+        assertNotNull(properties.getMq().getTrace());
+        assertTrue(properties.getMq().getTrace().isEnabled());
+        assertEquals(10000, properties.getMq().getTrace().getMaxCacheSize());
+        assertEquals(30, properties.getMq().getTrace().getExpirationMinutes());
+        
+        assertNotNull(properties.getMq().getIdempotent());
+        assertTrue(properties.getMq().getIdempotent().isEnabled());
+        assertEquals("mq:idempotent:", properties.getMq().getIdempotent().getPrefix());
+        assertEquals(24, properties.getMq().getIdempotent().getExpirationHours());
     }
-}
 
-/**
- * 测试配置类
- */
-@Configuration
-@EnableConfigurationProperties(MsMiddlewareProperties.class)
-class TestConfiguration {
+    @Test
+    void testSetters() {
+        MsMiddlewareProperties properties = new MsMiddlewareProperties();
+        
+        // 测试缓存配置设置
+        MsMiddlewareProperties.CacheProperties cacheProperties = new MsMiddlewareProperties.CacheProperties();
+        properties.setCache(cacheProperties);
+        assertNotNull(properties.getCache());
+        
+        // 测试消息队列配置设置
+        MsMiddlewareProperties.MqProperties mqProperties = new MsMiddlewareProperties.MqProperties();
+        properties.setMq(mqProperties);
+        assertNotNull(properties.getMq());
+    }
 }

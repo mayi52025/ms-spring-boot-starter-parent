@@ -1,38 +1,6 @@
 # 中间件配置
-# 中间件配置
-spring:
-  # Redis 连接配置
-  data:
-    redis:
-      host: 192.168.100.102
-      port: 6379
-      password: 1234
-      database: 0
-  
-  # RabbitMQ 连接配置
-  rabbitmq:
-    host: 192.168.100.102
-    port: 5672
-    username: guest
-    password: guest
-    virtual-host: /
-  
-  # MySQL 连接配置
-  datasource:
-    url: jdbc:mysql://192.168.100.102:3306/ms_middleware
-    username: root
-    password: 123456
-    driver-class-name: com.mysql.cj.jdbc.Driver
-
 ms:
   middleware:
-    # 环境配置
-    env:
-      # 环境类型：dev、test、prod
-      type: dev
-      # 是否启用本地开发模式
-      localDevMode: true
-    
     # 缓存配置
     cache:
       # 本地缓存配置
@@ -40,60 +8,54 @@ ms:
         # 缓存大小
         size: 1000
         # 缓存过期时间（秒）
-        ttl: 60
-        # 缓存刷新时间（秒）
-        refreshInterval: 30
+        ttl: 3600
+        # 是否启用
+        enabled: true
       # 分布式缓存配置
       distributed:
         # 缓存过期时间（秒）
-        ttl: 300
+        ttl: 7200
         # 是否启用
         enabled: true
-      # 缓存预热配置
-      warmup:
-        # 是否启用预热
-        enabled: false
-        # 预热超时时间（秒）
-        timeout: 60
       # 缓存一致性配置
       consistency:
         # 是否启用一致性
         enabled: false
         # 是否启用多级缓存一致性
         multiLevelEnabled: true
-    
     # 消息队列配置
     mq:
       # 是否启用
       enabled: true
-      # 死信队列配置
-      deadLetter:
+      # RabbitMQ配置
+      rabbit:
+        # 主机
+        host: localhost
+        # 端口
+        port: 5672
+        # 用户名
+        username: guest
+        # 密码
+        password: guest
+        # 虚拟主机
+        virtualHost: /
+        # 连接超时时间（毫秒）
+        connectionTimeout: 30000
+        # 自动声明交换机和队列
+        autoDeclare: true
+      # 消息追踪配置
+      trace:
         # 是否启用
         enabled: true
-        # 死信交换机名称
-        exchange: ms.dead.letter.exchange
-        # 死信路由键
-        routingKey: ms.dead.letter.key
-    
-    # AI 服务配置
-    ai:
-      # 是否启用
-      enabled: false
-      # AI 服务地址
-      url: http://192.168.100.102:8000
-      # 热点识别配置
-      hotspot:
+        # 最大缓存大小
+        maxCacheSize: 10000
+        # 追踪过期时间（分钟）
+        expirationMinutes: 30
+      # 幂等配置
+      idempotent:
         # 是否启用
-        enabled: false
-        # 预测间隔（秒）
-        predictInterval: 60
-      # 故障预测配置
-      faultPrediction:
-        # 是否启用
-        enabled: false
-        # 预测间隔（秒）
-        predictInterval: 300
-      # 消息轨迹分析配置
-      messageTrace:
-        # 是否启用
-        enabled: false
+        enabled: true
+        # 幂等键前缀
+        prefix: "mq:idempotent:"
+        # 过期时间（小时）
+        expirationHours: 24

@@ -2,9 +2,10 @@ package com.ms.middleware;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.time.Duration;
+
 /**
- * 中间件配置属性类
- * 用于管理 Redis、RabbitMQ、缓存、AI 等中间件的配置
+ * 中间件配置属性
  */
 @ConfigurationProperties(prefix = "ms.middleware")
 public class MsMiddlewareProperties {
@@ -18,16 +19,6 @@ public class MsMiddlewareProperties {
      * 消息队列配置
      */
     private MqProperties mq = new MqProperties();
-
-    /**
-     * AI 服务配置
-     */
-    private AiProperties ai = new AiProperties();
-
-    /**
-     * 环境配置
-     */
-    private EnvProperties env = new EnvProperties();
 
     // Getters and Setters
     public CacheProperties getCache() {
@@ -46,22 +37,6 @@ public class MsMiddlewareProperties {
         this.mq = mq;
     }
 
-    public AiProperties getAi() {
-        return ai;
-    }
-
-    public void setAi(AiProperties ai) {
-        this.ai = ai;
-    }
-
-    public EnvProperties getEnv() {
-        return env;
-    }
-
-    public void setEnv(EnvProperties env) {
-        this.env = env;
-    }
-
     /**
      * 缓存配置
      */
@@ -75,11 +50,6 @@ public class MsMiddlewareProperties {
          * 分布式缓存配置
          */
         private DistributedCacheProperties distributed = new DistributedCacheProperties();
-
-        /**
-         * 缓存预热配置
-         */
-        private WarmupProperties warmup = new WarmupProperties();
 
         /**
          * 缓存一致性配置
@@ -103,14 +73,6 @@ public class MsMiddlewareProperties {
             this.distributed = distributed;
         }
 
-        public WarmupProperties getWarmup() {
-            return warmup;
-        }
-
-        public void setWarmup(WarmupProperties warmup) {
-            this.warmup = warmup;
-        }
-
         public ConsistencyProperties getConsistency() {
             return consistency;
         }
@@ -132,12 +94,12 @@ public class MsMiddlewareProperties {
         /**
          * 缓存过期时间（秒）
          */
-        private int ttl = 60;
+        private int ttl = 3600;
 
         /**
-         * 缓存刷新时间（秒）
+         * 是否启用
          */
-        private int refreshInterval = 30;
+        private boolean enabled = true;
 
         // Getters and Setters
         public int getSize() {
@@ -156,12 +118,12 @@ public class MsMiddlewareProperties {
             this.ttl = ttl;
         }
 
-        public int getRefreshInterval() {
-            return refreshInterval;
+        public boolean isEnabled() {
+            return enabled;
         }
 
-        public void setRefreshInterval(int refreshInterval) {
-            this.refreshInterval = refreshInterval;
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
         }
     }
 
@@ -172,7 +134,7 @@ public class MsMiddlewareProperties {
         /**
          * 缓存过期时间（秒）
          */
-        private int ttl = 300;
+        private int ttl = 7200;
 
         /**
          * 是否启用
@@ -194,38 +156,6 @@ public class MsMiddlewareProperties {
 
         public void setEnabled(boolean enabled) {
             this.enabled = enabled;
-        }
-    }
-
-    /**
-     * 缓存预热配置
-     */
-    public static class WarmupProperties {
-        /**
-         * 是否启用预热
-         */
-        private boolean enabled = false;
-
-        /**
-         * 预热超时时间（秒）
-         */
-        private int timeout = 60;
-
-        // Getters and Setters
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
-
-        public int getTimeout() {
-            return timeout;
-        }
-
-        public void setTimeout(int timeout) {
-            this.timeout = timeout;
         }
     }
 
@@ -271,9 +201,19 @@ public class MsMiddlewareProperties {
         private boolean enabled = true;
 
         /**
-         * 死信队列配置
+         * RabbitMQ配置
          */
-        private DeadLetterProperties deadLetter = new DeadLetterProperties();
+        private RabbitProperties rabbit = new RabbitProperties();
+
+        /**
+         * 消息追踪配置
+         */
+        private TraceProperties trace = new TraceProperties();
+
+        /**
+         * 幂等配置
+         */
+        private IdempotentProperties idempotent = new IdempotentProperties();
 
         // Getters and Setters
         public boolean isEnabled() {
@@ -284,33 +224,146 @@ public class MsMiddlewareProperties {
             this.enabled = enabled;
         }
 
-        public DeadLetterProperties getDeadLetter() {
-            return deadLetter;
+        public RabbitProperties getRabbit() {
+            return rabbit;
         }
 
-        public void setDeadLetter(DeadLetterProperties deadLetter) {
-            this.deadLetter = deadLetter;
+        public void setRabbit(RabbitProperties rabbit) {
+            this.rabbit = rabbit;
+        }
+
+        public TraceProperties getTrace() {
+            return trace;
+        }
+
+        public void setTrace(TraceProperties trace) {
+            this.trace = trace;
+        }
+
+        public IdempotentProperties getIdempotent() {
+            return idempotent;
+        }
+
+        public void setIdempotent(IdempotentProperties idempotent) {
+            this.idempotent = idempotent;
         }
     }
 
     /**
-     * 死信队列配置
+     * RabbitMQ配置
      */
-    public static class DeadLetterProperties {
+    public static class RabbitProperties {
+        /**
+         * 主机
+         */
+        private String host = "localhost";
+
+        /**
+         * 端口
+         */
+        private int port = 5672;
+
+        /**
+         * 用户名
+         */
+        private String username = "guest";
+
+        /**
+         * 密码
+         */
+        private String password = "guest";
+
+        /**
+         * 虚拟主机
+         */
+        private String virtualHost = "/";
+
+        /**
+         * 连接超时时间（毫秒）
+         */
+        private int connectionTimeout = 30000;
+
+        /**
+         * 自动声明交换机和队列
+         */
+        private boolean autoDeclare = true;
+
+        // Getters and Setters
+        public String getHost() {
+            return host;
+        }
+
+        public void setHost(String host) {
+            this.host = host;
+        }
+
+        public int getPort() {
+            return port;
+        }
+
+        public void setPort(int port) {
+            this.port = port;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+
+        public String getVirtualHost() {
+            return virtualHost;
+        }
+
+        public void setVirtualHost(String virtualHost) {
+            this.virtualHost = virtualHost;
+        }
+
+        public int getConnectionTimeout() {
+            return connectionTimeout;
+        }
+
+        public void setConnectionTimeout(int connectionTimeout) {
+            this.connectionTimeout = connectionTimeout;
+        }
+
+        public boolean isAutoDeclare() {
+            return autoDeclare;
+        }
+
+        public void setAutoDeclare(boolean autoDeclare) {
+            this.autoDeclare = autoDeclare;
+        }
+    }
+
+    /**
+     * 消息追踪配置
+     */
+    public static class TraceProperties {
         /**
          * 是否启用
          */
         private boolean enabled = true;
 
         /**
-         * 死信交换机名称
+         * 最大缓存大小
          */
-        private String exchange = "ms.dead.letter.exchange";
+        private int maxCacheSize = 10000;
 
         /**
-         * 死信路由键
+         * 追踪过期时间（分钟）
          */
-        private String routingKey = "ms.dead.letter.key";
+        private int expirationMinutes = 30;
 
         // Getters and Setters
         public boolean isEnabled() {
@@ -321,51 +374,41 @@ public class MsMiddlewareProperties {
             this.enabled = enabled;
         }
 
-        public String getExchange() {
-            return exchange;
+        public int getMaxCacheSize() {
+            return maxCacheSize;
         }
 
-        public void setExchange(String exchange) {
-            this.exchange = exchange;
+        public void setMaxCacheSize(int maxCacheSize) {
+            this.maxCacheSize = maxCacheSize;
         }
 
-        public String getRoutingKey() {
-            return routingKey;
+        public int getExpirationMinutes() {
+            return expirationMinutes;
         }
 
-        public void setRoutingKey(String routingKey) {
-            this.routingKey = routingKey;
+        public void setExpirationMinutes(int expirationMinutes) {
+            this.expirationMinutes = expirationMinutes;
         }
     }
 
     /**
-     * AI 服务配置
+     * 幂等配置
      */
-    public static class AiProperties {
+    public static class IdempotentProperties {
         /**
          * 是否启用
          */
-        private boolean enabled = false;
+        private boolean enabled = true;
 
         /**
-         * AI 服务地址
+         * 幂等键前缀
          */
-        private String url = "http://localhost:8000";
+        private String prefix = "mq:idempotent:";
 
         /**
-         * 热点识别配置
+         * 过期时间（小时）
          */
-        private HotspotProperties hotspot = new HotspotProperties();
-
-        /**
-         * 故障预测配置
-         */
-        private FaultPredictionProperties faultPrediction = new FaultPredictionProperties();
-
-        /**
-         * 消息轨迹分析配置
-         */
-        private MessageTraceProperties messageTrace = new MessageTraceProperties();
+        private int expirationHours = 24;
 
         // Getters and Setters
         public boolean isEnabled() {
@@ -376,151 +419,20 @@ public class MsMiddlewareProperties {
             this.enabled = enabled;
         }
 
-        public String getUrl() {
-            return url;
+        public String getPrefix() {
+            return prefix;
         }
 
-        public void setUrl(String url) {
-            this.url = url;
+        public void setPrefix(String prefix) {
+            this.prefix = prefix;
         }
 
-        public HotspotProperties getHotspot() {
-            return hotspot;
+        public int getExpirationHours() {
+            return expirationHours;
         }
 
-        public void setHotspot(HotspotProperties hotspot) {
-            this.hotspot = hotspot;
-        }
-
-        public FaultPredictionProperties getFaultPrediction() {
-            return faultPrediction;
-        }
-
-        public void setFaultPrediction(FaultPredictionProperties faultPrediction) {
-            this.faultPrediction = faultPrediction;
-        }
-
-        public MessageTraceProperties getMessageTrace() {
-            return messageTrace;
-        }
-
-        public void setMessageTrace(MessageTraceProperties messageTrace) {
-            this.messageTrace = messageTrace;
-        }
-    }
-
-    /**
-     * 热点识别配置
-     */
-    public static class HotspotProperties {
-        /**
-         * 是否启用
-         */
-        private boolean enabled = false;
-
-        /**
-         * 预测间隔（秒）
-         */
-        private int predictInterval = 60;
-
-        // Getters and Setters
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
-
-        public int getPredictInterval() {
-            return predictInterval;
-        }
-
-        public void setPredictInterval(int predictInterval) {
-            this.predictInterval = predictInterval;
-        }
-    }
-
-    /**
-     * 故障预测配置
-     */
-    public static class FaultPredictionProperties {
-        /**
-         * 是否启用
-         */
-        private boolean enabled = false;
-
-        /**
-         * 预测间隔（秒）
-         */
-        private int predictInterval = 300;
-
-        // Getters and Setters
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
-
-        public int getPredictInterval() {
-            return predictInterval;
-        }
-
-        public void setPredictInterval(int predictInterval) {
-            this.predictInterval = predictInterval;
-        }
-    }
-
-    /**
-     * 消息轨迹分析配置
-     */
-    public static class MessageTraceProperties {
-        /**
-         * 是否启用
-         */
-        private boolean enabled = false;
-
-        // Getters and Setters
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
-    }
-
-    /**
-     * 环境配置
-     */
-    public static class EnvProperties {
-        /**
-         * 环境类型：dev、test、prod
-         */
-        private String type = "dev";
-
-        /**
-         * 是否启用本地开发模式
-         */
-        private boolean localDevMode = true;
-
-        // Getters and Setters
-        public String getType() {
-            return type;
-        }
-
-        public void setType(String type) {
-            this.type = type;
-        }
-
-        public boolean isLocalDevMode() {
-            return localDevMode;
-        }
-
-        public void setLocalDevMode(boolean localDevMode) {
-            this.localDevMode = localDevMode;
+        public void setExpirationHours(int expirationHours) {
+            this.expirationHours = expirationHours;
         }
     }
 }
