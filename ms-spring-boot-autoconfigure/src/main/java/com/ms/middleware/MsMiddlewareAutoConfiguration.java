@@ -4,13 +4,17 @@ import com.ms.middleware.cache.DistributedCache;
 import com.ms.middleware.cache.LocalCache;
 import com.ms.middleware.cache.MultiLevelCache;
 import com.ms.middleware.cache.MsCache;
+import com.ms.middleware.cache.warmup.CacheWarmup;
+import com.ms.middleware.cache.warmup.CacheWarmupExecutor;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -84,6 +88,25 @@ public class MsMiddlewareAutoConfiguration {
     @ConditionalOnMissingBean(MsCache.class)
     public MsCache msCache(MultiLevelCache multiLevelCache) {
         return multiLevelCache;
+    }
+
+    /**
+     * 缓存预热执行器 Bean
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "ms.middleware.cache.warmup", name = "enabled", havingValue = "true")
+    @ConditionalOnMissingBean(CacheWarmupExecutor.class)
+    public CacheWarmupExecutor cacheWarmupExecutor(MsCache msCache, CacheWarmup warmupProvider) {
+        return new CacheWarmupExecutor(msCache, warmupProvider);
+    }
+
+    /**
+     * 应用启动监听器，执行缓存预热
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "ms.middleware.cache.warmup", name = "enabled", havingValue = "true")
+    public ApplicationListener<ApplicationReadyEvent> cacheWarmupListener(CacheWarmupExecutor warmupExecutor) {
+        return event -> warmupExecutor.executeWarmup();
     }
 
     /**

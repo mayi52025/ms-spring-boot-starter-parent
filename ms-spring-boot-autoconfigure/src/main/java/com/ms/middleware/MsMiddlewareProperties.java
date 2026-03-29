@@ -76,6 +76,11 @@ public class MsMiddlewareProperties {
          */
         private DistributedCacheProperties distributed = new DistributedCacheProperties();
 
+        /**
+         * 缓存预热配置
+         */
+        private WarmupProperties warmup = new WarmupProperties();
+
         // Getters and Setters
         public LocalCacheProperties getLocal() {
             return local;
@@ -91,6 +96,14 @@ public class MsMiddlewareProperties {
 
         public void setDistributed(DistributedCacheProperties distributed) {
             this.distributed = distributed;
+        }
+
+        public WarmupProperties getWarmup() {
+            return warmup;
+        }
+
+        public void setWarmup(WarmupProperties warmup) {
+            this.warmup = warmup;
         }
     }
 
@@ -168,6 +181,38 @@ public class MsMiddlewareProperties {
 
         public void setEnabled(boolean enabled) {
             this.enabled = enabled;
+        }
+    }
+
+    /**
+     * 缓存预热配置
+     */
+    public static class WarmupProperties {
+        /**
+         * 是否启用预热
+         */
+        private boolean enabled = false;
+
+        /**
+         * 预热超时时间（秒）
+         */
+        private int timeout = 60;
+
+        // Getters and Setters
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getTimeout() {
+            return timeout;
+        }
+
+        public void setTimeout(int timeout) {
+            this.timeout = timeout;
         }
     }
 

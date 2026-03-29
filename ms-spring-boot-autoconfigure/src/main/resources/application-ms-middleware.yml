@@ -49,6 +49,12 @@ ms:
         ttl: 300
         # 是否启用
         enabled: true
+      # 缓存预热配置
+      warmup:
+        # 是否启用预热
+        enabled: false
+        # 预热超时时间（秒）
+        timeout: 60
     
     # 消息队列配置
     mq:
