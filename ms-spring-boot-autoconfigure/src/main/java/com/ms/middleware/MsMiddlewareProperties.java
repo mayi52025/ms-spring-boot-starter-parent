@@ -81,6 +81,11 @@ public class MsMiddlewareProperties {
          */
         private WarmupProperties warmup = new WarmupProperties();
 
+        /**
+         * 缓存一致性配置
+         */
+        private ConsistencyProperties consistency = new ConsistencyProperties();
+
         // Getters and Setters
         public LocalCacheProperties getLocal() {
             return local;
@@ -104,6 +109,14 @@ public class MsMiddlewareProperties {
 
         public void setWarmup(WarmupProperties warmup) {
             this.warmup = warmup;
+        }
+
+        public ConsistencyProperties getConsistency() {
+            return consistency;
+        }
+
+        public void setConsistency(ConsistencyProperties consistency) {
+            this.consistency = consistency;
         }
     }
 
@@ -213,6 +226,38 @@ public class MsMiddlewareProperties {
 
         public void setTimeout(int timeout) {
             this.timeout = timeout;
+        }
+    }
+
+    /**
+     * 缓存一致性配置
+     */
+    public static class ConsistencyProperties {
+        /**
+         * 是否启用一致性
+         */
+        private boolean enabled = false;
+
+        /**
+         * 是否启用多级缓存一致性
+         */
+        private boolean multiLevelEnabled = true;
+
+        // Getters and Setters
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public boolean isMultiLevelEnabled() {
+            return multiLevelEnabled;
+        }
+
+        public void setMultiLevelEnabled(boolean multiLevelEnabled) {
+            this.multiLevelEnabled = multiLevelEnabled;
         }
     }
 

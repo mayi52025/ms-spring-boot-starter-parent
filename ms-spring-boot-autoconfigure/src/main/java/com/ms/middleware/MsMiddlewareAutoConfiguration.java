@@ -4,11 +4,13 @@ import com.ms.middleware.cache.DistributedCache;
 import com.ms.middleware.cache.LocalCache;
 import com.ms.middleware.cache.MultiLevelCache;
 import com.ms.middleware.cache.MsCache;
+import com.ms.middleware.cache.consistency.CacheConsistencyManager;
 import com.ms.middleware.cache.warmup.CacheWarmup;
 import com.ms.middleware.cache.warmup.CacheWarmupExecutor;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -73,12 +75,31 @@ public class MsMiddlewareAutoConfiguration {
     }
 
     /**
+     * 缓存一致性管理器 Bean
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "ms.middleware.cache.consistency", name = "enabled", havingValue = "true")
+    @ConditionalOnMissingBean(CacheConsistencyManager.class)
+    public CacheConsistencyManager cacheConsistencyManager() {
+        return new CacheConsistencyManager();
+    }
+
+    /**
      * 多级缓存 Bean
      */
     @Bean
     @ConditionalOnMissingBean(MultiLevelCache.class)
-    public MultiLevelCache multiLevelCache(LocalCache localCache, DistributedCache distributedCache) {
-        return new MultiLevelCache(localCache, distributedCache);
+    public MultiLevelCache multiLevelCache(LocalCache localCache, DistributedCache distributedCache, 
+                                          @Autowired(required = false) CacheConsistencyManager cacheConsistencyManager) {
+        MultiLevelCache multiLevelCache = new MultiLevelCache(localCache, distributedCache);
+        
+        if (properties.getCache().getConsistency().isEnabled() && 
+            properties.getCache().getConsistency().isMultiLevelEnabled() && 
+            cacheConsistencyManager != null) {
+            multiLevelCache.setConsistencyManager(cacheConsistencyManager);
+        }
+        
+        return multiLevelCache;
     }
 
     /**
