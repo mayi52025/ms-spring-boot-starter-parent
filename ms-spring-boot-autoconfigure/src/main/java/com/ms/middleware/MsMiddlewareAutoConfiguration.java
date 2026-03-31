@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ms.middleware.ai.*;
 import com.ms.middleware.cache.*;
 import com.ms.middleware.cache.consistency.CacheConsistencyManager;
+import com.ms.middleware.circuit.CircuitBreaker;
+import com.ms.middleware.circuit.Resilience4jCircuitBreaker;
 import com.ms.middleware.health.*;
 import com.ms.middleware.lock.DistributedLock;
 import com.ms.middleware.lock.RedisDistributedLock;
@@ -210,5 +212,13 @@ public class MsMiddlewareAutoConfiguration {
     @ConditionalOnMissingBean(RateLimiter.class)
     public RateLimiter rateLimiter(RedissonClient redissonClient) {
         return new RedisRateLimiter(redissonClient);
+    }
+
+    // ==================== 熔断配置 ====================
+
+    @Bean
+    @ConditionalOnMissingBean(CircuitBreaker.class)
+    public CircuitBreaker circuitBreaker() {
+        return new Resilience4jCircuitBreaker("ms-middleware-circuit-breaker");
     }
 }
