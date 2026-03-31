@@ -11,6 +11,8 @@ import com.ms.middleware.mq.MsMessageQueue;
 import com.ms.middleware.mq.RabbitMessageQueue;
 import com.ms.middleware.mq.idempotent.IdempotentStore;
 import com.ms.middleware.mq.idempotent.RedisIdempotentStore;
+import com.ms.middleware.rate.RateLimiter;
+import com.ms.middleware.rate.RedisRateLimiter;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 import org.redisson.spring.starter.RedissonAutoConfiguration;
@@ -200,5 +202,13 @@ public class MsMiddlewareAutoConfiguration {
     @ConditionalOnMissingBean(DistributedLock.class)
     public DistributedLock distributedLock(RedissonClient redissonClient) {
         return new RedisDistributedLock(redissonClient);
+    }
+
+    // ==================== 限流配置 ====================
+
+    @Bean
+    @ConditionalOnMissingBean(RateLimiter.class)
+    public RateLimiter rateLimiter(RedissonClient redissonClient) {
+        return new RedisRateLimiter(redissonClient);
     }
 }
