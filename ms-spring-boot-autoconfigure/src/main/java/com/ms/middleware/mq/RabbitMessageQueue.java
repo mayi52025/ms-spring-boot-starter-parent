@@ -1,10 +1,12 @@
 package com.ms.middleware.mq;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ms.middleware.metrics.MsMetrics;
 import com.ms.middleware.mq.idempotent.IdempotentConsumer;
 import com.ms.middleware.mq.idempotent.IdempotentStore;
 import com.ms.middleware.mq.trace.MessageTrace;
 import com.ms.middleware.mq.trace.MessageTraceManager;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -28,16 +30,19 @@ public class RabbitMessageQueue implements MsMessageQueue {
     private final ObjectMapper objectMapper;
     private final MessageTraceManager traceManager;
     private final IdempotentStore idempotentStore;
+    private final MsMetrics metrics;
 
     public RabbitMessageQueue(RabbitTemplate rabbitTemplate, 
                            ConnectionFactory connectionFactory, 
                            ObjectMapper objectMapper, 
-                           IdempotentStore idempotentStore) {
+                           IdempotentStore idempotentStore, 
+                           MsMetrics metrics) {
         this.rabbitTemplate = rabbitTemplate;
         this.connectionFactory = connectionFactory;
         this.objectMapper = objectMapper;
         this.traceManager = MessageTraceManager.getInstance();
         this.idempotentStore = idempotentStore;
+        this.metrics = metrics;
         
         // 配置消息转换器
         rabbitTemplate.setMessageConverter(new Jackson2JsonMessageConverter(objectMapper));
@@ -64,9 +69,11 @@ public class RabbitMessageQueue implements MsMessageQueue {
                 msg.getMessageProperties().setTimestamp(new java.util.Date());
                 return msg;
             });
+            metrics.incrementMessagePublished();
             return true;
         } catch (Exception e) {
             e.printStackTrace();
+            metrics.incrementFailureCount();
             return false;
         }
     }
@@ -100,9 +107,11 @@ public class RabbitMessageQueue implements MsMessageQueue {
                 }
                 return msg;
             });
+            metrics.incrementMessagePublished();
             return true;
         } catch (Exception e) {
             e.printStackTrace();
+            metrics.incrementFailureCount();
             return false;
         }
     }
@@ -129,9 +138,11 @@ public class RabbitMessageQueue implements MsMessageQueue {
                 msg.getMessageProperties().setHeader("x-delay", delay);
                 return msg;
             });
+            metrics.incrementMessagePublished();
             return true;
         } catch (Exception e) {
             e.printStackTrace();
+            metrics.incrementFailureCount();
             return false;
         }
     }
@@ -158,9 +169,11 @@ public class RabbitMessageQueue implements MsMessageQueue {
                 msg.getMessageProperties().setHeader("order-key", orderKey);
                 return msg;
             });
+            metrics.incrementMessagePublished();
             return true;
         } catch (Exception e) {
             e.printStackTrace();
+            metrics.incrementFailureCount();
             return false;
         }
     }
@@ -203,6 +216,8 @@ public class RabbitMessageQueue implements MsMessageQueue {
             // 记录消息接收
             traceManager.recordReceive(messageId, message.getMessageProperties().getConsumerQueue(), getReceiver());
 
+            // 开始记录消息处理时间
+            Timer.Sample sample = metrics.startMessageProcessing();
             long startTime = System.currentTimeMillis();
             boolean success;
 
@@ -220,10 +235,16 @@ public class RabbitMessageQueue implements MsMessageQueue {
 
             long processTime = System.currentTimeMillis() - startTime;
             traceManager.recordProcess(messageId, success, null, processTime);
+            
+            // 停止记录消息处理时间
+            metrics.stopMessageProcessing(sample);
+            metrics.incrementMessageConsumed();
 
         } catch (Exception e) {
             e.printStackTrace();
             traceManager.recordProcess(messageId, false, e.getMessage(), 0);
+            metrics.incrementMessageFailed();
+            metrics.incrementFailureCount();
         }
     }
 

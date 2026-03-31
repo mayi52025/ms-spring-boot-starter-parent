@@ -1,5 +1,8 @@
 package com.ms.middleware.lock;
 
+import com.ms.middleware.metrics.MsMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -21,8 +24,10 @@ class RedisDistributedLockTest {
     void setUp() {
         redissonClient = Mockito.mock(RedissonClient.class);
         rLock = Mockito.mock(RLock.class);
+        MeterRegistry meterRegistry = new SimpleMeterRegistry();
         when(redissonClient.getLock(anyString())).thenReturn(rLock);
-        distributedLock = new RedisDistributedLock(redissonClient);
+        MsMetrics metrics = new MsMetrics(meterRegistry);
+        distributedLock = new RedisDistributedLock(redissonClient, metrics);
     }
 
     @Test

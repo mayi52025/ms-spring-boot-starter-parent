@@ -1,5 +1,8 @@
 package com.ms.middleware.rate;
 
+import com.ms.middleware.metrics.MsMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -26,13 +29,15 @@ class RedisRateLimiterTest {
         longBucket = Mockito.mock(RBucket.class);
         tokenBucket = Mockito.mock(RBucket.class);
         sortedSet = Mockito.mock(RScoredSortedSet.class);
+        MeterRegistry meterRegistry = new SimpleMeterRegistry();
         
         // 使用类型转换解决泛型问题
         when(redissonClient.getBucket("rate:limiter:counter:test-key")).thenReturn((RBucket) longBucket);
         when(redissonClient.getBucket("rate:limiter:token:test-key")).thenReturn((RBucket) tokenBucket);
         when(redissonClient.getScoredSortedSet("rate:limiter:sliding:test-key")).thenReturn((RScoredSortedSet) sortedSet);
         
-        rateLimiter = new RedisRateLimiter(redissonClient);
+        MsMetrics metrics = new MsMetrics(meterRegistry);
+        rateLimiter = new RedisRateLimiter(redissonClient, metrics);
     }
 
     @Test

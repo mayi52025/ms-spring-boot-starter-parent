@@ -3,6 +3,9 @@ package com.ms.middleware.cache.warmup;
 import com.ms.middleware.cache.LocalCache;
 import com.ms.middleware.cache.MsCache;
 import com.ms.middleware.MsMiddlewareProperties;
+import com.ms.middleware.metrics.MsMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +29,10 @@ class CacheWarmupExecutorTest {
         MsMiddlewareProperties.LocalCacheProperties properties = new MsMiddlewareProperties.LocalCacheProperties();
         properties.setSize(100);
         properties.setTtl(60);
-        cache = new LocalCache(properties);
+        
+        MeterRegistry meterRegistry = new SimpleMeterRegistry();
+        MsMetrics metrics = new MsMetrics(meterRegistry);
+        cache = new LocalCache(properties, metrics);
 
         warmupProvider = new CacheWarmup() {
             @Override

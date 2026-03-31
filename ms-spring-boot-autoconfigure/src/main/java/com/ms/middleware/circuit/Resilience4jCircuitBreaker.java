@@ -1,5 +1,6 @@
 package com.ms.middleware.circuit;
 
+import com.ms.middleware.metrics.MsMetrics;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -17,8 +18,10 @@ public class Resilience4jCircuitBreaker implements com.ms.middleware.circuit.Cir
     private static final Logger logger = LoggerFactory.getLogger(Resilience4jCircuitBreaker.class);
 
     private final CircuitBreaker circuitBreaker;
+    private final MsMetrics metrics;
 
-    public Resilience4jCircuitBreaker(String name) {
+    public Resilience4jCircuitBreaker(String name, MsMetrics metrics) {
+        this.metrics = metrics;
         CircuitBreakerConfig config = CircuitBreakerConfig.custom()
                 .failureRateThreshold(50) // 失败率阈值，超过此值则熔断
                 .waitDurationInOpenState(Duration.ofSeconds(60)) // 熔断后等待时间
@@ -34,9 +37,16 @@ public class Resilience4jCircuitBreaker implements com.ms.middleware.circuit.Cir
     @Override
     public <T> T execute(Supplier<T> supplier) throws Exception {
         try {
-            return circuitBreaker.executeSupplier(supplier);
+            T result = circuitBreaker.executeSupplier(supplier);
+            // 检查并记录熔断状态
+            recordCircuitState();
+            return result;
         } catch (Exception e) {
             logger.error("Circuit breaker execution failed", e);
+            metrics.incrementCircuitBreakerFailed();
+            metrics.incrementFailureCount();
+            // 检查并记录熔断状态
+            recordCircuitState();
             throw e;
         }
     }
@@ -44,9 +54,15 @@ public class Resilience4jCircuitBreaker implements com.ms.middleware.circuit.Cir
     @Override
     public <T> T execute(Supplier<T> supplier, Supplier<T> fallback) {
         try {
-            return circuitBreaker.executeSupplier(supplier);
+            T result = circuitBreaker.executeSupplier(supplier);
+            // 检查并记录熔断状态
+            recordCircuitState();
+            return result;
         } catch (Exception e) {
             logger.warn("Circuit breaker opened, using fallback", e);
+            metrics.incrementCircuitBreakerFailed();
+            // 检查并记录熔断状态
+            recordCircuitState();
             return fallback.get();
         }
     }
@@ -54,9 +70,16 @@ public class Resilience4jCircuitBreaker implements com.ms.middleware.circuit.Cir
     @Override
     public <T> T executeWithExceptionHandling(Supplier<T> supplier) {
         try {
-            return circuitBreaker.executeSupplier(supplier);
+            T result = circuitBreaker.executeSupplier(supplier);
+            // 检查并记录熔断状态
+            recordCircuitState();
+            return result;
         } catch (Exception e) {
             logger.error("Circuit breaker execution failed, returning null", e);
+            metrics.incrementCircuitBreakerFailed();
+            metrics.incrementFailureCount();
+            // 检查并记录熔断状态
+            recordCircuitState();
             return null;
         }
     }
@@ -73,6 +96,24 @@ public class Resilience4jCircuitBreaker implements com.ms.middleware.circuit.Cir
                 return CircuitState.HALF_OPEN;
             default:
                 return CircuitState.CLOSED;
+        }
+    }
+
+    /**
+     * 记录熔断状态
+     */
+    private void recordCircuitState() {
+        CircuitBreaker.State state = circuitBreaker.getState();
+        switch (state) {
+            case CLOSED:
+                metrics.incrementCircuitBreakerClosed();
+                break;
+            case OPEN:
+                metrics.incrementCircuitBreakerOpen();
+                break;
+            case HALF_OPEN:
+                metrics.incrementCircuitBreakerHalfOpen();
+                break;
         }
     }
 

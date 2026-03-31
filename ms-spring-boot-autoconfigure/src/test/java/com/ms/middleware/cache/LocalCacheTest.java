@@ -1,8 +1,12 @@
 package com.ms.middleware.cache;
 
 import com.ms.middleware.MsMiddlewareProperties;
+import com.ms.middleware.metrics.MsMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class LocalCacheTest {
@@ -14,7 +18,10 @@ class LocalCacheTest {
         MsMiddlewareProperties.LocalCacheProperties properties = new MsMiddlewareProperties.LocalCacheProperties();
         properties.setSize(100);
         properties.setTtl(3600);
-        localCache = new LocalCache(properties);
+        
+        MeterRegistry meterRegistry = new SimpleMeterRegistry();
+        MsMetrics metrics = new MsMetrics(meterRegistry);
+        localCache = new LocalCache(properties, metrics);
     }
 
     @Test

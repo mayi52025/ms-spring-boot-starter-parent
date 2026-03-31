@@ -1,5 +1,6 @@
 package com.ms.middleware.rate;
 
+import com.ms.middleware.metrics.MsMetrics;
 import org.redisson.api.RBucket;
 import org.redisson.api.RScoredSortedSet;
 import org.redisson.api.RedissonClient;
@@ -16,9 +17,11 @@ public class RedisRateLimiter implements RateLimiter {
     private static final Logger logger = LoggerFactory.getLogger(RedisRateLimiter.class);
 
     private final RedissonClient redissonClient;
+    private final MsMetrics metrics;
 
-    public RedisRateLimiter(RedissonClient redissonClient) {
+    public RedisRateLimiter(RedissonClient redissonClient, MsMetrics metrics) {
         this.redissonClient = redissonClient;
+        this.metrics = metrics;
     }
 
     @Override
@@ -30,18 +33,22 @@ public class RedisRateLimiter implements RateLimiter {
             Long count = bucket.get();
             if (count == null) {
                 bucket.set(1L, window, unit);
+                metrics.incrementRateLimitPassed();
                 return true;
             }
 
             if (count < limit) {
                 bucket.set(count + 1, window, unit);
+                metrics.incrementRateLimitPassed();
                 return true;
             }
 
             logger.debug("Rate limit exceeded for key: {}", key);
+            metrics.incrementRateLimitRejected();
             return false;
         } catch (Exception e) {
             logger.error("Failed to acquire rate limit: {}", key, e);
+            metrics.incrementFailureCount();
             return true; // 降级策略：允许请求通过
         }
     }
@@ -61,6 +68,7 @@ public class RedisRateLimiter implements RateLimiter {
                 state.setLastRefillTime(now);
                 state.setTokens(capacity - 1); // 消耗一个令牌
                 bucket.set(state, window, unit);
+                metrics.incrementRateLimitPassed();
                 return true;
             }
 
@@ -77,13 +85,16 @@ public class RedisRateLimiter implements RateLimiter {
             if (state.getTokens() > 0) {
                 state.setTokens(state.getTokens() - 1);
                 bucket.set(state, window, unit);
+                metrics.incrementRateLimitPassed();
                 return true;
             }
 
             logger.debug("Token bucket rate limit exceeded for key: {}", key);
+            metrics.incrementRateLimitRejected();
             return false;
         } catch (Exception e) {
             logger.error("Failed to acquire token bucket rate limit: {}", key, e);
+            metrics.incrementFailureCount();
             return true; // 降级策略：允许请求通过
         }
     }
@@ -107,13 +118,16 @@ public class RedisRateLimiter implements RateLimiter {
                 sortedSet.add(now, String.valueOf(now));
                 // 设置过期时间，避免内存泄漏
                 sortedSet.expire(window, unit);
+                metrics.incrementRateLimitPassed();
                 return true;
             }
 
             logger.debug("Sliding window rate limit exceeded for key: {}", key);
+            metrics.incrementRateLimitRejected();
             return false;
         } catch (Exception e) {
             logger.error("Failed to acquire sliding window rate limit: {}", key, e);
+            metrics.incrementFailureCount();
             return true; // 降级策略：允许请求通过
         }
     }

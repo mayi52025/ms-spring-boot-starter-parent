@@ -4,6 +4,9 @@ import com.ms.middleware.cache.DistributedCache;
 import com.ms.middleware.cache.LocalCache;
 import com.ms.middleware.cache.MultiLevelCache;
 import com.ms.middleware.MsMiddlewareProperties;
+import com.ms.middleware.metrics.MsMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -21,15 +24,19 @@ class MultiLevelCacheConsistencyIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        // 创建 MeterRegistry 和 MsMetrics 实例
+        MeterRegistry meterRegistry = new SimpleMeterRegistry();
+        MsMetrics metrics = new MsMetrics(meterRegistry);
+        
         MsMiddlewareProperties.LocalCacheProperties localProperties = new MsMiddlewareProperties.LocalCacheProperties();
         localProperties.setSize(100);
         localProperties.setTtl(60);
-        localCache = new LocalCache(localProperties);
+        localCache = new LocalCache(localProperties, metrics);
 
         MsMiddlewareProperties.DistributedCacheProperties distributedProperties = new MsMiddlewareProperties.DistributedCacheProperties();
         distributedProperties.setTtl(300);
         distributedProperties.setEnabled(false);
-        distributedCache = new TestDistributedCache(distributedProperties);
+        distributedCache = new TestDistributedCache(distributedProperties, metrics);
 
         multiLevelCache = new MultiLevelCache(localCache, distributedCache);
         consistencyManager = new CacheConsistencyManager();
@@ -109,8 +116,8 @@ class MultiLevelCacheConsistencyIntegrationTest {
     static class TestDistributedCache extends DistributedCache {
         private final java.util.Map<String, Object> cache = new java.util.HashMap<>();
 
-        public TestDistributedCache(MsMiddlewareProperties.DistributedCacheProperties properties) {
-            super(null, properties);
+        public TestDistributedCache(MsMiddlewareProperties.DistributedCacheProperties properties, MsMetrics metrics) {
+            super(null, properties, metrics);
         }
 
         @Override

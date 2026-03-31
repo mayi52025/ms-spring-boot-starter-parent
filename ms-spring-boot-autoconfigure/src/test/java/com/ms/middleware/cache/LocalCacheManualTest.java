@@ -1,6 +1,9 @@
 package com.ms.middleware.cache;
 
 import com.ms.middleware.MsMiddlewareProperties;
+import com.ms.middleware.metrics.MsMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 public class LocalCacheManualTest {
 
@@ -9,7 +12,11 @@ public class LocalCacheManualTest {
         MsMiddlewareProperties.LocalCacheProperties properties = new MsMiddlewareProperties.LocalCacheProperties();
         properties.setSize(100);
         properties.setTtl(3600);
-        LocalCache localCache = new LocalCache(properties);
+        
+        MeterRegistry meterRegistry = new SimpleMeterRegistry();
+        MsMetrics metrics = new MsMetrics(meterRegistry);
+        
+        LocalCache localCache = new LocalCache(properties, metrics);
 
         // 测试基本操作
         localCache.put("key1", "value1");

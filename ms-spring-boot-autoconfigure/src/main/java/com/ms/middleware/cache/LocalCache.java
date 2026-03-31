@@ -4,6 +4,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.cache.stats.CacheStats;
+import com.ms.middleware.metrics.MsMetrics;
 
 import java.util.concurrent.TimeUnit;
 
@@ -16,10 +17,12 @@ public class LocalCache implements MsCache {
     private final Cache<String, Object> cache;
     private final MsMiddlewareProperties.LocalCacheProperties localCacheProperties;
     private final CacheStats stats;
+    private final MsMetrics metrics;
 
-    public LocalCache(MsMiddlewareProperties.LocalCacheProperties localCacheProperties) {
+    public LocalCache(MsMiddlewareProperties.LocalCacheProperties localCacheProperties, MsMetrics metrics) {
         this.localCacheProperties = localCacheProperties;
         this.stats = new CacheStats();
+        this.metrics = metrics;
         this.cache = buildCache();
     }
 
@@ -36,8 +39,10 @@ public class LocalCache implements MsCache {
         T value = (T) cache.getIfPresent(key);
         if (value != null) {
             stats.recordHit();
+            metrics.incrementCacheHits();
         } else {
             stats.recordMiss();
+            metrics.incrementCacheMisses();
         }
         return value;
     }
@@ -48,8 +53,10 @@ public class LocalCache implements MsCache {
         T value = (T) cache.getIfPresent(key);
         if (value != null) {
             stats.recordHit();
+            metrics.incrementCacheHits();
         } else {
             stats.recordMiss();
+            metrics.incrementCacheMisses();
         }
         return value != null ? value : defaultValue;
     }
@@ -58,12 +65,14 @@ public class LocalCache implements MsCache {
     public void put(String key, Object value) {
         cache.put(key, value);
         stats.recordPut();
+        metrics.incrementCachePuts();
     }
 
     @Override
     public void put(String key, Object value, long expire, TimeUnit timeUnit) {
         cache.put(key, value);
         stats.recordPut();
+        metrics.incrementCachePuts();
     }
 
     @Override
@@ -93,7 +102,9 @@ public class LocalCache implements MsCache {
 
     @Override
     public long size() {
-        return cache.estimatedSize();
+        long size = cache.estimatedSize();
+        metrics.setCacheSize(size);
+        return size;
     }
 
     @Override

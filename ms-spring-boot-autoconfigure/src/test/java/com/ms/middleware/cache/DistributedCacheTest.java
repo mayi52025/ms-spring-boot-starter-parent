@@ -1,6 +1,9 @@
 package com.ms.middleware.cache;
 
 import com.ms.middleware.MsMiddlewareProperties;
+import com.ms.middleware.metrics.MsMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -36,7 +39,9 @@ class DistributedCacheTest {
 
         when(redissonClient.getBucket(anyString())).thenReturn(mockBucket);
 
-        distributedCache = new DistributedCache(redissonClient, properties);
+        MeterRegistry meterRegistry = new SimpleMeterRegistry();
+        MsMetrics metrics = new MsMetrics(meterRegistry);
+        distributedCache = new DistributedCache(redissonClient, properties, metrics);
     }
 
     @Test

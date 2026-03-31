@@ -2,6 +2,7 @@ package com.ms.middleware.cache;
 
 import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.cache.stats.CacheStats;
+import com.ms.middleware.metrics.MsMetrics;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 
@@ -16,12 +17,15 @@ public class DistributedCache implements MsCache {
     private final RedissonClient redissonClient;
     private final MsMiddlewareProperties.DistributedCacheProperties distributedCacheProperties;
     private final CacheStats stats;
+    private final MsMetrics metrics;
 
     public DistributedCache(RedissonClient redissonClient, 
-                           MsMiddlewareProperties.DistributedCacheProperties distributedCacheProperties) {
+                           MsMiddlewareProperties.DistributedCacheProperties distributedCacheProperties, 
+                           MsMetrics metrics) {
         this.redissonClient = redissonClient;
         this.distributedCacheProperties = distributedCacheProperties;
         this.stats = new CacheStats();
+        this.metrics = metrics;
     }
 
     @Override
@@ -32,12 +36,15 @@ public class DistributedCache implements MsCache {
             T value = bucket.get();
             if (value != null) {
                 stats.recordHit();
+                metrics.incrementCacheHits();
             } else {
                 stats.recordMiss();
+                metrics.incrementCacheMisses();
             }
             return value;
         } catch (Exception e) {
             stats.recordError();
+            metrics.incrementFailureCount();
             throw new CacheException("Failed to get value from distributed cache", e);
         }
     }
@@ -50,12 +57,15 @@ public class DistributedCache implements MsCache {
             T value = bucket.get();
             if (value != null) {
                 stats.recordHit();
+                metrics.incrementCacheHits();
             } else {
                 stats.recordMiss();
+                metrics.incrementCacheMisses();
             }
             return value != null ? value : defaultValue;
         } catch (Exception e) {
             stats.recordError();
+            metrics.incrementFailureCount();
             throw new CacheException("Failed to get value from distributed cache", e);
         }
     }
@@ -66,8 +76,10 @@ public class DistributedCache implements MsCache {
             RBucket<Object> bucket = redissonClient.getBucket(key);
             bucket.set(value, distributedCacheProperties.getTtl(), TimeUnit.SECONDS);
             stats.recordPut();
+            metrics.incrementCachePuts();
         } catch (Exception e) {
             stats.recordError();
+            metrics.incrementFailureCount();
             throw new CacheException("Failed to put value to distributed cache", e);
         }
     }
@@ -78,8 +90,10 @@ public class DistributedCache implements MsCache {
             RBucket<Object> bucket = redissonClient.getBucket(key);
             bucket.set(value, expire, timeUnit);
             stats.recordPut();
+            metrics.incrementCachePuts();
         } catch (Exception e) {
             stats.recordError();
+            metrics.incrementFailureCount();
             throw new CacheException("Failed to put value to distributed cache", e);
         }
     }
@@ -91,6 +105,7 @@ public class DistributedCache implements MsCache {
             stats.recordRemove();
         } catch (Exception e) {
             stats.recordError();
+            metrics.incrementFailureCount();
             throw new CacheException("Failed to remove value from distributed cache", e);
         }
     }
@@ -104,6 +119,7 @@ public class DistributedCache implements MsCache {
             }
         } catch (Exception e) {
             stats.recordError();
+            metrics.incrementFailureCount();
             throw new CacheException("Failed to remove values from distributed cache", e);
         }
     }
@@ -115,6 +131,7 @@ public class DistributedCache implements MsCache {
             stats.recordClear();
         } catch (Exception e) {
             stats.recordError();
+            metrics.incrementFailureCount();
             throw new CacheException("Failed to clear distributed cache", e);
         }
     }
@@ -125,6 +142,7 @@ public class DistributedCache implements MsCache {
             return redissonClient.getBucket(key).isExists();
         } catch (Exception e) {
             stats.recordError();
+            metrics.incrementFailureCount();
             throw new CacheException("Failed to check existence in distributed cache", e);
         }
     }
@@ -132,9 +150,12 @@ public class DistributedCache implements MsCache {
     @Override
     public long size() {
         try {
-            return redissonClient.getKeys().count();
+            long size = redissonClient.getKeys().count();
+            metrics.setCacheSize(size);
+            return size;
         } catch (Exception e) {
             stats.recordError();
+            metrics.incrementFailureCount();
             throw new CacheException("Failed to get distributed cache size", e);
         }
     }

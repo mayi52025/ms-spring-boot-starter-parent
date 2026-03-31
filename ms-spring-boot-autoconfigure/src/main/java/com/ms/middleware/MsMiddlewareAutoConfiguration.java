@@ -9,6 +9,7 @@ import com.ms.middleware.circuit.Resilience4jCircuitBreaker;
 import com.ms.middleware.health.*;
 import com.ms.middleware.lock.DistributedLock;
 import com.ms.middleware.lock.RedisDistributedLock;
+import com.ms.middleware.metrics.MsMetrics;
 import com.ms.middleware.mq.MsMessageQueue;
 import com.ms.middleware.mq.RabbitMessageQueue;
 import com.ms.middleware.mq.idempotent.IdempotentStore;
@@ -47,15 +48,15 @@ public class MsMiddlewareAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(LocalCache.class)
     @ConditionalOnProperty(prefix = "ms.middleware.cache.local", name = "enabled", havingValue = "true")
-    public LocalCache localCache() {
-        return new LocalCache(properties.getCache().getLocal());
+    public LocalCache localCache(MsMetrics metrics) {
+        return new LocalCache(properties.getCache().getLocal(), metrics);
     }
 
     @Bean
     @ConditionalOnMissingBean(DistributedCache.class)
     @ConditionalOnProperty(prefix = "ms.middleware.cache.distributed", name = "enabled", havingValue = "true")
-    public DistributedCache distributedCache(RedissonClient redissonClient) {
-        return new DistributedCache(redissonClient, properties.getCache().getDistributed());
+    public DistributedCache distributedCache(RedissonClient redissonClient, MsMetrics metrics) {
+        return new DistributedCache(redissonClient, properties.getCache().getDistributed(), metrics);
     }
 
     @Bean
@@ -119,8 +120,9 @@ public class MsMiddlewareAutoConfiguration {
     public MsMessageQueue msMessageQueue(RabbitTemplate rabbitTemplate, 
                                          CachingConnectionFactory connectionFactory, 
                                          ObjectMapper objectMapper, 
-                                         IdempotentStore idempotentStore) {
-        return new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper, idempotentStore);
+                                         IdempotentStore idempotentStore, 
+                                         MsMetrics metrics) {
+        return new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper, idempotentStore, metrics);
     }
 
     // ==================== 故障自愈配置 ====================
@@ -202,23 +204,23 @@ public class MsMiddlewareAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(DistributedLock.class)
-    public DistributedLock distributedLock(RedissonClient redissonClient) {
-        return new RedisDistributedLock(redissonClient);
+    public DistributedLock distributedLock(RedissonClient redissonClient, MsMetrics metrics) {
+        return new RedisDistributedLock(redissonClient, metrics);
     }
 
     // ==================== 限流配置 ====================
 
     @Bean
     @ConditionalOnMissingBean(RateLimiter.class)
-    public RateLimiter rateLimiter(RedissonClient redissonClient) {
-        return new RedisRateLimiter(redissonClient);
+    public RateLimiter rateLimiter(RedissonClient redissonClient, MsMetrics metrics) {
+        return new RedisRateLimiter(redissonClient, metrics);
     }
 
     // ==================== 熔断配置 ====================
 
     @Bean
     @ConditionalOnMissingBean(CircuitBreaker.class)
-    public CircuitBreaker circuitBreaker() {
-        return new Resilience4jCircuitBreaker("ms-middleware-circuit-breaker");
+    public CircuitBreaker circuitBreaker(MsMetrics metrics) {
+        return new Resilience4jCircuitBreaker("ms-middleware-circuit-breaker", metrics);
     }
 }

@@ -1,6 +1,9 @@
 package com.ms.middleware.cache;
 
 import com.ms.middleware.MsMiddlewareProperties;
+import com.ms.middleware.metrics.MsMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -30,12 +33,16 @@ class MultiLevelCacheTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         
+        // 创建 MsMetrics 实例
+        MeterRegistry meterRegistry = new SimpleMeterRegistry();
+        MsMetrics metrics = new MsMetrics(meterRegistry);
+        
         // 初始化本地缓存
         MsMiddlewareProperties.LocalCacheProperties localProperties = 
             new MsMiddlewareProperties.LocalCacheProperties();
         localProperties.setSize(100);
         localProperties.setTtl(60);
-        localCache = new LocalCache(localProperties);
+        localCache = new LocalCache(localProperties, metrics);
 
         // 初始化分布式缓存
         MsMiddlewareProperties.DistributedCacheProperties distributedProperties = 
@@ -44,7 +51,7 @@ class MultiLevelCacheTest {
         distributedProperties.setEnabled(true);
 
         when(redissonClient.getBucket(anyString())).thenReturn(mockBucket);
-        distributedCache = new DistributedCache(redissonClient, distributedProperties);
+        distributedCache = new DistributedCache(redissonClient, distributedProperties, metrics);
 
         // 初始化多级缓存
         multiLevelCache = new MultiLevelCache(localCache, distributedCache);

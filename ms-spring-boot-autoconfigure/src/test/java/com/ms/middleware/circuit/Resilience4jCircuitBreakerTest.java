@@ -1,5 +1,8 @@
 package com.ms.middleware.circuit;
 
+import com.ms.middleware.metrics.MsMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -13,7 +16,9 @@ class Resilience4jCircuitBreakerTest {
 
     @BeforeEach
     void setUp() {
-        circuitBreaker = new Resilience4jCircuitBreaker("test-circuit-breaker");
+        MeterRegistry meterRegistry = new SimpleMeterRegistry();
+        MsMetrics metrics = new MsMetrics(meterRegistry);
+        circuitBreaker = new Resilience4jCircuitBreaker("test-circuit-breaker", metrics);
     }
 
     @Test
