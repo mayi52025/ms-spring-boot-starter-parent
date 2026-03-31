@@ -1,5 +1,6 @@
 package com.ms.middleware.lock;
 
+import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.metrics.MsMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -25,9 +26,10 @@ class RedisDistributedLockTest {
         redissonClient = Mockito.mock(RedissonClient.class);
         rLock = Mockito.mock(RLock.class);
         MeterRegistry meterRegistry = new SimpleMeterRegistry();
+        MsMiddlewareProperties properties = new MsMiddlewareProperties();
         when(redissonClient.getLock(anyString())).thenReturn(rLock);
         MsMetrics metrics = new MsMetrics(meterRegistry);
-        distributedLock = new RedisDistributedLock(redissonClient, metrics);
+        distributedLock = new RedisDistributedLock(redissonClient, metrics, properties);
     }
 
     @Test

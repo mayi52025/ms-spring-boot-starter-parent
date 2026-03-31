@@ -1,6 +1,7 @@
 package com.ms.middleware.mq;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.metrics.MsMetrics;
 import com.ms.middleware.mq.idempotent.IdempotentStore;
 import com.ms.middleware.mq.idempotent.RedisIdempotentStore;
@@ -36,10 +37,11 @@ class RabbitMessageQueueTest {
         RedissonClient redissonClient = Mockito.mock(RedissonClient.class);
         idempotentStore = new RedisIdempotentStore(redissonClient);
         MeterRegistry meterRegistry = new SimpleMeterRegistry();
+        MsMiddlewareProperties properties = new MsMiddlewareProperties();
         MsMetrics metrics = new MsMetrics(meterRegistry);
 
         // 创建消息队列实例
-        messageQueue = new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper, idempotentStore, metrics);
+        messageQueue = new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper, idempotentStore, properties, metrics);
     }
 
     @Test

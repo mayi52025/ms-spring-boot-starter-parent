@@ -32,16 +32,18 @@ class DistributedCacheTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         
-        MsMiddlewareProperties.DistributedCacheProperties properties = 
+        MsMiddlewareProperties properties = new MsMiddlewareProperties();
+        MsMiddlewareProperties.DistributedCacheProperties distributedProperties = 
             new MsMiddlewareProperties.DistributedCacheProperties();
-        properties.setTtl(300);
-        properties.setEnabled(true);
+        distributedProperties.setTtl(300);
+        distributedProperties.setEnabled(true);
+        properties.getCache().setDistributed(distributedProperties);
 
         when(redissonClient.getBucket(anyString())).thenReturn(mockBucket);
 
         MeterRegistry meterRegistry = new SimpleMeterRegistry();
         MsMetrics metrics = new MsMetrics(meterRegistry);
-        distributedCache = new DistributedCache(redissonClient, properties, metrics);
+        distributedCache = new DistributedCache(redissonClient, distributedProperties, properties, metrics);
     }
 
     @Test

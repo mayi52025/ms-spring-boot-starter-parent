@@ -56,7 +56,7 @@ public class MsMiddlewareAutoConfiguration {
     @ConditionalOnMissingBean(DistributedCache.class)
     @ConditionalOnProperty(prefix = "ms.middleware.cache.distributed", name = "enabled", havingValue = "true")
     public DistributedCache distributedCache(RedissonClient redissonClient, MsMetrics metrics) {
-        return new DistributedCache(redissonClient, properties.getCache().getDistributed(), metrics);
+        return new DistributedCache(redissonClient, properties.getCache().getDistributed(), properties, metrics);
     }
 
     @Bean
@@ -122,7 +122,7 @@ public class MsMiddlewareAutoConfiguration {
                                          ObjectMapper objectMapper, 
                                          IdempotentStore idempotentStore, 
                                          MsMetrics metrics) {
-        return new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper, idempotentStore, metrics);
+        return new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper, idempotentStore, properties, metrics);
     }
 
     // ==================== 故障自愈配置 ====================
@@ -205,7 +205,7 @@ public class MsMiddlewareAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(DistributedLock.class)
     public DistributedLock distributedLock(RedissonClient redissonClient, MsMetrics metrics) {
-        return new RedisDistributedLock(redissonClient, metrics);
+        return new RedisDistributedLock(redissonClient, metrics, properties);
     }
 
     // ==================== 限流配置 ====================

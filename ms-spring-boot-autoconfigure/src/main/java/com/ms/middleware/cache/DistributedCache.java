@@ -3,6 +3,7 @@ package com.ms.middleware.cache;
 import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.cache.stats.CacheStats;
 import com.ms.middleware.metrics.MsMetrics;
+import com.ms.middleware.security.SecurityUtils;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 
@@ -16,23 +17,39 @@ public class DistributedCache implements MsCache {
 
     private final RedissonClient redissonClient;
     private final MsMiddlewareProperties.DistributedCacheProperties distributedCacheProperties;
+    private final MsMiddlewareProperties.SecurityProperties securityProperties;
     private final CacheStats stats;
     private final MsMetrics metrics;
 
     public DistributedCache(RedissonClient redissonClient, 
                            MsMiddlewareProperties.DistributedCacheProperties distributedCacheProperties, 
+                           MsMiddlewareProperties properties, 
                            MsMetrics metrics) {
         this.redissonClient = redissonClient;
         this.distributedCacheProperties = distributedCacheProperties;
+        this.securityProperties = properties.getSecurity();
         this.stats = new CacheStats();
         this.metrics = metrics;
+    }
+
+    /**
+     * 生成安全的缓存键
+     * @param key 原始键
+     * @return 安全的缓存键
+     */
+    private String generateSecureCacheKey(String key) {
+        if (securityProperties.isEnabled() && securityProperties.getCache().isAccessControlEnabled()) {
+            return SecurityUtils.generateSecureCacheKey(key, securityProperties.getCache().getKeyPrefix());
+        }
+        return key;
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public <T> T get(String key) {
         try {
-            RBucket<T> bucket = redissonClient.getBucket(key);
+            String secureKey = generateSecureCacheKey(key);
+            RBucket<T> bucket = redissonClient.getBucket(secureKey);
             T value = bucket.get();
             if (value != null) {
                 stats.recordHit();
@@ -53,7 +70,8 @@ public class DistributedCache implements MsCache {
     @SuppressWarnings("unchecked")
     public <T> T get(String key, T defaultValue) {
         try {
-            RBucket<T> bucket = redissonClient.getBucket(key);
+            String secureKey = generateSecureCacheKey(key);
+            RBucket<T> bucket = redissonClient.getBucket(secureKey);
             T value = bucket.get();
             if (value != null) {
                 stats.recordHit();
@@ -73,7 +91,8 @@ public class DistributedCache implements MsCache {
     @Override
     public void put(String key, Object value) {
         try {
-            RBucket<Object> bucket = redissonClient.getBucket(key);
+            String secureKey = generateSecureCacheKey(key);
+            RBucket<Object> bucket = redissonClient.getBucket(secureKey);
             bucket.set(value, distributedCacheProperties.getTtl(), TimeUnit.SECONDS);
             stats.recordPut();
             metrics.incrementCachePuts();
@@ -87,7 +106,8 @@ public class DistributedCache implements MsCache {
     @Override
     public void put(String key, Object value, long expire, TimeUnit timeUnit) {
         try {
-            RBucket<Object> bucket = redissonClient.getBucket(key);
+            String secureKey = generateSecureCacheKey(key);
+            RBucket<Object> bucket = redissonClient.getBucket(secureKey);
             bucket.set(value, expire, timeUnit);
             stats.recordPut();
             metrics.incrementCachePuts();
@@ -101,7 +121,8 @@ public class DistributedCache implements MsCache {
     @Override
     public void remove(String key) {
         try {
-            redissonClient.getBucket(key).delete();
+            String secureKey = generateSecureCacheKey(key);
+            redissonClient.getBucket(secureKey).delete();
             stats.recordRemove();
         } catch (Exception e) {
             stats.recordError();
@@ -114,7 +135,8 @@ public class DistributedCache implements MsCache {
     public void remove(String... keys) {
         try {
             for (String key : keys) {
-                redissonClient.getBucket(key).delete();
+                String secureKey = generateSecureCacheKey(key);
+                redissonClient.getBucket(secureKey).delete();
                 stats.recordRemove();
             }
         } catch (Exception e) {
@@ -139,7 +161,8 @@ public class DistributedCache implements MsCache {
     @Override
     public boolean exists(String key) {
         try {
-            return redissonClient.getBucket(key).isExists();
+            String secureKey = generateSecureCacheKey(key);
+            return redissonClient.getBucket(secureKey).isExists();
         } catch (Exception e) {
             stats.recordError();
             metrics.incrementFailureCount();

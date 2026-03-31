@@ -128,7 +128,7 @@ class MultiLevelCacheConsistencyListenerTest {
         private final java.util.Map<String, Object> cache = new java.util.HashMap<>();
 
         public TestDistributedCache(MsMiddlewareProperties.DistributedCacheProperties properties, MsMetrics metrics) {
-            super(null, properties, metrics);
+            super(null, properties, new MsMiddlewareProperties(), metrics);
         }
 
         @Override

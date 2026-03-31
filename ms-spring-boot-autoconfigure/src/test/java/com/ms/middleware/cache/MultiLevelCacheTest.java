@@ -45,13 +45,14 @@ class MultiLevelCacheTest {
         localCache = new LocalCache(localProperties, metrics);
 
         // 初始化分布式缓存
+        MsMiddlewareProperties properties = new MsMiddlewareProperties();
         MsMiddlewareProperties.DistributedCacheProperties distributedProperties = 
             new MsMiddlewareProperties.DistributedCacheProperties();
         distributedProperties.setTtl(300);
         distributedProperties.setEnabled(true);
 
         when(redissonClient.getBucket(anyString())).thenReturn(mockBucket);
-        distributedCache = new DistributedCache(redissonClient, distributedProperties, metrics);
+        distributedCache = new DistributedCache(redissonClient, distributedProperties, properties, metrics);
 
         // 初始化多级缓存
         multiLevelCache = new MultiLevelCache(localCache, distributedCache);

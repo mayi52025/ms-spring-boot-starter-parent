@@ -1,11 +1,13 @@
 package com.ms.middleware.mq;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.metrics.MsMetrics;
 import com.ms.middleware.mq.idempotent.IdempotentConsumer;
 import com.ms.middleware.mq.idempotent.IdempotentStore;
 import com.ms.middleware.mq.trace.MessageTrace;
 import com.ms.middleware.mq.trace.MessageTraceManager;
+import com.ms.middleware.security.SecurityUtils;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
@@ -31,21 +33,59 @@ public class RabbitMessageQueue implements MsMessageQueue {
     private final MessageTraceManager traceManager;
     private final IdempotentStore idempotentStore;
     private final MsMetrics metrics;
+    private final MsMiddlewareProperties.SecurityProperties securityProperties;
 
     public RabbitMessageQueue(RabbitTemplate rabbitTemplate, 
                            ConnectionFactory connectionFactory, 
                            ObjectMapper objectMapper, 
                            IdempotentStore idempotentStore, 
+                           MsMiddlewareProperties properties, 
                            MsMetrics metrics) {
         this.rabbitTemplate = rabbitTemplate;
         this.connectionFactory = connectionFactory;
         this.objectMapper = objectMapper;
         this.traceManager = MessageTraceManager.getInstance();
         this.idempotentStore = idempotentStore;
+        this.securityProperties = properties.getSecurity();
         this.metrics = metrics;
         
         // 配置消息转换器
         rabbitTemplate.setMessageConverter(new Jackson2JsonMessageConverter(objectMapper));
+    }
+
+    /**
+     * 加密消息
+     * @param message 原始消息
+     * @return 加密后的消息
+     */
+    private String encryptMessage(Object message) {
+        try {
+            if (securityProperties.isEnabled() && securityProperties.getMq().isEncryptionEnabled()) {
+                String messageStr = objectMapper.writeValueAsString(message);
+                return SecurityUtils.encryptAES(messageStr, securityProperties.getMq().getEncryptionKey());
+            }
+            return objectMapper.writeValueAsString(message);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to encrypt message", e);
+        }
+    }
+
+    /**
+     * 解密消息
+     * @param encryptedMessage 加密后的消息
+     * @param targetType 目标类型
+     * @return 解密后的消息
+     */
+    private <T> T decryptMessage(String encryptedMessage, Class<T> targetType) {
+        try {
+            if (securityProperties.isEnabled() && securityProperties.getMq().isEncryptionEnabled()) {
+                String decryptedStr = SecurityUtils.decryptAES(encryptedMessage, securityProperties.getMq().getEncryptionKey());
+                return objectMapper.readValue(decryptedStr, targetType);
+            }
+            return objectMapper.readValue(encryptedMessage, targetType);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to decrypt message", e);
+        }
     }
 
     @Override
@@ -63,10 +103,14 @@ public class RabbitMessageQueue implements MsMessageQueue {
                 .build();
             traceManager.recordSend(trace);
 
+            // 加密消息
+            String encryptedMessage = encryptMessage(message);
+
             // 发送消息
-            rabbitTemplate.convertAndSend(exchange, routingKey, message, msg -> {
+            rabbitTemplate.convertAndSend(exchange, routingKey, encryptedMessage, msg -> {
                 msg.getMessageProperties().setMessageId(messageId);
                 msg.getMessageProperties().setTimestamp(new java.util.Date());
+                msg.getMessageProperties().setHeader("encrypted", securityProperties.isEnabled() && securityProperties.getMq().isEncryptionEnabled());
                 return msg;
             });
             metrics.incrementMessagePublished();
@@ -98,10 +142,14 @@ public class RabbitMessageQueue implements MsMessageQueue {
                 .build();
             traceManager.recordSend(trace);
 
+            // 加密消息
+            String encryptedMessage = encryptMessage(message);
+
             // 发送消息
-            rabbitTemplate.convertAndSend(exchange, routingKey, message, msg -> {
+            rabbitTemplate.convertAndSend(exchange, routingKey, encryptedMessage, msg -> {
                 msg.getMessageProperties().setMessageId(messageId);
                 msg.getMessageProperties().setTimestamp(new java.util.Date());
+                msg.getMessageProperties().setHeader("encrypted", securityProperties.isEnabled() && securityProperties.getMq().isEncryptionEnabled());
                 if (headers != null) {
                     msg.getMessageProperties().getHeaders().putAll(headers);
                 }
@@ -131,11 +179,15 @@ public class RabbitMessageQueue implements MsMessageQueue {
                 .build();
             traceManager.recordSend(trace);
 
+            // 加密消息
+            String encryptedMessage = encryptMessage(message);
+
             // 发送延迟消息
-            rabbitTemplate.convertAndSend(exchange, routingKey, message, msg -> {
+            rabbitTemplate.convertAndSend(exchange, routingKey, encryptedMessage, msg -> {
                 msg.getMessageProperties().setMessageId(messageId);
                 msg.getMessageProperties().setTimestamp(new java.util.Date());
                 msg.getMessageProperties().setHeader("x-delay", delay);
+                msg.getMessageProperties().setHeader("encrypted", securityProperties.isEnabled() && securityProperties.getMq().isEncryptionEnabled());
                 return msg;
             });
             metrics.incrementMessagePublished();
@@ -162,11 +214,15 @@ public class RabbitMessageQueue implements MsMessageQueue {
                 .build();
             traceManager.recordSend(trace);
 
+            // 加密消息
+            String encryptedMessage = encryptMessage(message);
+
             // 发送顺序消息（使用orderKey作为分区键）
-            rabbitTemplate.convertAndSend(exchange, routingKey, message, msg -> {
+            rabbitTemplate.convertAndSend(exchange, routingKey, encryptedMessage, msg -> {
                 msg.getMessageProperties().setMessageId(messageId);
                 msg.getMessageProperties().setTimestamp(new java.util.Date());
                 msg.getMessageProperties().setHeader("order-key", orderKey);
+                msg.getMessageProperties().setHeader("encrypted", securityProperties.isEnabled() && securityProperties.getMq().isEncryptionEnabled());
                 return msg;
             });
             metrics.incrementMessagePublished();
@@ -210,8 +266,14 @@ public class RabbitMessageQueue implements MsMessageQueue {
         Object payload = null;
 
         try {
-            // 反序列化消息
-            payload = objectMapper.readValue(message.getBody(), Object.class);
+            // 反序列化并解密消息
+            String messageBody = new String(message.getBody());
+            Boolean isEncrypted = (Boolean) headers.get("encrypted");
+            if (isEncrypted != null && isEncrypted) {
+                payload = decryptMessage(messageBody, Object.class);
+            } else {
+                payload = objectMapper.readValue(message.getBody(), Object.class);
+            }
 
             // 记录消息接收
             traceManager.recordReceive(messageId, message.getMessageProperties().getConsumerQueue(), getReceiver());

@@ -24,6 +24,11 @@ public class MsMiddlewareProperties {
     private RedisProperties redis = new RedisProperties();
 
     /**
+     * 安全配置
+     */
+    private SecurityProperties security = new SecurityProperties();
+
+    /**
      * AI配置
      */
     private AiProperties ai = new AiProperties();
@@ -59,6 +64,14 @@ public class MsMiddlewareProperties {
 
     public void setRedis(RedisProperties redis) {
         this.redis = redis;
+    }
+
+    public SecurityProperties getSecurity() {
+        return security;
+    }
+
+    public void setSecurity(SecurityProperties security) {
+        this.security = security;
     }
 
     /**
@@ -631,6 +644,212 @@ public class MsMiddlewareProperties {
 
         public void setDatabase(int database) {
             this.database = database;
+        }
+    }
+
+    /**
+     * 安全配置
+     */
+    public static class SecurityProperties {
+        /**
+         * 是否启用安全功能
+         */
+        private boolean enabled = true;
+
+        /**
+         * 缓存安全配置
+         */
+        private CacheSecurityProperties cache = new CacheSecurityProperties();
+
+        /**
+         * 消息队列安全配置
+         */
+        private MqSecurityProperties mq = new MqSecurityProperties();
+
+        /**
+         * 锁安全配置
+         */
+        private LockSecurityProperties lock = new LockSecurityProperties();
+
+        // Getters and Setters
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public CacheSecurityProperties getCache() {
+            return cache;
+        }
+
+        public void setCache(CacheSecurityProperties cache) {
+            this.cache = cache;
+        }
+
+        public MqSecurityProperties getMq() {
+            return mq;
+        }
+
+        public void setMq(MqSecurityProperties mq) {
+            this.mq = mq;
+        }
+
+        public LockSecurityProperties getLock() {
+            return lock;
+        }
+
+        public void setLock(LockSecurityProperties lock) {
+            this.lock = lock;
+        }
+    }
+
+    /**
+     * 缓存安全配置
+     */
+    public static class CacheSecurityProperties {
+        /**
+         * 是否启用访问控制
+         */
+        private boolean accessControlEnabled = true;
+
+        /**
+         * 缓存键前缀
+         */
+        private String keyPrefix = "ms:cache:";
+
+        /**
+         * 缓存访问超时时间（毫秒）
+         */
+        private long accessTimeout = 5000;
+
+        // Getters and Setters
+        public boolean isAccessControlEnabled() {
+            return accessControlEnabled;
+        }
+
+        public void setAccessControlEnabled(boolean accessControlEnabled) {
+            this.accessControlEnabled = accessControlEnabled;
+        }
+
+        public String getKeyPrefix() {
+            return keyPrefix;
+        }
+
+        public void setKeyPrefix(String keyPrefix) {
+            this.keyPrefix = keyPrefix;
+        }
+
+        public long getAccessTimeout() {
+            return accessTimeout;
+        }
+
+        public void setAccessTimeout(long accessTimeout) {
+            this.accessTimeout = accessTimeout;
+        }
+    }
+
+    /**
+     * 消息队列安全配置
+     */
+    public static class MqSecurityProperties {
+        /**
+         * 是否启用消息加密
+         */
+        private boolean encryptionEnabled = true;
+
+        /**
+         * 是否启用权限管理
+         */
+        private boolean permissionEnabled = true;
+
+        /**
+         * 加密密钥
+         */
+        private String encryptionKey = "ms-middleware-secret-key";
+
+        /**
+         * 权限前缀
+         */
+        private String permissionPrefix = "ms:mq:permission:";
+
+        // Getters and Setters
+        public boolean isEncryptionEnabled() {
+            return encryptionEnabled;
+        }
+
+        public void setEncryptionEnabled(boolean encryptionEnabled) {
+            this.encryptionEnabled = encryptionEnabled;
+        }
+
+        public boolean isPermissionEnabled() {
+            return permissionEnabled;
+        }
+
+        public void setPermissionEnabled(boolean permissionEnabled) {
+            this.permissionEnabled = permissionEnabled;
+        }
+
+        public String getEncryptionKey() {
+            return encryptionKey;
+        }
+
+        public void setEncryptionKey(String encryptionKey) {
+            this.encryptionKey = encryptionKey;
+        }
+
+        public String getPermissionPrefix() {
+            return permissionPrefix;
+        }
+
+        public void setPermissionPrefix(String permissionPrefix) {
+            this.permissionPrefix = permissionPrefix;
+        }
+    }
+
+    /**
+     * 锁安全配置
+     */
+    public static class LockSecurityProperties {
+        /**
+         * 是否启用访问控制
+         */
+        private boolean accessControlEnabled = true;
+
+        /**
+         * 锁键前缀
+         */
+        private String keyPrefix = "ms:lock:";
+
+        /**
+         * 锁获取超时时间（毫秒）
+         */
+        private long acquisitionTimeout = 5000;
+
+        // Getters and Setters
+        public boolean isAccessControlEnabled() {
+            return accessControlEnabled;
+        }
+
+        public void setAccessControlEnabled(boolean accessControlEnabled) {
+            this.accessControlEnabled = accessControlEnabled;
+        }
+
+        public String getKeyPrefix() {
+            return keyPrefix;
+        }
+
+        public void setKeyPrefix(String keyPrefix) {
+            this.keyPrefix = keyPrefix;
+        }
+
+        public long getAcquisitionTimeout() {
+            return acquisitionTimeout;
+        }
+
+        public void setAcquisitionTimeout(long acquisitionTimeout) {
+            this.acquisitionTimeout = acquisitionTimeout;
         }
     }
 }
