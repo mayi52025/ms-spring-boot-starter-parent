@@ -5,6 +5,8 @@ import com.ms.middleware.ai.*;
 import com.ms.middleware.cache.*;
 import com.ms.middleware.cache.consistency.CacheConsistencyManager;
 import com.ms.middleware.health.*;
+import com.ms.middleware.lock.DistributedLock;
+import com.ms.middleware.lock.RedisDistributedLock;
 import com.ms.middleware.mq.MsMessageQueue;
 import com.ms.middleware.mq.RabbitMessageQueue;
 import com.ms.middleware.mq.idempotent.IdempotentStore;
@@ -190,5 +192,13 @@ public class MsMiddlewareAutoConfiguration {
     @ConditionalOnMissingBean(ObjectMapper.class)
     public ObjectMapper objectMapper() {
         return new ObjectMapper();
+    }
+
+    // ==================== 分布式锁配置 ====================
+
+    @Bean
+    @ConditionalOnMissingBean(DistributedLock.class)
+    public DistributedLock distributedLock(RedissonClient redissonClient) {
+        return new RedisDistributedLock(redissonClient);
     }
 }

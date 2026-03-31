@@ -29,7 +29,7 @@ class MsMiddlewarePropertiesTest {
         assertTrue(properties.getMq().isEnabled());
         
         assertNotNull(properties.getMq().getRabbit());
-        assertEquals("localhost", properties.getMq().getRabbit().getHost());
+        assertEquals("192.168.100.102", properties.getMq().getRabbit().getHost());
         assertEquals(5672, properties.getMq().getRabbit().getPort());
         assertEquals("guest", properties.getMq().getRabbit().getUsername());
         assertEquals("guest", properties.getMq().getRabbit().getPassword());
