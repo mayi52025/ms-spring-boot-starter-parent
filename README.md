@@ -237,6 +237,51 @@ long currentCount = rateLimiter.getCurrentCount("user:123");
 // 重置限流计数
 boolean reset = rateLimiter.reset("user:123");
 ```
+## 9. 使用熔断功能
+
+```java
+@Autowired
+private CircuitBreaker circuitBreaker;
+
+// 执行受熔断保护的操作
+try {
+    String result = circuitBreaker.execute(() -> {
+        // 调用依赖服务
+        return dependencyService.call();
+    });
+    // 处理结果
+} catch (Exception e) {
+    // 处理异常
+}
+
+// 执行受熔断保护的操作，带 fallback
+String result = circuitBreaker.execute(() -> {
+    // 调用依赖服务
+    return dependencyService.call();
+}, () -> {
+    // 熔断时的 fallback 操作
+    return "Fallback result";
+});
+
+// 执行受熔断保护的操作，带异常处理
+String result = circuitBreaker.executeWithExceptionHandling(() -> {
+    // 调用依赖服务
+    return dependencyService.call();
+});
+
+// 获取熔断状态
+CircuitBreaker.CircuitState state = circuitBreaker.getState();
+if (state == CircuitBreaker.CircuitState.OPEN) {
+    // 熔断状态，服务不可用
+} else if (state == CircuitBreaker.CircuitState.HALF_OPEN) {
+    // 半开状态，尝试恢复
+} else {
+    // 关闭状态，服务正常
+}
+
+// 重置熔断状态
+circuitBreaker.reset();
+```
 
 ## 配置说明
 
