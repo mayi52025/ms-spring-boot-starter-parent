@@ -33,6 +33,11 @@ public class MsMiddlewareProperties {
      */
     private AiProperties ai = new AiProperties();
 
+    /**
+     * 服务发现配置
+     */
+    private DiscoveryProperties discovery = new DiscoveryProperties();
+
     // Getters and Setters
     public CacheProperties getCache() {
         return cache;
@@ -72,6 +77,65 @@ public class MsMiddlewareProperties {
 
     public void setSecurity(SecurityProperties security) {
         this.security = security;
+    }
+
+    public DiscoveryProperties getDiscovery() {
+        return discovery;
+    }
+
+    public void setDiscovery(DiscoveryProperties discovery) {
+        this.discovery = discovery;
+    }
+
+    /**
+     * 服务发现配置
+     */
+    public static class DiscoveryProperties {
+        private boolean enabled = true;
+        private String serverAddr = "localhost:8848";
+        private String namespace = "";
+        private String group = "DEFAULT_GROUP";
+        private String clusterName = "DEFAULT";
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getServerAddr() {
+            return serverAddr;
+        }
+
+        public void setServerAddr(String serverAddr) {
+            this.serverAddr = serverAddr;
+        }
+
+        public String getNamespace() {
+            return namespace;
+        }
+
+        public void setNamespace(String namespace) {
+            this.namespace = namespace;
+        }
+
+        public String getGroup() {
+            return group;
+        }
+
+        public void setGroup(String group) {
+            this.group = group;
+        }
+
+        public String getClusterName() {
+            return clusterName;
+        }
+
+        public void setClusterName(String clusterName) {
+            this.clusterName = clusterName;
+        }
     }
 
     /**
@@ -783,9 +847,7 @@ public class MsMiddlewareProperties {
             this.encryptionEnabled = encryptionEnabled;
         }
 
-        public boolean isPermissionEnabled() {
-            return permissionEnabled;
-        }
+        public boolean isPermissionEnabled() {return permissionEnabled;}
 
         public void setPermissionEnabled(boolean permissionEnabled) {
             this.permissionEnabled = permissionEnabled;
