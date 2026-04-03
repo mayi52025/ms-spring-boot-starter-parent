@@ -282,7 +282,61 @@ if (state == CircuitBreaker.CircuitState.OPEN) {
 // 重置熔断状态
 circuitBreaker.reset();
 ```
-## 10. 安全工具
+## 10. 安全功能
+
+### 10.1 安全功能概述
+
+本模块提供了以下安全功能：
+
+- **分布式缓存和锁的访问控制**：通过安全的键生成机制，防止未授权访问
+- **消息队列的消息加密**：使用 AES 加密算法对消息进行加密，确保消息传输安全
+- **统一的认证授权**：集成 Spring Security，为 Actuator 端点提供认证保护
+
+### 10.2 安全配置选项
+
+#### 全局安全配置
+
+```yaml
+ms:
+  middleware:
+    security:
+      enabled: true  # 是否启用安全功能
+```
+
+#### 缓存安全配置
+
+```yaml
+ms:
+  middleware:
+    security:
+      cache:
+        access-control-enabled: true  # 是否启用缓存访问控制
+        key-prefix: "ms:cache:"  # 缓存键前缀
+```
+
+#### 锁安全配置
+
+```yaml
+ms:
+  middleware:
+    security:
+      lock:
+        access-control-enabled: true  # 是否启用锁访问控制
+        key-prefix: "ms:lock:"  # 锁键前缀
+```
+
+#### 消息队列安全配置
+
+```yaml
+ms:
+  middleware:
+    security:
+      mq:
+        encryption-enabled: true  # 是否启用消息加密
+        encryption-key: "your-secret-key"  # 消息加密密钥
+```
+
+### 10.3 安全工具类使用
 
 ```java
 // 加密字符串
@@ -303,6 +357,23 @@ String secureLockKey = SecurityUtils.generateSecureLockKey("original-key", "ms:l
 // 检查权限
 boolean hasPermission = SecurityUtils.checkPermission("READ", "READ,WRITE");
 ```
+
+### 10.4 认证授权
+
+本模块集成了 Spring Security，为 Actuator 端点提供认证保护。默认配置如下：
+
+- **用户名**：admin
+- **密码**：admin123
+- **角色**：ADMIN
+
+### 10.5 安全最佳实践
+
+1. **使用强密钥**：为消息加密选择强密钥，避免使用弱密钥
+2. **定期更换密钥**：定期更换加密密钥，提高安全性
+3. **限制访问**：只授予必要的权限给用户
+4. **监控异常**：监控安全相关的异常，及时发现潜在的安全问题
+5. **使用 HTTPS**：在生产环境中使用 HTTPS 保护数据传输
+
 ## 11. 服务发现与注册
 
 ### 11.1 服务注册
@@ -377,7 +448,117 @@ try {
     System.err.println("服务注销失败: " + e.getMessage());
 }
 ```
+### 11.4 服务发现配置
 
+```yaml
+ms:
+  middleware:
+    discovery:
+      enabled: true  # 是否启用服务发现功能
+      server-addr: "localhost:8848"  # Nacos 服务器地址
+      namespace: ""  # Nacos 命名空间
+      group: "DEFAULT_GROUP"  # 服务分组
+      cluster-name: "DEFAULT"  # 集群名称
+```
+
+### 11.5 技术优势
+
+- **自动注册**：服务启动时自动注册到 Nacos 服务器
+- **动态发现**：实时发现集群中的服务实例
+- **负载均衡**：集成 Spring Cloud LoadBalancer，支持服务调用的负载均衡
+- **高可用性**：Nacos 支持集群部署，确保服务发现的高可用性
+- **配置管理**：同时支持配置中心功能，实现配置的集中管理和动态更新
+
+### 11.6 最佳实践
+
+1. **服务命名规范**：使用有意义的服务名称，便于识别和管理
+2. **健康检查**：实现服务的健康检查，确保注册的服务实例是可用的
+3. **版本管理**：在服务名称中包含版本信息，如 `user-service-v1`
+4. **环境隔离**：使用不同的命名空间或分组隔离不同环境的服务
+5. **监控告警**：监控服务注册和发现的状态，及时发现异常
+
+## 12. 配置中心
+
+### 12.1 获取配置
+
+```java
+@Autowired
+private ConfigCenterAutoConfiguration.ConfigCenterClient configCenterClient;
+
+// 获取配置
+try {
+    String config = configCenterClient.getConfig("app-config");
+    System.out.println("配置内容: " + config);
+} catch (Exception e) {
+    System.err.println("获取配置失败: " + e.getMessage());
+}
+```
+
+### 12.2 发布配置
+
+```java
+@Autowired
+private ConfigCenterAutoConfiguration.ConfigCenterClient configCenterClient;
+
+// 发布配置
+try {
+    boolean success = configCenterClient.publishConfig("app-config", "key: value");
+    if (success) {
+        System.out.println("配置发布成功");
+    }
+} catch (Exception e) {
+    System.err.println("发布配置失败: " + e.getMessage());
+}
+```
+
+### 12.3 监听配置变更
+
+```java
+@Autowired
+private ConfigCenterAutoConfiguration.ConfigCenterClient configCenterClient;
+
+// 添加配置监听器
+try {
+    configCenterClient.addListener("app-config", configInfo -> {
+        System.out.println("配置已更新: " + configInfo);
+        // 在这里处理配置变更逻辑
+    });
+    System.out.println("配置监听器添加成功");
+} catch (Exception e) {
+    System.err.println("添加监听器失败: " + e.getMessage());
+}
+```
+
+### 12.4 配置中心配置
+
+```yaml
+ms:
+  middleware:
+    config:
+      enabled: true  # 是否启用配置中心功能
+      server-addr: "localhost:8848"  # Nacos 服务器地址
+      namespace: ""  # Nacos 命名空间
+      group: "DEFAULT_GROUP"  # 配置分组
+      file-extension: "yaml"  # 配置文件扩展名
+      timeout: 5000  # 配置获取超时时间（毫秒）
+      refresh-enabled: true  # 是否启用配置自动刷新
+```
+
+### 12.5 技术优势
+
+- **动态配置更新**：支持配置的热更新，无需重启应用
+- **配置版本管理**：支持配置版本管理和历史版本回滚
+- **多环境支持**：通过命名空间隔离不同环境的配置
+- **配置监听**：支持配置变更监听，实时响应配置变化
+- **权限控制**：支持配置的权限管理，确保配置安全
+
+### 12.6 最佳实践
+
+1. **配置命名规范**：使用有意义的配置名称，便于识别和管理
+2. **环境隔离**：使用不同的命名空间或分组隔离不同环境的配置
+3. **敏感信息加密**：对敏感配置信息进行加密存储
+4. **配置版本管理**：定期备份配置，保留历史版本
+5. **监控告警**：监控配置变更，及时发现异常
 ## 配置说明
 
 ### 缓存配置
