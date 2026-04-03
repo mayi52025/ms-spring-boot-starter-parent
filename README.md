@@ -282,6 +282,101 @@ if (state == CircuitBreaker.CircuitState.OPEN) {
 // 重置熔断状态
 circuitBreaker.reset();
 ```
+## 10. 安全工具
+
+```java
+// 加密字符串
+String encrypted = SecurityUtils.encryptAES("Hello, World!", "your-secret-key");
+
+// 解密字符串
+String decrypted = SecurityUtils.decryptAES(encrypted, "your-secret-key");
+
+// 生成 MD5 哈希
+String md5 = SecurityUtils.md5("test-data");
+
+// 生成安全的缓存键
+String secureCacheKey = SecurityUtils.generateSecureCacheKey("original-key", "ms:cache:");
+
+// 生成安全的锁键
+String secureLockKey = SecurityUtils.generateSecureLockKey("original-key", "ms:lock:");
+
+// 检查权限
+boolean hasPermission = SecurityUtils.checkPermission("READ", "READ,WRITE");
+```
+## 11. 服务发现与注册
+
+### 11.1 服务注册
+
+```java
+@Autowired
+private ServiceDiscoveryAutoConfiguration.ServiceDiscoveryClient serviceDiscoveryClient;
+
+// 注册服务实例
+try {
+    serviceDiscoveryClient.registerInstance("user-service", "192.168.1.100", 8080);
+    System.out.println("服务注册成功");
+} catch (Exception e) {
+    System.err.println("服务注册失败: " + e.getMessage());
+}
+
+// 注册带权重的服务实例
+try {
+    serviceDiscoveryClient.registerInstance("user-service", "192.168.1.101", 8081, 1.5);
+    System.out.println("带权重的服务注册成功");
+} catch (Exception e) {
+    System.err.println("服务注册失败: " + e.getMessage());
+}
+```
+
+### 11.2 服务发现
+
+```java
+@Autowired
+private ServiceDiscoveryAutoConfiguration.ServiceDiscoveryClient serviceDiscoveryClient;
+
+// 获取服务实例列表
+try {
+    List<Instance> instances = serviceDiscoveryClient.getInstances("user-service");
+    for (Instance instance : instances) {
+        System.out.println("服务实例: " + instance.getIp() + ":" + instance.getPort());
+    }
+} catch (Exception e) {
+    System.err.println("获取服务实例失败: " + e.getMessage());
+}
+
+// 获取健康的服务实例列表
+try {
+    List<Instance> healthyInstances = serviceDiscoveryClient.getHealthyInstances("user-service");
+    for (Instance instance : healthyInstances) {
+        System.out.println("健康服务实例: " + instance.getIp() + ":" + instance.getPort());
+    }
+} catch (Exception e) {
+    System.err.println("获取健康服务实例失败: " + e.getMessage());
+}
+
+// 获取所有服务名称
+try {
+    List<String> services = serviceDiscoveryClient.getServices();
+    System.out.println("所有服务: " + services);
+} catch (Exception e) {
+    System.err.println("获取服务列表失败: " + e.getMessage());
+}
+```
+
+### 11.3 服务注销
+
+```java
+@Autowired
+private ServiceDiscoveryAutoConfiguration.ServiceDiscoveryClient serviceDiscoveryClient;
+
+// 注销服务实例
+try {
+    serviceDiscoveryClient.deregisterInstance("user-service", "192.168.1.100", 8080);
+    System.out.println("服务注销成功");
+} catch (Exception e) {
+    System.err.println("服务注销失败: " + e.getMessage());
+}
+```
 
 ## 配置说明
 
