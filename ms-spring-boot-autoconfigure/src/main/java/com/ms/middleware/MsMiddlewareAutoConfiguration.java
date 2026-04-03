@@ -30,6 +30,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Import;
 import com.ms.middleware.discovery.ServiceDiscoveryAutoConfiguration;
+import com.ms.middleware.config.ConfigCenterAutoConfiguration;
 
 /**
  * 中间件自动配置
@@ -37,7 +38,7 @@ import com.ms.middleware.discovery.ServiceDiscoveryAutoConfiguration;
 @Configuration
 @EnableConfigurationProperties(MsMiddlewareProperties.class)
 @AutoConfigureAfter(RedissonAutoConfiguration.class)
-@Import(ServiceDiscoveryAutoConfiguration.class)
+@Import({ServiceDiscoveryAutoConfiguration.class, ConfigCenterAutoConfiguration.class})
 public class MsMiddlewareAutoConfiguration {
 
     private final MsMiddlewareProperties properties;

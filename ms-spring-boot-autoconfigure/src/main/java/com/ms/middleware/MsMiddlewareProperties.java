@@ -88,6 +88,19 @@ public class MsMiddlewareProperties {
     }
 
     /**
+     * 配置中心配置
+     */
+    private ConfigCenterProperties config = new ConfigCenterProperties();
+
+    public ConfigCenterProperties getConfig() {
+        return config;
+    }
+
+    public void setConfig(ConfigCenterProperties config) {
+        this.config = config;
+    }
+
+    /**
      * 服务发现配置
      */
     public static class DiscoveryProperties {
@@ -135,6 +148,75 @@ public class MsMiddlewareProperties {
 
         public void setClusterName(String clusterName) {
             this.clusterName = clusterName;
+        }
+    }
+
+    /**
+     * 配置中心配置
+     */
+    public static class ConfigCenterProperties {
+        private boolean enabled = true;
+        private String serverAddr = "localhost:8848";
+        private String namespace = "";
+        private String group = "DEFAULT_GROUP";
+        private String fileExtension = "yaml";
+        private long timeout = 5000;
+        private boolean refreshEnabled = true;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getServerAddr() {
+            return serverAddr;
+        }
+
+        public void setServerAddr(String serverAddr) {
+            this.serverAddr = serverAddr;
+        }
+
+        public String getNamespace() {
+            return namespace;
+        }
+
+        public void setNamespace(String namespace) {
+            this.namespace = namespace;
+        }
+
+        public String getGroup() {
+            return group;
+        }
+
+        public void setGroup(String group) {
+            this.group = group;
+        }
+
+        public String getFileExtension() {
+            return fileExtension;
+        }
+
+        public void setFileExtension(String fileExtension) {
+            this.fileExtension = fileExtension;
+        }
+
+        public long getTimeout() {
+            return timeout;
+        }
+
+        public void setTimeout(long timeout) {
+            this.timeout = timeout;
+        }
+
+        public boolean isRefreshEnabled() {
+            return refreshEnabled;
+        }
+
+        public void setRefreshEnabled(boolean refreshEnabled) {
+            this.refreshEnabled = refreshEnabled;
         }
     }
 
