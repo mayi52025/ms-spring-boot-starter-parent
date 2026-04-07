@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.redisson.api.RedissonClient;
 
 import java.util.Map;
@@ -39,9 +40,10 @@ class RabbitMessageQueueTest {
         MeterRegistry meterRegistry = new SimpleMeterRegistry();
         MsMiddlewareProperties properties = new MsMiddlewareProperties();
         MsMetrics metrics = new MsMetrics(meterRegistry);
+        RabbitAdmin rabbitAdmin = Mockito.mock(RabbitAdmin.class);
 
         // 创建消息队列实例
-        messageQueue = new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper, idempotentStore, properties, metrics);
+        messageQueue = new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper, idempotentStore, properties, metrics, rabbitAdmin);
     }
 
     @Test

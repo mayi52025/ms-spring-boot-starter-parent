@@ -19,8 +19,10 @@ import com.ms.middleware.rate.RedisRateLimiter;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 import org.redisson.spring.starter.RedissonAutoConfiguration;
+import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -112,6 +114,31 @@ public class MsMiddlewareAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(RabbitAdmin.class)
+    @ConditionalOnProperty(prefix = "ms.middleware.mq", name = "enabled", havingValue = "true")
+    public RabbitAdmin rabbitAdmin(CachingConnectionFactory connectionFactory) {
+        return new RabbitAdmin(connectionFactory);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "ms.middleware.mq", name = "enabled", havingValue = "true")
+    public FanoutExchange defaultExchange() {
+        return new FanoutExchange("ms-exchange", true, false);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "ms.middleware.mq", name = "enabled", havingValue = "true")
+    public Queue defaultQueue() {
+        return new Queue("ms-queue", true, false, false);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "ms.middleware.mq", name = "enabled", havingValue = "true")
+    public Binding defaultBinding() {
+        return BindingBuilder.bind(defaultQueue()).to(defaultExchange());
+    }
+
+    @Bean
     @ConditionalOnMissingBean(IdempotentStore.class)
     @ConditionalOnProperty(prefix = "ms.middleware.mq.idempotent", name = "enabled", havingValue = "true")
     public IdempotentStore idempotentStore(RedissonClient redissonClient) {
@@ -125,8 +152,9 @@ public class MsMiddlewareAutoConfiguration {
                                          CachingConnectionFactory connectionFactory, 
                                          ObjectMapper objectMapper, 
                                          IdempotentStore idempotentStore, 
-                                         MsMetrics metrics) {
-        return new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper, idempotentStore, properties, metrics);
+                                         MsMetrics metrics, 
+                                         RabbitAdmin rabbitAdmin) {
+        return new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper, idempotentStore, properties, metrics, rabbitAdmin);
     }
 
     // ==================== 故障自愈配置 ====================

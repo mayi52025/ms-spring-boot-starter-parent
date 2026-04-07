@@ -12,6 +12,7 @@ import io.micrometer.core.instrument.Timer;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
@@ -27,6 +28,9 @@ import java.util.concurrent.CompletableFuture;
  */
 public class RabbitMessageQueue implements MsMessageQueue {
 
+    private static final String DEFAULT_EXCHANGE = "ms-exchange";
+    private static final String DEFAULT_ROUTING_KEY = "ms-routing-key";
+
     private final RabbitTemplate rabbitTemplate;
     private final ConnectionFactory connectionFactory;
     private final ObjectMapper objectMapper;
@@ -34,13 +38,15 @@ public class RabbitMessageQueue implements MsMessageQueue {
     private final IdempotentStore idempotentStore;
     private final MsMetrics metrics;
     private final MsMiddlewareProperties.SecurityProperties securityProperties;
+    private final RabbitAdmin rabbitAdmin;
 
     public RabbitMessageQueue(RabbitTemplate rabbitTemplate, 
                            ConnectionFactory connectionFactory, 
                            ObjectMapper objectMapper, 
                            IdempotentStore idempotentStore, 
                            MsMiddlewareProperties properties, 
-                           MsMetrics metrics) {
+                           MsMetrics metrics, 
+                           RabbitAdmin rabbitAdmin) {
         this.rabbitTemplate = rabbitTemplate;
         this.connectionFactory = connectionFactory;
         this.objectMapper = objectMapper;
@@ -48,6 +54,7 @@ public class RabbitMessageQueue implements MsMessageQueue {
         this.idempotentStore = idempotentStore;
         this.securityProperties = properties.getSecurity();
         this.metrics = metrics;
+        this.rabbitAdmin = rabbitAdmin;
         
         // 配置消息转换器
         rabbitTemplate.setMessageConverter(new Jackson2JsonMessageConverter(objectMapper));
@@ -91,6 +98,9 @@ public class RabbitMessageQueue implements MsMessageQueue {
     @Override
     public boolean send(String exchange, String routingKey, Object message) {
         try {
+            // 确保交换机存在
+            ensureExchange(exchange);
+            
             String messageId = UUID.randomUUID().toString();
             
             // 记录消息发送
@@ -122,14 +132,35 @@ public class RabbitMessageQueue implements MsMessageQueue {
         }
     }
 
+    /**
+     * 使用默认交换机和路由键发送消息
+     * @param message 消息内容
+     * @return 是否发送成功
+     */
+    public boolean send(Object message) {
+        return send(DEFAULT_EXCHANGE, DEFAULT_ROUTING_KEY, message);
+    }
+
     @Override
     public CompletableFuture<Boolean> sendAsync(String exchange, String routingKey, Object message) {
         return CompletableFuture.supplyAsync(() -> send(exchange, routingKey, message));
     }
 
+    /**
+     * 使用默认交换机和路由键异步发送消息
+     * @param message 消息内容
+     * @return 发送结果
+     */
+    public CompletableFuture<Boolean> sendAsync(Object message) {
+        return sendAsync(DEFAULT_EXCHANGE, DEFAULT_ROUTING_KEY, message);
+    }
+
     @Override
     public boolean sendWithHeaders(String exchange, String routingKey, Object message, Map<String, Object> headers) {
         try {
+            // 确保交换机存在
+            ensureExchange(exchange);
+            
             String messageId = UUID.randomUUID().toString();
             
             // 记录消息发送
@@ -164,9 +195,22 @@ public class RabbitMessageQueue implements MsMessageQueue {
         }
     }
 
+    /**
+     * 使用默认交换机和路由键发送带头部信息的消息
+     * @param message 消息内容
+     * @param headers 头部信息
+     * @return 是否发送成功
+     */
+    public boolean sendWithHeaders(Object message, Map<String, Object> headers) {
+        return sendWithHeaders(DEFAULT_EXCHANGE, DEFAULT_ROUTING_KEY, message, headers);
+    }
+
     @Override
     public boolean sendDelayed(String exchange, String routingKey, Object message, long delay) {
         try {
+            // 确保交换机存在
+            ensureExchange(exchange);
+            
             String messageId = UUID.randomUUID().toString();
             
             // 记录消息发送
@@ -199,9 +243,22 @@ public class RabbitMessageQueue implements MsMessageQueue {
         }
     }
 
+    /**
+     * 使用默认交换机和路由键发送延迟消息
+     * @param message 消息内容
+     * @param delay 延迟时间（毫秒）
+     * @return 是否发送成功
+     */
+    public boolean sendDelayed(Object message, long delay) {
+        return sendDelayed(DEFAULT_EXCHANGE, DEFAULT_ROUTING_KEY, message, delay);
+    }
+
     @Override
     public boolean sendOrdered(String exchange, String routingKey, Object message, String orderKey) {
         try {
+            // 确保交换机存在
+            ensureExchange(exchange);
+            
             String messageId = UUID.randomUUID().toString();
             
             // 记录消息发送
@@ -231,6 +288,32 @@ public class RabbitMessageQueue implements MsMessageQueue {
             e.printStackTrace();
             metrics.incrementFailureCount();
             return false;
+        }
+    }
+
+    /**
+     * 使用默认交换机和路由键发送顺序消息
+     * @param message 消息内容
+     * @param orderKey 顺序键
+     * @return 是否发送成功
+     */
+    public boolean sendOrdered(Object message, String orderKey) {
+        return sendOrdered(DEFAULT_EXCHANGE, DEFAULT_ROUTING_KEY, message, orderKey);
+    }
+
+    /**
+     * 确保交换机存在
+     * @param exchange 交换机名称
+     */
+    private void ensureExchange(String exchange) {
+        if (rabbitAdmin != null && StringUtils.hasText(exchange)) {
+            try {
+                // 声明交换机
+                Exchange exchangeObj = new FanoutExchange(exchange, true, false);
+                rabbitAdmin.declareExchange(exchangeObj);
+            } catch (Exception e) {
+                // 交换机已存在或其他原因，忽略异常
+            }
         }
     }
 
