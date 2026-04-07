@@ -18,6 +18,7 @@
 - **同步/异步发送**：支持同步和异步发送消息
 - **延迟消息**：支持发送延迟消息
 - **顺序消息**：支持发送顺序消息
+- **自动配置**：自动创建和管理交换机和队列，无需手动配置
 
 ### 3. 故障自愈
 - **自动检测**：检测 Redis、RabbitMQ 等中间件的健康状态
@@ -31,6 +32,24 @@
 ### 5. 指标监控
 - **Micrometer 集成**：集成 Micrometer 收集系统指标
 - **监控指标**：缓存命中率、消息发送/消费数量、故障次数等
+
+### 6. 安全功能
+- **分布式缓存和锁的访问控制**：通过安全的键生成机制，防止未授权访问
+- **消息队列的消息加密**：使用 AES 加密算法对消息进行加密，确保消息传输安全
+- **统一的认证授权**：集成 Spring Security，为 Actuator 端点提供认证保护
+
+### 7. 服务发现与注册
+- **Nacos 集成**：基于 Nacos 实现服务发现与注册功能
+- **自动注册**：服务启动时自动注册到 Nacos 服务器
+- **动态发现**：实时发现集群中的服务实例
+- **负载均衡**：集成 Spring Cloud LoadBalancer，支持服务调用的负载均衡
+
+### 8. 配置中心
+- **Nacos Config 集成**：基于 Nacos Config 实现配置中心功能
+- **动态配置更新**：支持配置的热更新，无需重启应用
+- **配置版本管理**：支持配置版本管理和历史版本回滚
+- **多环境支持**：通过命名空间隔离不同环境的配置
+- **配置监听**：支持配置变更监听，实时响应配置变化
 
 ## 快速开始
 
@@ -156,16 +175,28 @@ boolean exists = multiLevelCache.exists("key");
 @Autowired
 private MsMessageQueue messageQueue;
 
-// 发送消息
+// 发送消息（使用默认交换机和路由键）
+messageQueue.send("message");
+
+// 发送消息（使用指定交换机和路由键）
 messageQueue.send("exchange", "routingKey", "message");
 
-// 异步发送消息
+// 异步发送消息（使用默认交换机和路由键）
+messageQueue.sendAsync("message");
+
+// 异步发送消息（使用指定交换机和路由键）
 messageQueue.sendAsync("exchange", "routingKey", "message");
 
-// 发送延迟消息
+// 发送延迟消息（使用默认交换机和路由键）
+messageQueue.sendDelayed("message", 5000);
+
+// 发送延迟消息（使用指定交换机和路由键）
 messageQueue.sendDelayed("exchange", "routingKey", "message", 5000);
 
-// 发送顺序消息
+// 发送顺序消息（使用默认交换机和路由键）
+messageQueue.sendOrdered("message", "orderKey");
+
+// 发送顺序消息（使用指定交换机和路由键）
 messageQueue.sendOrdered("exchange", "routingKey", "message", "orderKey");
 ```
 
@@ -448,6 +479,7 @@ try {
     System.err.println("服务注销失败: " + e.getMessage());
 }
 ```
+
 ### 11.4 服务发现配置
 
 ```yaml
@@ -559,6 +591,7 @@ ms:
 3. **敏感信息加密**：对敏感配置信息进行加密存储
 4. **配置版本管理**：定期备份配置，保留历史版本
 5. **监控告警**：监控配置变更，及时发现异常
+
 ## 配置说明
 
 ### 缓存配置
@@ -591,6 +624,13 @@ ms:
 - **idempotent.enabled**：是否启用幂等消费
 - **idempotent.prefix**：幂等键前缀
 - **idempotent.expirationHours**：幂等键过期时间（小时）
+
+**自动配置说明**：
+- 系统会自动创建默认交换机 `ms-exchange`（Fanout类型）
+- 系统会自动创建默认队列 `ms-queue`
+- 系统会自动绑定默认交换机和队列
+- 当使用自定义交换机时，系统会自动创建该交换机
+- 无需手动配置交换机和队列，直接使用即可
 
 ### 故障自愈配置
 - **enabled**：是否启用故障自愈
