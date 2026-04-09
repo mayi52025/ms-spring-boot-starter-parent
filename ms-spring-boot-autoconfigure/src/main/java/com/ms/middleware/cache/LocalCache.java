@@ -6,6 +6,8 @@ import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.cache.stats.CacheStats;
 import com.ms.middleware.metrics.MsMetrics;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -114,5 +116,15 @@ public class LocalCache implements MsCache {
 
     public CacheStats getStats() {
         return stats;
+    }
+
+    /**
+     * 获取本地缓存中的所有键值对
+     * @return 本地缓存中的所有键值对
+     */
+    public Map<String, Object> getAll() {
+        Map<String, Object> result = new HashMap<>();
+        cache.asMap().forEach((key, value) -> result.put(key, value));
+        return result;
     }
 }
