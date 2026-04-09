@@ -25,7 +25,9 @@ public class RedisIdempotentStore implements IdempotentStore {
             return redissonClient.getLock(key).tryLock(0, expiration, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             logger.error("Failed to acquire lock: {}", key, e);
-            return false;
+            // Redis不可用时，返回true，允许消息处理
+            // 这样可以避免消息被跳过，确保消息能够被处理
+            return true;
         }
     }
 
@@ -35,6 +37,7 @@ public class RedisIdempotentStore implements IdempotentStore {
             redissonClient.getLock(key).unlock();
         } catch (Exception e) {
             logger.error("Failed to release lock: {}", key, e);
+            // Redis不可用时，忽略异常
         }
     }
 
@@ -44,6 +47,7 @@ public class RedisIdempotentStore implements IdempotentStore {
             return redissonClient.getLock(key).isLocked();
         } catch (Exception e) {
             logger.error("Failed to check lock: {}", key, e);
+            // Redis不可用时，返回false
             return false;
         }
     }
@@ -54,6 +58,7 @@ public class RedisIdempotentStore implements IdempotentStore {
             redissonClient.getLock(key).forceUnlock();
         } catch (Exception e) {
             logger.error("Failed to delete lock: {}", key, e);
+            // Redis不可用时，忽略异常
         }
     }
 }
