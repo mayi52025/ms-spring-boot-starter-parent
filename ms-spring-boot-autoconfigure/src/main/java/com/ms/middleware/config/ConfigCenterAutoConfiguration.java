@@ -10,7 +10,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
+import javax.annotation.PostConstruct;
 import java.util.concurrent.Executor;
 
 /**
@@ -29,6 +31,9 @@ public class ConfigCenterAutoConfiguration {
     @Autowired
     private NacosConfigProperties nacosConfigProperties;
 
+    @Autowired
+    private Environment environment;
+
     /**
      * 配置中心客户端
      * <p>
@@ -41,6 +46,52 @@ public class ConfigCenterAutoConfiguration {
     @RefreshScope
     public ConfigCenterClient configCenterClient() {
         return new ConfigCenterClient(nacosConfigManager, nacosConfigProperties);
+    }
+
+    /**
+     * 自动拉取配置
+     * <p>
+     * 在应用启动时自动从Nacos拉取配置
+     * </p>
+     */
+    @PostConstruct
+    public void autoPullConfig() {
+        try {
+            // 获取应用名称
+            String appName = environment.getProperty("spring.application.name", "unknown-app");
+            
+            // 构建默认配置ID
+            String dataId = appName + "." + nacosConfigProperties.getFileExtension();
+            String group = nacosConfigProperties.getGroup();
+            
+            // 拉取配置
+            ConfigService configService = nacosConfigManager.getConfigService();
+            String config = configService.getConfig(dataId, group, 5000);
+            
+            if (config != null && !config.isEmpty()) {
+                System.out.println("[ms-middleware] 配置自动拉取成功: " + dataId);
+                System.out.println("[ms-middleware] 配置内容: " + config.substring(0, Math.min(100, config.length())) + (config.length() > 100 ? "..." : ""));
+            } else {
+                System.out.println("[ms-middleware] 配置自动拉取: 未找到配置 " + dataId);
+            }
+            
+            // 自动监听配置变更
+            configService.addListener(dataId, group, new Listener() {
+                @Override
+                public Executor getExecutor() {
+                    return null;
+                }
+                
+                @Override
+                public void receiveConfigInfo(String configInfo) {
+                    System.out.println("[ms-middleware] 配置自动更新: " + dataId);
+                    System.out.println("[ms-middleware] 新配置内容: " + configInfo.substring(0, Math.min(100, configInfo.length())) + (configInfo.length() > 100 ? "..." : ""));
+                }
+            });
+            
+        } catch (NacosException e) {
+            System.err.println("[ms-middleware] 配置自动拉取失败: " + e.getMessage());
+        }
     }
 
     /**

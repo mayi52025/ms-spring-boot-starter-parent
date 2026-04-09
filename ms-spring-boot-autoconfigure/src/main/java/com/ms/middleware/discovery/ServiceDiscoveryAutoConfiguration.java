@@ -10,7 +10,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
+import javax.annotation.PostConstruct;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.List;
 
 /**
@@ -30,6 +34,9 @@ public class ServiceDiscoveryAutoConfiguration {
     @Autowired
     private NacosDiscoveryProperties nacosDiscoveryProperties;
 
+    @Autowired
+    private Environment environment;
+
     /**
      * 服务发现客户端
      * <p>
@@ -41,6 +48,45 @@ public class ServiceDiscoveryAutoConfiguration {
     @Bean
     public ServiceDiscoveryClient serviceDiscoveryClient() {
         return new ServiceDiscoveryClient(nacosServiceManager, nacosDiscoveryProperties);
+    }
+
+    /**
+     * 自动注册服务实例
+     * <p>
+     * 在服务启动时自动注册到Nacos
+     * </p>
+     */
+    @PostConstruct
+    public void autoRegisterService() {
+        try {
+            // 获取服务名称
+            String serviceName = environment.getProperty("spring.application.name", "unknown-service");
+            
+            // 获取服务IP
+            String ip = InetAddress.getLocalHost().getHostAddress();
+            
+            // 获取服务端口
+            String portStr = environment.getProperty("server.port", "8080");
+            int port = Integer.parseInt(portStr);
+            
+            // 获取权重
+            double weight = Double.parseDouble(environment.getProperty("ms.middleware.discovery.weight", "1.0"));
+            
+            // 注册服务
+            NamingService namingService = nacosServiceManager.getNamingService(nacosDiscoveryProperties.getNacosProperties());
+            Instance instance = new Instance();
+            instance.setServiceName(serviceName);
+            instance.setIp(ip);
+            instance.setPort(port);
+            instance.setWeight(weight);
+            instance.setHealthy(true);
+            
+            namingService.registerInstance(serviceName, instance);
+            
+            System.out.println("[ms-middleware] 服务自动注册成功: " + serviceName + " - " + ip + ":" + port);
+        } catch (UnknownHostException | NacosException e) {
+            System.err.println("[ms-middleware] 服务自动注册失败: " + e.getMessage());
+        }
     }
 
     /**
