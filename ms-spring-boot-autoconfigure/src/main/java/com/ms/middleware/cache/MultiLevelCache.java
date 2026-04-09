@@ -139,6 +139,8 @@ public class MultiLevelCache implements MsCache {
                 stats.recordError();
             }
             stats.recordPut();
+            // 检查Redis是否从不可用恢复
+            checkRedisRecovery();
         } catch (Exception e) {
             stats.recordError();
             throw new CacheException("Failed to put value to multi-level cache", e);
@@ -159,6 +161,8 @@ public class MultiLevelCache implements MsCache {
                 stats.recordError();
             }
             stats.recordPut();
+            // 检查Redis是否从不可用恢复
+            checkRedisRecovery();
         } catch (Exception e) {
             stats.recordError();
             throw new CacheException("Failed to put value to multi-level cache", e);
