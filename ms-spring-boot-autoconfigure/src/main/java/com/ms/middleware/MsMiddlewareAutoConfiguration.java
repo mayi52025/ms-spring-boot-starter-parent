@@ -19,6 +19,7 @@ import com.ms.middleware.rate.RedisRateLimiter;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 import org.redisson.spring.starter.RedissonAutoConfiguration;
+import org.springframework.util.StringUtils;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -33,6 +34,7 @@ import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Import;
 import com.ms.middleware.discovery.ServiceDiscoveryAutoConfiguration;
 import com.ms.middleware.config.ConfigCenterAutoConfiguration;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 中间件自动配置
@@ -61,8 +63,8 @@ public class MsMiddlewareAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(DistributedCache.class)
     @ConditionalOnProperty(prefix = "ms.middleware.cache.distributed", name = "enabled", havingValue = "true")
-    public DistributedCache distributedCache(RedissonClient redissonClient, MsMetrics metrics) {
-        return new DistributedCache(redissonClient, properties.getCache().getDistributed(), properties, metrics);
+    public DistributedCache distributedCache(AtomicReference<RedissonClient> redissonClientRef, MsMetrics metrics) {
+        return new DistributedCache(redissonClientRef, properties.getCache().getDistributed(), properties, metrics);
     }
 
     @Bean
@@ -141,8 +143,8 @@ public class MsMiddlewareAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(IdempotentStore.class)
     @ConditionalOnProperty(prefix = "ms.middleware.mq.idempotent", name = "enabled", havingValue = "true")
-    public IdempotentStore idempotentStore(RedissonClient redissonClient) {
-        return new RedisIdempotentStore(redissonClient);
+    public IdempotentStore idempotentStore(AtomicReference<RedissonClient> redissonClientRef) {
+        return new RedisIdempotentStore(redissonClientRef.get());
     }
 
     @Bean
@@ -166,16 +168,18 @@ public class MsMiddlewareAutoConfiguration {
     }
 
     @Bean
-    @DependsOn({"redissonClient", "faultSelfHealing"})
-    public RedisHealthChecker redisHealthChecker(RedissonClient redissonClient, FaultSelfHealing faultSelfHealing) {
-        RedisHealthChecker checker = new RedisHealthChecker(redissonClient);
+    @DependsOn({"redissonClientRef", "faultSelfHealing"})
+    public RedisHealthChecker redisHealthChecker(AtomicReference<RedissonClient> redissonClientRef, FaultSelfHealing faultSelfHealing) {
+        RedisHealthChecker checker = new RedisHealthChecker(redissonClientRef);
         // 注册Redis健康检查和恢复策略
         Config config = new Config();
-        config.useSingleServer()
+        var singleServerConfig = config.useSingleServer()
               .setAddress("redis://" + properties.getRedis().getHost() + ":" + properties.getRedis().getPort())
-              .setPassword(properties.getRedis().getPassword())
               .setDatabase(properties.getRedis().getDatabase());
-        RedisRecoveryStrategy strategy = new RedisRecoveryStrategy(redissonClient, config);
+        if (StringUtils.hasText(properties.getRedis().getPassword())) {
+            singleServerConfig.setPassword(properties.getRedis().getPassword());
+        }
+        RedisRecoveryStrategy strategy = new RedisRecoveryStrategy(redissonClientRef, config);
         faultSelfHealing.registerComponent("Redis", checker, strategy);
         return checker;
     }
@@ -219,11 +223,18 @@ public class MsMiddlewareAutoConfiguration {
     @ConditionalOnMissingBean(RedissonClient.class)
     public RedissonClient redissonClient() {
         Config config = new Config();
-        config.useSingleServer()
+        var singleServerConfig = config.useSingleServer()
               .setAddress("redis://" + properties.getRedis().getHost() + ":" + properties.getRedis().getPort())
-              .setPassword(properties.getRedis().getPassword())
               .setDatabase(properties.getRedis().getDatabase());
+        if (StringUtils.hasText(properties.getRedis().getPassword())) {
+            singleServerConfig.setPassword(properties.getRedis().getPassword());
+        }
         return org.redisson.Redisson.create(config);
+    }
+
+    @Bean
+    public AtomicReference<RedissonClient> redissonClientRef(RedissonClient redissonClient) {
+        return new AtomicReference<>(redissonClient);
     }
 
     @Bean
@@ -236,16 +247,16 @@ public class MsMiddlewareAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(DistributedLock.class)
-    public DistributedLock distributedLock(RedissonClient redissonClient, MsMetrics metrics) {
-        return new RedisDistributedLock(redissonClient, metrics, properties);
+    public DistributedLock distributedLock(AtomicReference<RedissonClient> redissonClientRef, MsMetrics metrics) {
+        return new RedisDistributedLock(redissonClientRef.get(), metrics, properties);
     }
 
     // ==================== 限流配置 ====================
 
     @Bean
     @ConditionalOnMissingBean(RateLimiter.class)
-    public RateLimiter rateLimiter(RedissonClient redissonClient, MsMetrics metrics) {
-        return new RedisRateLimiter(redissonClient, metrics);
+    public RateLimiter rateLimiter(AtomicReference<RedissonClient> redissonClientRef, MsMetrics metrics) {
+        return new RedisRateLimiter(redissonClientRef.get(), metrics);
     }
 
     // ==================== 熔断配置 ====================

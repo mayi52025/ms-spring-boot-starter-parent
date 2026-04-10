@@ -10,6 +10,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -52,7 +53,8 @@ class MultiLevelCacheTest {
         distributedProperties.setEnabled(true);
 
         when(redissonClient.getBucket(anyString())).thenReturn(mockBucket);
-        distributedCache = new DistributedCache(redissonClient, distributedProperties, properties, metrics);
+        AtomicReference<RedissonClient> redissonClientRef = new AtomicReference<>(redissonClient);
+        distributedCache = new DistributedCache(redissonClientRef, distributedProperties, properties, metrics);
 
         // 初始化多级缓存
         multiLevelCache = new MultiLevelCache(localCache, distributedCache);

@@ -17,6 +17,8 @@ import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.Map;
@@ -30,6 +32,7 @@ public class RabbitMessageQueue implements MsMessageQueue {
 
     private static final String DEFAULT_EXCHANGE = "ms-exchange";
     private static final String DEFAULT_ROUTING_KEY = "ms-routing-key";
+    private static final Logger logger = LoggerFactory.getLogger(RabbitMessageQueue.class);
 
     private final RabbitTemplate rabbitTemplate;
     private final ConnectionFactory connectionFactory;
@@ -308,11 +311,11 @@ public class RabbitMessageQueue implements MsMessageQueue {
     private void ensureExchange(String exchange) {
         if (rabbitAdmin != null && StringUtils.hasText(exchange)) {
             try {
-                // 声明交换机
-                Exchange exchangeObj = new FanoutExchange(exchange, true, false);
+                // 为了兼容业务常见路由模式，默认按topic声明，避免与已存在topic交换机冲突
+                Exchange exchangeObj = new TopicExchange(exchange, true, false);
                 rabbitAdmin.declareExchange(exchangeObj);
             } catch (Exception e) {
-                // 交换机已存在或其他原因，忽略异常
+                logger.warn("Declare exchange failed: {}, error: {}", exchange, e.getMessage());
             }
         }
     }
