@@ -40,6 +40,7 @@ public class RabbitMessageQueue implements MsMessageQueue {
     private final MessageTraceManager traceManager;
     private final IdempotentStore idempotentStore;
     private final MsMetrics metrics;
+    private final MsMiddlewareProperties properties;
     private final MsMiddlewareProperties.SecurityProperties securityProperties;
     private final RabbitAdmin rabbitAdmin;
 
@@ -55,6 +56,7 @@ public class RabbitMessageQueue implements MsMessageQueue {
         this.objectMapper = objectMapper;
         this.traceManager = MessageTraceManager.getInstance();
         this.idempotentStore = idempotentStore;
+        this.properties = properties;
         this.securityProperties = properties.getSecurity();
         this.metrics = metrics;
         this.rabbitAdmin = rabbitAdmin;
@@ -310,6 +312,9 @@ public class RabbitMessageQueue implements MsMessageQueue {
      */
     private void ensureExchange(String exchange) {
         if (rabbitAdmin != null && StringUtils.hasText(exchange)) {
+            if (!properties.getMq().getRabbit().isAutoDeclare()) {
+                return;
+            }
             try {
                 // 为了兼容业务常见路由模式，默认按topic声明，避免与已存在topic交换机冲突
                 Exchange exchangeObj = new TopicExchange(exchange, true, false);

@@ -32,6 +32,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.ApplicationRunner;
 import com.ms.middleware.discovery.ServiceDiscoveryAutoConfiguration;
 import com.ms.middleware.config.ConfigCenterAutoConfiguration;
 import java.util.concurrent.atomic.AtomicReference;
@@ -120,6 +121,30 @@ public class MsMiddlewareAutoConfiguration {
     @ConditionalOnProperty(prefix = "ms.middleware.mq", name = "enabled", havingValue = "true")
     public RabbitAdmin rabbitAdmin(CachingConnectionFactory connectionFactory) {
         return new RabbitAdmin(connectionFactory);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "ms.middleware.mq", name = "enabled", havingValue = "true")
+    public ApplicationRunner rabbitMqPurgeOnStartup(RabbitAdmin rabbitAdmin) {
+        return args -> {
+            MsMiddlewareProperties.RabbitProperties rabbit = properties.getMq().getRabbit();
+            if (!rabbit.isPurgeOnStartup()) {
+                return;
+            }
+            if (rabbit.getPurgeQueues() == null || rabbit.getPurgeQueues().isEmpty()) {
+                return;
+            }
+            for (String q : rabbit.getPurgeQueues()) {
+                if (!StringUtils.hasText(q)) {
+                    continue;
+                }
+                try {
+                    rabbitAdmin.purgeQueue(q, true);
+                } catch (Exception ignored) {
+                    // 队列不存在/无权限等情况，开发环境下忽略即可
+                }
+            }
+        };
     }
 
     @Bean

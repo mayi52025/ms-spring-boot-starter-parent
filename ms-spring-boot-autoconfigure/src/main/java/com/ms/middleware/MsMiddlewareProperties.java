@@ -471,6 +471,16 @@ public class MsMiddlewareProperties {
          */
         private boolean autoDeclare = true;
 
+        /**
+         * 是否在应用启动时清空指定队列（仅建议开发环境开启）
+         */
+        private boolean purgeOnStartup = false;
+
+        /**
+         * 启动时需要清空的队列列表
+         */
+        private java.util.List<String> purgeQueues = new java.util.ArrayList<>();
+
         // Getters and Setters
         public String getHost() {
             return host;
@@ -526,6 +536,22 @@ public class MsMiddlewareProperties {
 
         public void setAutoDeclare(boolean autoDeclare) {
             this.autoDeclare = autoDeclare;
+        }
+
+        public boolean isPurgeOnStartup() {
+            return purgeOnStartup;
+        }
+
+        public void setPurgeOnStartup(boolean purgeOnStartup) {
+            this.purgeOnStartup = purgeOnStartup;
+        }
+
+        public java.util.List<String> getPurgeQueues() {
+            return purgeQueues;
+        }
+
+        public void setPurgeQueues(java.util.List<String> purgeQueues) {
+            this.purgeQueues = purgeQueues;
         }
     }
 

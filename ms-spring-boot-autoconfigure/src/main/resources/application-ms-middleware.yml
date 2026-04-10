@@ -43,6 +43,10 @@ ms:
         connectionTimeout: 30000
         # 自动声明交换机和队列
         autoDeclare: true
+        # 是否在应用启动时清空指定队列（仅建议开发环境开启）
+        purgeOnStartup: false
+        # 启动时需要清空的队列列表
+        purgeQueues: []
       # 消息追踪配置
       trace:
         # 是否启用
