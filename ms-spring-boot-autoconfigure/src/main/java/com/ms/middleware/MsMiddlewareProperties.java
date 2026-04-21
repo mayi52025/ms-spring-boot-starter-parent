@@ -12,6 +12,11 @@ public class MsMiddlewareProperties {
      * 缓存配置
      */
     private CacheProperties cache = new CacheProperties();
+    
+    /**
+     * 整体缓存开关
+     */
+    private boolean cacheEnabled = true;
 
     /**
      * 消息队列配置
@@ -98,6 +103,14 @@ public class MsMiddlewareProperties {
 
     public void setConfig(ConfigCenterProperties config) {
         this.config = config;
+    }
+
+    public boolean isCacheEnabled() {
+        return cacheEnabled;
+    }
+
+    public void setCacheEnabled(boolean cacheEnabled) {
+        this.cacheEnabled = cacheEnabled;
     }
 
     /**
@@ -225,6 +238,11 @@ public class MsMiddlewareProperties {
      */
     public static class CacheProperties {
         /**
+         * 是否启用缓存
+         */
+        private boolean enabled = true;
+        
+        /**
          * 本地缓存配置
          */
         private LocalCacheProperties local = new LocalCacheProperties();
@@ -240,6 +258,14 @@ public class MsMiddlewareProperties {
         private ConsistencyProperties consistency = new ConsistencyProperties();
 
         // Getters and Setters
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+        
         public LocalCacheProperties getLocal() {
             return local;
         }

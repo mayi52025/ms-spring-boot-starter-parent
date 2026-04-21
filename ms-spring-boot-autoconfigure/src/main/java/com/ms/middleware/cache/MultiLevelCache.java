@@ -96,20 +96,21 @@ public class MultiLevelCache implements MsCache {
                 return value;
             }
 
-            try {
-                value = distributedCache.get(key);
-                if (value != null) {
-                    localCache.put(key, value);
-                    stats.recordHit();
-                    // Redis可用，更新状态
-                    redisAvailable.set(true);
-                    return value;
+            // 只有当Redis可用时才尝试从分布式缓存获取
+            if (redisAvailable.get()) {
+                try {
+                    value = distributedCache.get(key);
+                    if (value != null) {
+                        localCache.put(key, value);
+                        stats.recordHit();
+                        return value;
+                    }
+                } catch (Exception e) {
+                    // 分布式缓存不可用，降级到本地缓存
+                    redisAvailable.set(false);
+                    stats.recordError();
+                    logger.warn("Redis get failed, degrade to local cache. key={}", key, e);
                 }
-            } catch (Exception e) {
-                // 分布式缓存不可用，降级到本地缓存
-                redisAvailable.set(false);
-                stats.recordError();
-                // 只返回本地缓存的值（已经检查过为null）
             }
 
             stats.recordMiss();
@@ -137,21 +138,27 @@ public class MultiLevelCache implements MsCache {
         try {
             localCache.put(key, value);
             boolean wasUnavailable = !redisAvailable.get();
-            try {
-                distributedCache.put(key, value);
-                pendingSyncKeys.remove(key);
-                if (wasUnavailable) {
-                    checkRedisRecovery();
-                } else {
-                    redisAvailable.set(true);
+            
+            // 只有当Redis可用时才尝试写入分布式缓存
+            if (redisAvailable.get()) {
+                try {
+                    distributedCache.put(key, value);
+                    pendingSyncKeys.remove(key);
+                    if (wasUnavailable) {
+                        checkRedisRecovery();
+                    }
+                } catch (Exception e) {
+                    // 分布式缓存不可用，只写入本地缓存
+                    redisAvailable.set(false);
+                    pendingSyncKeys.add(key);
+                    stats.recordError();
+                    logger.warn("Redis put failed, degrade to local cache. key={}", key, e);
                 }
-            } catch (Exception e) {
-                // 分布式缓存不可用，只写入本地缓存
-                redisAvailable.set(false);
+            } else {
+                // Redis不可用，只写入本地缓存
                 pendingSyncKeys.add(key);
-                stats.recordError();
-                logger.warn("Redis put failed, degrade to local cache. key={}", key, e);
             }
+            
             stats.recordPut();
             // 检查Redis是否从不可用恢复
             checkRedisRecovery();
@@ -166,21 +173,27 @@ public class MultiLevelCache implements MsCache {
         try {
             localCache.put(key, value, expire, timeUnit);
             boolean wasUnavailable = !redisAvailable.get();
-            try {
-                distributedCache.put(key, value, expire, timeUnit);
-                pendingSyncKeys.remove(key);
-                if (wasUnavailable) {
-                    checkRedisRecovery();
-                } else {
-                    redisAvailable.set(true);
+            
+            // 只有当Redis可用时才尝试写入分布式缓存
+            if (redisAvailable.get()) {
+                try {
+                    distributedCache.put(key, value, expire, timeUnit);
+                    pendingSyncKeys.remove(key);
+                    if (wasUnavailable) {
+                        checkRedisRecovery();
+                    }
+                } catch (Exception e) {
+                    // 分布式缓存不可用，只写入本地缓存
+                    redisAvailable.set(false);
+                    pendingSyncKeys.add(key);
+                    stats.recordError();
+                    logger.warn("Redis put with ttl failed, degrade to local cache. key={}", key, e);
                 }
-            } catch (Exception e) {
-                // 分布式缓存不可用，只写入本地缓存
-                redisAvailable.set(false);
+            } else {
+                // Redis不可用，只写入本地缓存
                 pendingSyncKeys.add(key);
-                stats.recordError();
-                logger.warn("Redis put with ttl failed, degrade to local cache. key={}", key, e);
             }
+            
             stats.recordPut();
             // 检查Redis是否从不可用恢复
             checkRedisRecovery();
@@ -195,15 +208,22 @@ public class MultiLevelCache implements MsCache {
         try {
             pendingSyncKeys.remove(key);
             localCache.remove(key);
-            try {
-                distributedCache.remove(key);
-                if (consistencyManager != null && !invalidating.get()) {
-                    consistencyManager.invalidate(key);
+            
+            // 只有当Redis可用时才尝试从分布式缓存删除
+            if (redisAvailable.get()) {
+                try {
+                    distributedCache.remove(key);
+                    if (consistencyManager != null && !invalidating.get()) {
+                        consistencyManager.invalidate(key);
+                    }
+                } catch (Exception e) {
+                    // 分布式缓存不可用，只从本地缓存删除
+                    redisAvailable.set(false);
+                    stats.recordError();
+                    logger.warn("Redis remove failed, degrade to local cache. key={}", key, e);
                 }
-            } catch (Exception e) {
-                // 分布式缓存不可用，只从本地缓存删除
-                stats.recordError();
             }
+            
             stats.recordRemove();
         } catch (Exception e) {
             stats.recordError();
@@ -218,15 +238,22 @@ public class MultiLevelCache implements MsCache {
                 pendingSyncKeys.remove(key);
             }
             localCache.remove(keys);
-            try {
-                distributedCache.remove(keys);
-                if (consistencyManager != null && !invalidating.get()) {
-                    consistencyManager.invalidateBatch(java.util.Set.of(keys));
+            
+            // 只有当Redis可用时才尝试从分布式缓存删除
+            if (redisAvailable.get()) {
+                try {
+                    distributedCache.remove(keys);
+                    if (consistencyManager != null && !invalidating.get()) {
+                        consistencyManager.invalidateBatch(java.util.Set.of(keys));
+                    }
+                } catch (Exception e) {
+                    // 分布式缓存不可用，只从本地缓存删除
+                    redisAvailable.set(false);
+                    stats.recordError();
+                    logger.warn("Redis remove batch failed, degrade to local cache.", e);
                 }
-            } catch (Exception e) {
-                // 分布式缓存不可用，只从本地缓存删除
-                stats.recordError();
             }
+            
             for (String key : keys) {
                 stats.recordRemove();
             }
@@ -241,15 +268,22 @@ public class MultiLevelCache implements MsCache {
         try {
             pendingSyncKeys.clear();
             localCache.clear();
-            try {
-                distributedCache.clear();
-                if (consistencyManager != null && !invalidating.get()) {
-                    consistencyManager.invalidateAll();
+            
+            // 只有当Redis可用时才尝试清除分布式缓存
+            if (redisAvailable.get()) {
+                try {
+                    distributedCache.clear();
+                    if (consistencyManager != null && !invalidating.get()) {
+                        consistencyManager.invalidateAll();
+                    }
+                } catch (Exception e) {
+                    // 分布式缓存不可用，只清除本地缓存
+                    redisAvailable.set(false);
+                    stats.recordError();
+                    logger.warn("Redis clear failed, degrade to local cache.", e);
                 }
-            } catch (Exception e) {
-                // 分布式缓存不可用，只清除本地缓存
-                stats.recordError();
             }
+            
             stats.recordClear();
         } catch (Exception e) {
             stats.recordError();
@@ -264,13 +298,20 @@ public class MultiLevelCache implements MsCache {
             if (existsInLocal) {
                 return true;
             }
-            try {
-                return distributedCache.exists(key);
-            } catch (Exception e) {
-                // 分布式缓存不可用，只检查本地缓存
-                stats.recordError();
-                return false;
+            
+            // 只有当Redis可用时才尝试检查分布式缓存
+            if (redisAvailable.get()) {
+                try {
+                    return distributedCache.exists(key);
+                } catch (Exception e) {
+                    // 分布式缓存不可用，只检查本地缓存
+                    redisAvailable.set(false);
+                    stats.recordError();
+                    logger.warn("Redis exists check failed, degrade to local cache. key={}", key, e);
+                }
             }
+            
+            return false;
         } catch (Exception e) {
             stats.recordError();
             throw new CacheException("Failed to check existence in multi-level cache", e);

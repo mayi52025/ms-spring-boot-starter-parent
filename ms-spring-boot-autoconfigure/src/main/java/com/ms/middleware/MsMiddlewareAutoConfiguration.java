@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Import({ServiceDiscoveryAutoConfiguration.class, ConfigCenterAutoConfiguration.class})
 public class MsMiddlewareAutoConfiguration {
 
+
     private final MsMiddlewareProperties properties;
 
     public MsMiddlewareAutoConfiguration(MsMiddlewareProperties properties) {
@@ -77,6 +78,7 @@ public class MsMiddlewareAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(MultiLevelCache.class)
+    @ConditionalOnProperty(prefix = "ms.middleware.cache", name = "enabled", havingValue = "true", matchIfMissing = true)
     public MultiLevelCache multiLevelCache(LocalCache localCache, 
                                           DistributedCache distributedCache, 
                                           CacheConsistencyManager cacheConsistencyManager) {
@@ -88,6 +90,27 @@ public class MsMiddlewareAutoConfiguration {
         }
         
         return multiLevelCache;
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean(LocalCache.class)
+    public LocalCache fallbackLocalCache(MsMetrics metrics) {
+        // 创建一个默认的本地缓存，用于当所有缓存配置都被禁用时
+        MsMiddlewareProperties.LocalCacheProperties localCacheProperties = new MsMiddlewareProperties.LocalCacheProperties();
+        localCacheProperties.setEnabled(true);
+        localCacheProperties.setSize(1000);
+        localCacheProperties.setTtl(3600);
+        return new LocalCache(localCacheProperties, metrics);
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean(DistributedCache.class)
+    public DistributedCache fallbackDistributedCache(AtomicReference<RedissonClient> redissonClientRef, MsMetrics metrics) {
+        // 创建一个默认的分布式缓存，用于当所有缓存配置都被禁用时
+        MsMiddlewareProperties.DistributedCacheProperties distributedCacheProperties = new MsMiddlewareProperties.DistributedCacheProperties();
+        distributedCacheProperties.setEnabled(false);
+        distributedCacheProperties.setTtl(7200);
+        return new DistributedCache(redissonClientRef, distributedCacheProperties, properties, metrics);
     }
 
     // ==================== 消息队列配置 ====================
