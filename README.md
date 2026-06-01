@@ -684,6 +684,9 @@ ms:
 
 - **1.0.0-SNAPSHOT**：初始版本，包含多级缓存、消息队列、故障自愈、AI 热点识别等功能。
 - **1.0.1-SNAPSHOT**：修复了MQ缓存一致性问题，确保Redis故障恢复后本地缓存数据能正确同步到Redis，解决了消息堆积问题。
+- **1.0.2-SNAPSHOT**：修复了两个 P0 级别的关键问题：
+  - 修复 `LocalCache.put(key, value, expire, timeUnit)` 方法未使用过期时间参数的问题，现在正确支持自定义过期时间
+  - 修复 `RedisRateLimiter.tryAcquire` 方法的原子性问题，使用 Lua 脚本保证限流操作的原子性，防止并发场景下的超限制问题
 
 ## 贡献指南
 

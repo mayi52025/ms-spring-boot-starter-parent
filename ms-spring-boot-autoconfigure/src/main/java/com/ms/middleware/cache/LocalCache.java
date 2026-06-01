@@ -2,12 +2,14 @@ package com.ms.middleware.cache;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Expiry;
 import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.cache.stats.CacheStats;
 import com.ms.middleware.metrics.MsMetrics;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -20,18 +22,43 @@ public class LocalCache implements MsCache {
     private final MsMiddlewareProperties.LocalCacheProperties localCacheProperties;
     private final CacheStats stats;
     private final MsMetrics metrics;
+    private final Map<String, Long> customExpireTimes;
 
     public LocalCache(MsMiddlewareProperties.LocalCacheProperties localCacheProperties, MsMetrics metrics) {
         this.localCacheProperties = localCacheProperties;
         this.stats = new CacheStats();
         this.metrics = metrics;
+        this.customExpireTimes = new ConcurrentHashMap<>();
         this.cache = buildCache();
     }
 
     private Cache<String, Object> buildCache() {
         return Caffeine.newBuilder()
                 .maximumSize(localCacheProperties.getSize())
-                .expireAfterWrite(localCacheProperties.getTtl(), TimeUnit.SECONDS)
+                .expireAfter(new Expiry<String, Object>() {
+                    @Override
+                    public long expireAfterCreate(String key, Object value, long currentTime) {
+                        Long customExpire = customExpireTimes.get(key);
+                        if (customExpire != null) {
+                            return customExpire;
+                        }
+                        return TimeUnit.SECONDS.toNanos(localCacheProperties.getTtl());
+                    }
+
+                    @Override
+                    public long expireAfterUpdate(String key, Object value, long currentTime, long currentDuration) {
+                        Long customExpire = customExpireTimes.get(key);
+                        if (customExpire != null) {
+                            return customExpire;
+                        }
+                        return TimeUnit.SECONDS.toNanos(localCacheProperties.getTtl());
+                    }
+
+                    @Override
+                    public long expireAfterRead(String key, Object value, long currentTime, long currentDuration) {
+                        return currentDuration;
+                    }
+                })
                 .build();
     }
 
@@ -72,6 +99,7 @@ public class LocalCache implements MsCache {
 
     @Override
     public void put(String key, Object value, long expire, TimeUnit timeUnit) {
+        customExpireTimes.put(key, timeUnit.toNanos(expire));
         cache.put(key, value);
         stats.recordPut();
         metrics.incrementCachePuts();
@@ -80,6 +108,7 @@ public class LocalCache implements MsCache {
     @Override
     public void remove(String key) {
         cache.invalidate(key);
+        customExpireTimes.remove(key);
         stats.recordRemove();
     }
 
@@ -87,6 +116,7 @@ public class LocalCache implements MsCache {
     public void remove(String... keys) {
         for (String key : keys) {
             cache.invalidate(key);
+            customExpireTimes.remove(key);
             stats.recordRemove();
         }
     }
@@ -94,6 +124,7 @@ public class LocalCache implements MsCache {
     @Override
     public void clear() {
         cache.invalidateAll();
+        customExpireTimes.clear();
         stats.recordClear();
     }
 

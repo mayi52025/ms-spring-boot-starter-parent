@@ -1,12 +1,15 @@
 package com.ms.middleware.rate;
 
 import com.ms.middleware.metrics.MsMetrics;
+import org.redisson.api.RAtomicLong;
 import org.redisson.api.RBucket;
+import org.redisson.api.RScript;
 import org.redisson.api.RScoredSortedSet;
 import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -28,28 +31,41 @@ public class RedisRateLimiter implements RateLimiter {
     public boolean tryAcquire(String key, int limit, long window, TimeUnit unit) {
         try {
             String redisKey = "rate:limiter:counter:" + key;
-            RBucket<Long> bucket = redissonClient.getBucket(redisKey);
             
-            Long count = bucket.get();
-            if (count == null) {
-                bucket.set(1L, window, unit);
+            String luaScript = 
+                "local current = redis.call('GET', KEYS[1])\n" +
+                "if current == false then\n" +
+                "    redis.call('SET', KEYS[1], 1, 'EX', ARGV[2])\n" +
+                "    return 1\n" +
+                "end\n" +
+                "if tonumber(current) < tonumber(ARGV[1]) then\n" +
+                "    local new_val = redis.call('INCR', KEYS[1])\n" +
+                "    redis.call('EXPIRE', KEYS[1], ARGV[2])\n" +
+                "    return 1\n" +
+                "end\n" +
+                "return 0";
+            
+            Long result = redissonClient.getScript().eval(
+                RScript.Mode.READ_WRITE,
+                luaScript,
+                RScript.ReturnType.INTEGER,
+                Arrays.asList(redisKey),
+                String.valueOf(limit),
+                String.valueOf(unit.toSeconds(window))
+            );
+            
+            if (result != null && result == 1) {
                 metrics.incrementRateLimitPassed();
                 return true;
             }
-
-            if (count < limit) {
-                bucket.set(count + 1, window, unit);
-                metrics.incrementRateLimitPassed();
-                return true;
-            }
-
+            
             logger.debug("Rate limit exceeded for key: {}", key);
             metrics.incrementRateLimitRejected();
             return false;
         } catch (Exception e) {
             logger.error("Failed to acquire rate limit: {}", key, e);
             metrics.incrementFailureCount();
-            return true; // 降级策略：允许请求通过
+            return true;
         }
     }
 
