@@ -1,2 +1,5 @@
 # Spring Boot Auto Configuration
-org.springframework.boot.autoconfigure.EnableAutoConfiguration=com.ms.middleware.MsMiddlewareAutoConfiguration
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+com.ms.middleware.MsMiddlewareAutoConfiguration,\
+com.ms.middleware.autonomy.AutonomyAutoConfiguration,\
+com.ms.middleware.console.ConsoleAutoConfiguration

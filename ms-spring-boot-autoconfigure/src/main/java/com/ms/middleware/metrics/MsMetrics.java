@@ -225,4 +225,18 @@ public class MsMetrics {
         return failureCount.get();
     }
 
+    public double getCacheHitRate() {
+        double hits = cacheHits.count();
+        double misses = cacheMisses.count();
+        double total = hits + misses;
+        if (total <= 0) {
+            return 1.0;
+        }
+        return hits / total;
+    }
+
+    public long getMessageFailedCount() {
+        return (long) messageFailed.count();
+    }
+
 }

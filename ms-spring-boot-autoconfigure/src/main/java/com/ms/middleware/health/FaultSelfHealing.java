@@ -91,6 +91,22 @@ public class FaultSelfHealing {
     }
 
     /**
+     * 由自治层主动触发指定组件的恢复（不等待定时健康检查周期）
+     */
+    public boolean triggerRecovery(String componentName) {
+        if (!recoveryStrategies.containsKey(componentName)) {
+            logger.warn("No recovery strategy for component: {}", componentName);
+            return false;
+        }
+        ComponentHealth health = components.get(componentName);
+        if (health != null) {
+            health.setRecovering(true);
+        }
+        recoverComponent(componentName);
+        return getComponentHealth(componentName);
+    }
+
+    /**
      * 获取组件健康状态
      * @param componentName 组件名称
      * @return 健康状态

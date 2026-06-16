@@ -1,6 +1,6 @@
 # ms-spring-boot-starter
 
-企业级 Spring Boot Starter，整合 Redis、Redisson、RabbitMQ，提供多级缓存自动降级与故障自愈机制、消息追踪与幂等消费、AI 热点识别等功能。
+企业级 Spring Boot Starter，整合 Redis、Redisson、RabbitMQ，提供多级缓存自动降级与故障自愈机制、消息追踪与幂等消费、AI 热点识别、**中间件自治与 AI 控制台**等功能。
 
 ## 功能特性
 
@@ -52,6 +52,14 @@
 - **多环境支持**：通过命名空间隔离不同环境的配置
 - **配置监听**：支持配置变更监听，实时响应配置变化
 - **自动配置**：应用启动时自动拉取配置并监听变更，无需手动配置
+
+### 9. 中间件自治与 AI 控制台（新增）
+
+- **自治引擎**：定时扫描 Redis/RabbitMQ 健康、缓存命中率、MQ 失败等指标，自动生成处置计划
+- **智能决策**：按 `auto-execute-max-risk`（LOW/MEDIUM/HIGH）决定自动执行或仅建议
+- **AI 控制台**：访问 `/ms-console` 可视化界面，实时查看问题列表、自治时间线、优化推荐与规则聊天
+- **默认关闭**：`ms.middleware.autonomy.enabled=false`，零侵入现有功能
+- **可审计**：所有动作记录在内存 Ledger（后续支持 Redisson 持久化），支持 SSE 实时推送
 
 ## 快速开始
 

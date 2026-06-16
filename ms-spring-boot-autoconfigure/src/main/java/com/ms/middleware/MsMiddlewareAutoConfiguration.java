@@ -10,6 +10,7 @@ import com.ms.middleware.health.*;
 import com.ms.middleware.lock.DistributedLock;
 import com.ms.middleware.lock.RedisDistributedLock;
 import com.ms.middleware.metrics.MsMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
 import com.ms.middleware.mq.MsMessageQueue;
 import com.ms.middleware.mq.RabbitMessageQueue;
 import com.ms.middleware.mq.idempotent.IdempotentStore;
@@ -51,6 +52,12 @@ public class MsMiddlewareAutoConfiguration {
 
     public MsMiddlewareAutoConfiguration(MsMiddlewareProperties properties) {
         this.properties = properties;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(MsMetrics.class)
+    public MsMetrics msMetrics(MeterRegistry meterRegistry) {
+        return new MsMetrics(meterRegistry);
     }
 
     // ==================== 缓存配置 ====================

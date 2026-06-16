@@ -43,6 +43,16 @@ public class MsMiddlewareProperties {
      */
     private DiscoveryProperties discovery = new DiscoveryProperties();
 
+    /**
+     * 中间件自治配置
+     */
+    private AutonomyProperties autonomy = new AutonomyProperties();
+
+    /**
+     * AI 控制台配置
+     */
+    private ConsoleProperties console = new ConsoleProperties();
+
     // Getters and Setters
     public CacheProperties getCache() {
         return cache;
@@ -111,6 +121,22 @@ public class MsMiddlewareProperties {
 
     public void setCacheEnabled(boolean cacheEnabled) {
         this.cacheEnabled = cacheEnabled;
+    }
+
+    public AutonomyProperties getAutonomy() {
+        return autonomy;
+    }
+
+    public void setAutonomy(AutonomyProperties autonomy) {
+        this.autonomy = autonomy;
+    }
+
+    public ConsoleProperties getConsole() {
+        return console;
+    }
+
+    public void setConsole(ConsoleProperties console) {
+        this.console = console;
     }
 
     /**
@@ -1046,6 +1072,90 @@ public class MsMiddlewareProperties {
 
         public void setAcquisitionTimeout(long acquisitionTimeout) {
             this.acquisitionTimeout = acquisitionTimeout;
+        }
+    }
+
+    /**
+     * 中间件自治（检测、计划、执行、账本）
+     */
+    public static class AutonomyProperties {
+        private boolean enabled = false;
+        private long scanIntervalMs = 30000;
+        private String autoExecuteMaxRisk = "LOW";
+        private double cacheHitRateWarnThreshold = 0.5;
+        private long mqFailedWarnThreshold = 10;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public long getScanIntervalMs() {
+            return scanIntervalMs;
+        }
+
+        public void setScanIntervalMs(long scanIntervalMs) {
+            this.scanIntervalMs = scanIntervalMs;
+        }
+
+        public String getAutoExecuteMaxRisk() {
+            return autoExecuteMaxRisk;
+        }
+
+        public void setAutoExecuteMaxRisk(String autoExecuteMaxRisk) {
+            this.autoExecuteMaxRisk = autoExecuteMaxRisk;
+        }
+
+        public double getCacheHitRateWarnThreshold() {
+            return cacheHitRateWarnThreshold;
+        }
+
+        public void setCacheHitRateWarnThreshold(double cacheHitRateWarnThreshold) {
+            this.cacheHitRateWarnThreshold = cacheHitRateWarnThreshold;
+        }
+
+        public long getMqFailedWarnThreshold() {
+            return mqFailedWarnThreshold;
+        }
+
+        public void setMqFailedWarnThreshold(long mqFailedWarnThreshold) {
+            this.mqFailedWarnThreshold = mqFailedWarnThreshold;
+        }
+    }
+
+    /**
+     * AI 控制台（问题列表、时间线、聊天入口）
+     */
+    public static class ConsoleProperties {
+        private boolean enabled = false;
+        private String basePath = "/ms-console";
+        private boolean chatEnabled = false;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getBasePath() {
+            return basePath;
+        }
+
+        public void setBasePath(String basePath) {
+            this.basePath = basePath;
+        }
+
+        public boolean isChatEnabled() {
+            return chatEnabled;
+        }
+
+        public void setChatEnabled(boolean chatEnabled) {
+            this.chatEnabled = chatEnabled;
         }
     }
 }

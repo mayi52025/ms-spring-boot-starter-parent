@@ -63,6 +63,18 @@ ms:
         prefix: "mq:idempotent:"
         # 过期时间（小时）
         expirationHours: 24
+    # 中间件自治（默认关闭）
+    autonomy:
+      enabled: false
+      scan-interval-ms: 30000
+      auto-execute-max-risk: LOW
+      cache-hit-rate-warn-threshold: 0.5
+      mq-failed-warn-threshold: 10
+    # AI 控制台（需同时开启 autonomy；默认关闭）
+    console:
+      enabled: false
+      base-path: /ms-console
+      chat-enabled: false
     # Redis配置
     redis:
       # 主机
