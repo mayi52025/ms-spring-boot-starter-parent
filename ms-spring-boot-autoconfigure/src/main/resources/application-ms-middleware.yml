@@ -70,6 +70,11 @@ ms:
       auto-execute-max-risk: LOW
       cache-hit-rate-warn-threshold: 0.5
       mq-failed-warn-threshold: 10
+      ledger:
+        type: memory
+        max-runs: 200
+        key-prefix: ms:autonomy:run
+        ttl-hours: 168
     # AI 控制台（需同时开启 autonomy；默认关闭）
     console:
       enabled: false

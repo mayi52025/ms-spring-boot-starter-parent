@@ -15,6 +15,8 @@ public interface MiddlewareInsightService {
 
     List<AutonomyRun> listActiveRuns();
 
+    List<AutonomyRun> listHistoryRuns(int limit);
+
     List<AutonomyRun> listRecentRuns(int limit);
 
     Optional<MessageTrace> getTrace(String messageId);

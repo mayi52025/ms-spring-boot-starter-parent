@@ -1,6 +1,7 @@
 package com.ms.middleware.autonomy;
 
 import org.springframework.scheduling.annotation.Scheduled;
+import jakarta.annotation.PostConstruct;
 
 /**
  * 自治定时入口：按 {@code ms.middleware.autonomy.scan-interval-ms} 触发编排器。
@@ -12,6 +13,12 @@ public class AutonomyScheduler {
 
     public AutonomyScheduler(AutonomyOrchestrator orchestrator) {
         this.orchestrator = orchestrator;
+    }
+
+    /** 启动后立即 reconcile 一次，避免重启后账本遗留 EXECUTING 状态 */
+    @PostConstruct
+    public void initialScan() {
+        orchestrator.tick();
     }
 
     @Scheduled(fixedDelayString = "${ms.middleware.autonomy.scan-interval-ms:30000}")

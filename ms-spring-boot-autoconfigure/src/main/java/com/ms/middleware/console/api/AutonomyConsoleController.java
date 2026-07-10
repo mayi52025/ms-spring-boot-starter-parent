@@ -50,6 +50,16 @@ public class AutonomyConsoleController {
         Map<String, Object> body = new HashMap<>();
         body.put("count", active.size());
         body.put("runs", active);
+        body.put("healthy", active.isEmpty());
+        return body;
+    }
+
+    @GetMapping("/history")
+    public Map<String, Object> historyRuns() {
+        List<AutonomyRun> history = insightService.listHistoryRuns(50);
+        Map<String, Object> body = new HashMap<>();
+        body.put("count", history.size());
+        body.put("runs", history);
         return body;
     }
 
@@ -61,6 +71,8 @@ public class AutonomyConsoleController {
         body.put("mqFailedCount", snapshot.getMqFailedCount());
         body.put("globalFailureCount", snapshot.getGlobalFailureCount());
         body.put("activeRunCount", snapshot.getActiveRunCount());
+        body.put("lastMttrSeconds", snapshot.getLastMttrSeconds());
+        body.put("completedAutonomyRuns", snapshot.getCompletedAutonomyRuns());
         return body;
     }
 

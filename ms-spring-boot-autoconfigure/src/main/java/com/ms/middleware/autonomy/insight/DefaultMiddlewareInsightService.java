@@ -1,6 +1,8 @@
 package com.ms.middleware.autonomy.insight;
 
+import com.ms.middleware.autonomy.AutonomyRunStatus;
 import com.ms.middleware.autonomy.plan.AutonomyPlan;
+import com.ms.middleware.autonomy.metrics.AutonomyMetrics;
 import com.ms.middleware.autonomy.run.AutonomyLedger;
 import com.ms.middleware.autonomy.run.AutonomyRun;
 import com.ms.middleware.metrics.MsMetrics;
@@ -20,10 +22,14 @@ public class DefaultMiddlewareInsightService implements MiddlewareInsightService
 
     private final AutonomyLedger ledger;
     private final MsMetrics metrics;
+    private final AutonomyMetrics autonomyMetrics;
 
-    public DefaultMiddlewareInsightService(AutonomyLedger ledger, MsMetrics metrics) {
+    public DefaultMiddlewareInsightService(AutonomyLedger ledger,
+                                           MsMetrics metrics,
+                                           AutonomyMetrics autonomyMetrics) {
         this.ledger = ledger;
         this.metrics = metrics;
+        this.autonomyMetrics = autonomyMetrics;
     }
 
     @Override
@@ -34,6 +40,14 @@ public class DefaultMiddlewareInsightService implements MiddlewareInsightService
     @Override
     public List<AutonomyRun> listActiveRuns() {
         return ledger.listActive();
+    }
+
+    @Override
+    public List<AutonomyRun> listHistoryRuns(int limit) {
+        return ledger.listRecent(limit).stream()
+                .filter(run -> run.getStatus() == AutonomyRunStatus.STABLE
+                        || run.getStatus() == AutonomyRunStatus.CLOSED)
+                .toList();
     }
 
     @Override
@@ -57,6 +71,8 @@ public class DefaultMiddlewareInsightService implements MiddlewareInsightService
         snapshot.setMqFailedCount(metrics.getMessageFailedCount());
         snapshot.setGlobalFailureCount(metrics.getFailureCount());
         snapshot.setActiveRunCount(ledger.listActive().size());
+        snapshot.setLastMttrSeconds(autonomyMetrics.getLastMttrSeconds());
+        snapshot.setCompletedAutonomyRuns(autonomyMetrics.getCompletedRunCount());
         return snapshot;
     }
 

@@ -55,7 +55,8 @@ public class RedisRecoveryStrategy implements RecoveryStrategy {
             // 等待一段时间后重新创建连接
             Thread.sleep(2000);
             
-            // 重新创建连接
+            // 重新创建连接（恢复场景需立即探活，不使用 lazyInitialization）
+            config.setLazyInitialization(false);
             RedissonClient newRedissonClient = org.redisson.Redisson.create(config);
             
             // 测试新连接

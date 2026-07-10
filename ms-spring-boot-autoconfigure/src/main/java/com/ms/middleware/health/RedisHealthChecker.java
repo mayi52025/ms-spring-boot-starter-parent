@@ -3,6 +3,8 @@ package com.ms.middleware.health;
 import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -21,12 +23,12 @@ public class RedisHealthChecker implements HealthChecker {
     public boolean checkHealth() {
         try {
             RedissonClient client = redissonClientRef.get();
-            if (client == null) {
-                logger.warn("Redis client is null");
+            if (client == null || client.isShutdown()) {
+                logger.warn("Redis client is null or shutdown");
                 return false;
             }
-            // 尝试执行一个简单的命令来检查Redis连接
-            client.getKeys().count();
+            // 短超时探活，避免 Redis 宕机时阻塞自治扫描线程
+            client.getKeys().countAsync().get(3, TimeUnit.SECONDS);
             return true;
         } catch (Exception e) {
             logger.warn("Redis health check failed: {}", e.getMessage());

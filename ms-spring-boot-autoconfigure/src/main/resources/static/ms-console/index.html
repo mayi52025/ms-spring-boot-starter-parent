@@ -20,6 +20,10 @@
     #timeline { font-family: ui-monospace, monospace; font-size: 0.8rem; line-height: 1.6; }
     .tl-item { padding: 6px 0; border-bottom: 1px solid #2a3548; }
     .tl-phase { color: var(--accent); }
+    .tl-stable { border-left: 3px solid var(--ok); padding-left: 8px; background: rgba(34,197,94,.08); }
+    .tl-stable .tl-phase { color: var(--ok); }
+    .mttr-banner { background: rgba(34,197,94,.15); border: 1px solid var(--ok); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.9rem; }
+    .mttr-banner strong { color: var(--ok); }
     .rec { background: #1e2a3d; border-left: 3px solid var(--warn); padding: 8px; margin: 8px 0; border-radius: 4px; font-size: 0.85rem; }
     footer { border-top: 1px solid #2a3548; padding: 10px; display: flex; gap: 8px; background: var(--panel); }
     input, button { font: inherit; }
@@ -28,6 +32,8 @@
     #chatLog { max-height: 120px; overflow: auto; font-size: 0.85rem; margin-bottom: 8px; }
     .status { font-size: 0.8rem; color: var(--muted); }
     .status.ok { color: var(--ok); }
+    .issue-card.history { opacity: 0.85; border-left: 3px solid var(--ok); }
+    .healthy-banner { background: rgba(34,197,94,.12); border: 1px solid var(--ok); border-radius: 8px; padding: 12px; margin-bottom: 12px; color: var(--ok); font-size: 0.9rem; }
   </style>
 </head>
 <body>
@@ -46,7 +52,9 @@
     <div id="recommendations"></div>
   </section>
   <section class="panel">
-    <h2>对话</h2>
+    <h2>历史记录</h2>
+    <div id="history">加载中…</div>
+    <h2 style="margin-top:16px">对话</h2>
     <div id="chatLog"></div>
   </section>
 </main>
@@ -58,34 +66,119 @@
   const base = window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') || '/ms-console';
   const api = base + '/api';
   let selectedRunId = null;
+  let viewingHistory = false;
+
+  function showHealthyView() {
+    document.getElementById('timeline').innerHTML =
+      '<div class="healthy-banner"><strong>系统正常</strong> · 中间件运行正常，暂无活跃故障</div>' +
+      '<p style="color:var(--muted)">可在右侧「历史记录」查看已恢复的故障事件。</p>';
+    document.getElementById('recommendations').innerHTML = '';
+    selectedRunId = null;
+    viewingHistory = false;
+    document.querySelectorAll('.issue-card').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.history-card').forEach(c => c.classList.remove('active'));
+  }
+
+  function computeMttr(run) {
+    if (!run || !run.startedAt || !run.stabilizedAt) return null;
+    const start = new Date(run.startedAt).getTime();
+    const end = new Date(run.stabilizedAt).getTime();
+    if (isNaN(start) || isNaN(end)) return null;
+    return Math.max(0, Math.floor((end - start) / 1000));
+  }
+
+  function renderTimeline(run) {
+    const tl = document.getElementById('timeline');
+    const mttr = computeMttr(run);
+    let html = '';
+    if (run.status === 'STABLE' && mttr != null) {
+      html += `<div class="mttr-banner"><strong>已恢复</strong> · MTTR = <strong>${mttr}s</strong> · run ${run.runId}</div>`;
+    }
+    html += (run.timeline || []).map(e => {
+      const cls = e.phase === 'STABLE' ? 'tl-item tl-stable' : 'tl-item';
+      return `<div class="${cls}"><span class="tl-phase">[${e.phase}]</span> ${e.at} — ${e.message}</div>`;
+    }).join('') || '无时间线';
+    tl.innerHTML = html;
+  }
 
   async function loadIssues() {
-    const res = await fetch(api + '/issues');
-    const data = await res.json();
     const el = document.getElementById('issues');
-    if (!data.runs || data.runs.length === 0) {
-      el.innerHTML = '<p style="color:var(--muted)">暂无活跃故障</p>';
-      return;
-    }
-    el.innerHTML = data.runs.map(r => `
+    try {
+      const res = await fetch(api + '/issues');
+      if (!res.ok) {
+        el.innerHTML = `<p style="color:#f59e0b">加载失败 HTTP ${res.status}，请确认已重启 order-system 并 reinstall starter</p>`;
+        return;
+      }
+      const data = await res.json();
+      if (!data.runs || data.runs.length === 0) {
+        el.innerHTML = '<div class="healthy-banner"><strong>系统正常</strong> · 暂无活跃故障</div>';
+        showHealthyView();
+        loadHistory();
+        return;
+      }
+      viewingHistory = false;
+      el.innerHTML = data.runs.map(r => `
       <div class="issue-card" data-run="${r.runId}">
         <div class="id">run ${r.runId} · ${r.status}</div>
         <div>${(r.issues || []).join('；') || '—'}</div>
       </div>`).join('');
-    el.querySelectorAll('.issue-card').forEach(card => {
-      card.onclick = () => selectRun(card.dataset.run);
-    });
+      el.querySelectorAll('.issue-card').forEach(card => {
+        card.onclick = () => selectRun(card.dataset.run);
+      });
+    } catch (err) {
+      el.innerHTML = `<p style="color:#f59e0b">加载异常：${err.message}</p>`;
+    }
   }
 
-  async function selectRun(runId) {
+  async function loadHistory() {
+    const el = document.getElementById('history');
+    try {
+      const res = await fetch(api + '/history');
+      if (!res.ok) {
+        el.innerHTML = `<p style="color:#f59e0b">加载失败 HTTP ${res.status}</p>`;
+        return;
+      }
+      const data = await res.json();
+      if (!data.runs || data.runs.length === 0) {
+        el.innerHTML = '<p style="color:var(--muted)">暂无历史记录</p>';
+        return;
+      }
+      el.innerHTML = data.runs.map(r => {
+        const mttr = r.mttrSeconds != null ? r.mttrSeconds : computeMttr(r);
+        const mttrLabel = mttr != null ? ` · MTTR ${mttr}s` : '';
+        return `
+      <div class="issue-card history history-card" data-run="${r.runId}">
+        <div class="id">run ${r.runId} · ${r.status}${mttrLabel}</div>
+        <div>${(r.issues || []).join('；') || '—'}</div>
+      </div>`;
+      }).join('');
+      el.querySelectorAll('.history-card').forEach(card => {
+        card.onclick = () => selectHistoryRun(card.dataset.run);
+      });
+    } catch (err) {
+      el.innerHTML = `<p style="color:#f59e0b">加载异常：${err.message}</p>`;
+    }
+  }
+
+  async function selectHistoryRun(runId) {
+    viewingHistory = true;
     selectedRunId = runId;
-    document.querySelectorAll('.issue-card').forEach(c => c.classList.toggle('active', c.dataset.run === runId));
+    document.querySelectorAll('.history-card').forEach(c => c.classList.toggle('active', c.dataset.run === runId));
+    document.querySelectorAll('.issue-card:not(.history-card)').forEach(c => c.classList.remove('active'));
+    await selectRun(runId, true);
+  }
+
+  async function selectRun(runId, fromHistory = false) {
+    selectedRunId = runId;
+    viewingHistory = fromHistory;
+    if (!fromHistory) {
+      document.querySelectorAll('.issue-card:not(.history-card)').forEach(c => c.classList.toggle('active', c.dataset.run === runId));
+      document.querySelectorAll('.history-card').forEach(c => c.classList.remove('active'));
+    }
     const res = await fetch(api + '/runs/' + runId);
     if (!res.ok) return;
     const run = await res.json();
-    const tl = document.getElementById('timeline');
-    tl.innerHTML = (run.timeline || []).map(e => `
-      <div class="tl-item"><span class="tl-phase">[${e.phase}]</span> ${e.at} — ${e.message}</div>`).join('') || '无时间线';
+    renderTimeline(run);
     const rec = document.getElementById('recommendations');
     const recs = run.plan && run.plan.recommendations ? run.plan.recommendations : [];
     rec.innerHTML = recs.length ? '<h2>推荐</h2>' + recs.map(r => `
@@ -103,12 +196,18 @@
       try {
         const e = JSON.parse(ev.data);
         const line = document.createElement('div');
-        line.className = 'tl-item';
+        line.className = e.phase === 'STABLE' ? 'tl-item tl-stable' : 'tl-item';
         line.innerHTML = `<span class="tl-phase">[${e.phase}]</span> ${e.at} — ${e.message}`;
         document.getElementById('timeline').prepend(line);
-        if (e.runId) selectRun(e.runId);
+        if (e.phase === 'STABLE') {
+          loadIssues();
+          loadHistory();
+          if (e.runId) selectHistoryRun(e.runId);
+        } else {
+          loadIssues();
+          if (e.runId && !viewingHistory) selectRun(e.runId);
+        }
       } catch (_) {}
-      loadIssues();
     });
     es.onerror = () => {
       document.getElementById('sseStatus').textContent = 'SSE 断开，3s 后刷新页面';
@@ -121,13 +220,18 @@
     if (!msg) return;
     const log = document.getElementById('chatLog');
     log.innerHTML += `<div><b>你：</b>${msg}</div>`;
-    const res = await fetch(api + '/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: msg, runId: selectedRunId })
-    });
-    const data = await res.json();
-    log.innerHTML += `<div><b>助手：</b>${data.reply}</div>`;
+    try {
+      const res = await fetch(api + '/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg, runId: selectedRunId })
+      });
+      const data = await res.json().catch(() => ({}));
+      const reply = data.reply || data.message || (res.ok ? '（无回复内容）' : `请求失败 HTTP ${res.status}`);
+      log.innerHTML += `<div><b>助手：</b>${reply}</div>`;
+    } catch (err) {
+      log.innerHTML += `<div><b>助手：</b>请求异常：${err.message}</div>`;
+    }
     input.value = '';
     log.scrollTop = log.scrollHeight;
   }
@@ -135,8 +239,9 @@
   document.getElementById('sendBtn').onclick = sendChat;
   document.getElementById('chatInput').onkeydown = e => { if (e.key === 'Enter') sendChat(); };
   loadIssues();
+  loadHistory();
   connectSse();
-  setInterval(loadIssues, 30000);
+  setInterval(() => { loadIssues(); loadHistory(); }, 10000);
 </script>
 </body>
 </html>

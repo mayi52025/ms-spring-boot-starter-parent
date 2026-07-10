@@ -16,16 +16,12 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>存储 key 为 {@code tenant:runId}，同一 JVM 多应用通过 tenant 隔离。
  * 每次 appendTimeline 会发布 {@link ConsoleTimelineEvent}，驱动控制台 SSE 推送。</p>
- *
- * <p>Phase 2 将提供 {@code RedissonAutonomyLedger}，接口不变。</p>
  */
-public class InMemoryAutonomyLedger implements AutonomyLedger {
+public class InMemoryAutonomyLedger extends AbstractAutonomyLedger {
 
     private static final int DEFAULT_MAX_RUNS = 200;
 
     private final Map<String, AutonomyRun> runs = new ConcurrentHashMap<>();
-    private final ApplicationEventPublisher eventPublisher;
-    private final AutonomyTenantProvider tenantProvider;
     private final int maxRuns;
 
     public InMemoryAutonomyLedger(ApplicationEventPublisher eventPublisher,
@@ -36,12 +32,10 @@ public class InMemoryAutonomyLedger implements AutonomyLedger {
     public InMemoryAutonomyLedger(ApplicationEventPublisher eventPublisher,
                                     AutonomyTenantProvider tenantProvider,
                                     int maxRuns) {
-        this.eventPublisher = eventPublisher;
-        this.tenantProvider = tenantProvider;
+        super(eventPublisher, tenantProvider);
         this.maxRuns = maxRuns;
     }
 
-    /** 写入 run 并发出第一条 DETECT 时间线 */
     @Override
     public AutonomyRun startRun(AutonomyRun run) {
         ensureTenant(run);
@@ -99,28 +93,10 @@ public class InMemoryAutonomyLedger implements AutonomyLedger {
         runs.put(storageKey(run.getTenant(), run.getRunId()), run);
     }
 
-    /** 追加时间线并广播 SSE；同时 mutate run.timeline 供 REST 查询 */
-    private void publishTimeline(AutonomyRun run, String phase, String message) {
-        TimelineEvent event = new TimelineEvent(run.getRunId(), phase, message);
-        run.addTimeline(event);
-        eventPublisher.publishEvent(new ConsoleTimelineEvent(this, event));
-    }
-
-    private void ensureTenant(AutonomyRun run) {
-        if (run.getTenant() == null || run.getTenant().isBlank()) {
-            run.setTenant(currentTenant());
-        }
-    }
-
-    private String currentTenant() {
-        return tenantProvider.getTenant();
-    }
-
     private static String storageKey(String tenant, String runId) {
         return tenant + ":" + runId;
     }
 
-    /** 按 tenant 保留最近 maxRuns 条，防止内存无限增长 */
     private void trimIfNeeded(String tenant) {
         long tenantCount = runs.values().stream().filter(r -> tenant.equals(r.getTenant())).count();
         if (tenantCount <= maxRuns) {

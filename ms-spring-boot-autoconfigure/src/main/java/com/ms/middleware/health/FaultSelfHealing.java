@@ -51,11 +51,13 @@ public class FaultSelfHealing {
 
             try {
                 boolean isHealthy = health.getHealthChecker().checkHealth();
-                if (!isHealthy && !health.isRecovering()) {
-                    logger.warn("Component {} is unhealthy, starting recovery...", componentName);
-                    health.setRecovering(true);
-                    recoverComponent(componentName);
-                } else if (isHealthy && health.isRecovering()) {
+                if (!isHealthy) {
+                    if (!health.isRecovering()) {
+                        logger.warn("Component {} is unhealthy, starting recovery...", componentName);
+                        health.setRecovering(true);
+                        recoverComponent(componentName);
+                    }
+                } else if (health.isRecovering()) {
                     logger.info("Component {} recovered successfully", componentName);
                     health.setRecovering(false);
                 }
@@ -80,7 +82,7 @@ public class FaultSelfHealing {
                         components.get(componentName).setRecovering(false);
                     } else {
                         logger.warn("Failed to recover component {}", componentName);
-                        // 可以添加重试逻辑
+                        components.get(componentName).setRecovering(false);
                     }
                 } catch (Exception e) {
                     logger.error("Error recovering component {}", componentName, e);
@@ -94,7 +96,8 @@ public class FaultSelfHealing {
      * 由自治层主动触发指定组件的恢复（不等待定时健康检查周期）
      */
     public boolean triggerRecovery(String componentName) {
-        if (!recoveryStrategies.containsKey(componentName)) {
+        RecoveryStrategy strategy = recoveryStrategies.get(componentName);
+        if (strategy == null) {
             logger.warn("No recovery strategy for component: {}", componentName);
             return false;
         }
@@ -102,8 +105,19 @@ public class FaultSelfHealing {
         if (health != null) {
             health.setRecovering(true);
         }
-        recoverComponent(componentName);
-        return getComponentHealth(componentName);
+        try {
+            boolean recovered = strategy.recover();
+            if (health != null) {
+                health.setRecovering(false);
+            }
+            return recovered || getComponentHealth(componentName);
+        } catch (Exception e) {
+            logger.error("Error triggering recovery for component {}", componentName, e);
+            if (health != null) {
+                health.setRecovering(false);
+            }
+            return false;
+        }
     }
 
     /**

@@ -1,5 +1,8 @@
 package com.ms.middleware.autonomy.run;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ms.middleware.autonomy.AutonomyRunStatus;
 import com.ms.middleware.autonomy.context.AutonomyContext;
 import com.ms.middleware.autonomy.plan.AutonomyPlan;
@@ -99,14 +102,22 @@ public class AutonomyRun {
         timeline.add(event);
     }
 
-    public List<String> getIssues() {
+    @JsonProperty("issues")
+    public List<String> getIssueList() {
         return context != null ? context.getIssues() : List.of();
     }
 
+    @JsonIgnore
+    public List<String> getIssues() {
+        return getIssueList();
+    }
+
+    @JsonIgnore
     public List<PlannedAction> getActions() {
         return plan != null ? plan.getActions() : List.of();
     }
 
+    @JsonIgnore
     public List<AutonomyRecommendation> getRecommendations() {
         return plan != null ? plan.getRecommendations() : List.of();
     }
@@ -114,10 +125,18 @@ public class AutonomyRun {
     /**
      * 恢复耗时（秒）；未稳定时返回 empty。
      */
+    @JsonIgnore
     public OptionalLong getMttrSeconds() {
         if (stabilizedAt == null || startedAt == null) {
             return OptionalLong.empty();
         }
         return OptionalLong.of(Math.max(0, stabilizedAt.getEpochSecond() - startedAt.getEpochSecond()));
+    }
+
+    /** REST / SSE 使用的 MTTR 字段（避免 OptionalLong 序列化失败） */
+    @JsonProperty("mttrSeconds")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Long getMttrSecondsForJson() {
+        return getMttrSeconds().isPresent() ? getMttrSeconds().getAsLong() : null;
     }
 }

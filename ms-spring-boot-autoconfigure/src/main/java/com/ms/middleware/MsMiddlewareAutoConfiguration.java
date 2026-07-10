@@ -26,6 +26,7 @@ import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -230,7 +231,11 @@ public class MsMiddlewareAutoConfiguration {
         Config config = new Config();
         var singleServerConfig = config.useSingleServer()
               .setAddress("redis://" + properties.getRedis().getHost() + ":" + properties.getRedis().getPort())
-              .setDatabase(properties.getRedis().getDatabase());
+              .setDatabase(properties.getRedis().getDatabase())
+              .setConnectTimeout(3000)
+              .setTimeout(3000)
+              .setRetryAttempts(2)
+              .setRetryInterval(1500);
         if (StringUtils.hasText(properties.getRedis().getPassword())) {
             singleServerConfig.setPassword(properties.getRedis().getPassword());
         }
@@ -270,6 +275,7 @@ public class MsMiddlewareAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(HotKeyManager.class)
     @ConditionalOnProperty(prefix = "ms.middleware.ai.hotKey", name = "enabled", havingValue = "true")
+    @ConditionalOnBean(MultiLevelCache.class)
     public HotKeyManager hotKeyManager(HotKeyConfig hotKeyConfig, MultiLevelCache multiLevelCache) {
         return new HotKeyManager(hotKeyConfig, multiLevelCache);
     }
@@ -278,9 +284,14 @@ public class MsMiddlewareAutoConfiguration {
     @ConditionalOnMissingBean(RedissonClient.class)
     public RedissonClient redissonClient() {
         Config config = new Config();
+        config.setLazyInitialization(true);
         var singleServerConfig = config.useSingleServer()
               .setAddress("redis://" + properties.getRedis().getHost() + ":" + properties.getRedis().getPort())
-              .setDatabase(properties.getRedis().getDatabase());
+              .setDatabase(properties.getRedis().getDatabase())
+              .setConnectTimeout(3000)
+              .setTimeout(3000)
+              .setRetryAttempts(2)
+              .setRetryInterval(1500);
         if (StringUtils.hasText(properties.getRedis().getPassword())) {
             singleServerConfig.setPassword(properties.getRedis().getPassword());
         }
@@ -295,7 +306,8 @@ public class MsMiddlewareAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(ObjectMapper.class)
     public ObjectMapper objectMapper() {
-        return new ObjectMapper();
+        // 必须注册 JavaTimeModule，否则 REST 返回 Instant 字段（AutonomyRun 等）会 500
+        return new ObjectMapper().findAndRegisterModules();
     }
 
     // ==================== 分布式锁配置 ====================

@@ -1142,6 +1142,10 @@ public class MsMiddlewareProperties {
     public static class LedgerProperties {
         private String type = "memory";
         private int maxRuns = 200;
+        /** Redis key 前缀，仅 ledger.type=redisson 时生效 */
+        private String keyPrefix = "ms:autonomy:run";
+        /** run 记录在 Redis 中的保留时间（小时） */
+        private long ttlHours = 168;
 
         public String getType() {
             return type;
@@ -1157,6 +1161,22 @@ public class MsMiddlewareProperties {
 
         public void setMaxRuns(int maxRuns) {
             this.maxRuns = maxRuns;
+        }
+
+        public String getKeyPrefix() {
+            return keyPrefix;
+        }
+
+        public void setKeyPrefix(String keyPrefix) {
+            this.keyPrefix = keyPrefix;
+        }
+
+        public long getTtlHours() {
+            return ttlHours;
+        }
+
+        public void setTtlHours(long ttlHours) {
+            this.ttlHours = ttlHours;
         }
     }
 

@@ -6,8 +6,8 @@ package com.ms.middleware.autonomy;
 public enum AutonomyActionType {
     ENSURE_L1_DEGRADE(AutonomyRisk.LOW, "确认多级缓存走 L1 降级路径"),
     WARMUP_HOT_KEYS(AutonomyRisk.LOW, "预热热点缓存 Key"),
-    TRIGGER_REDIS_RECOVERY(AutonomyRisk.MEDIUM, "触发 Redis 连接自愈"),
-    TRIGGER_RABBITMQ_RECOVERY(AutonomyRisk.MEDIUM, "触发 RabbitMQ 连接自愈");
+    TRIGGER_REDIS_RECOVERY(AutonomyRisk.LOW, "触发 Redis 连接自愈"),
+    TRIGGER_RABBITMQ_RECOVERY(AutonomyRisk.LOW, "触发 RabbitMQ 连接自愈");
 
     private final AutonomyRisk risk;
     private final String description;

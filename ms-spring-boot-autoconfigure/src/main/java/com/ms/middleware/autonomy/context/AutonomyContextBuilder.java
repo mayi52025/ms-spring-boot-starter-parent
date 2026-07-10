@@ -77,4 +77,21 @@ public class AutonomyContextBuilder {
         ctx.setIssues(issues);
         return ctx;
     }
+
+    /**
+     * 判断某次 run 对应的主 incident 是否已恢复（用于 STABLE 判定，避免次要预警阻止结束）。
+     */
+    public boolean isIncidentResolved(String incidentType, AutonomyContext context) {
+        if (incidentType == null || "NONE".equals(incidentType)) {
+            return !context.hasIncident();
+        }
+        MsMiddlewareProperties.AutonomyProperties autonomy = properties.getAutonomy();
+        return switch (incidentType) {
+            case "REDIS_UNAVAILABLE" -> context.isRedisHealthy();
+            case "RABBITMQ_UNAVAILABLE" -> context.isRabbitMqHealthy();
+            case "MQ_DEGRADED" -> context.getMqFailedCount() < autonomy.getMqFailedWarnThreshold();
+            case "CACHE_DEGRADED" -> context.getCacheHitRate() >= autonomy.getCacheHitRateWarnThreshold();
+            default -> !context.hasIncident();
+        };
+    }
 }

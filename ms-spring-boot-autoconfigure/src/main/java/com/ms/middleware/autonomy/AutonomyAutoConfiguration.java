@@ -1,5 +1,7 @@
 package com.ms.middleware.autonomy;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ms.middleware.MsMiddlewareAutoConfiguration;
 import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.ai.HotKeyManager;
 import com.ms.middleware.autonomy.act.AutonomyActuator;
@@ -7,15 +9,22 @@ import com.ms.middleware.autonomy.context.AutonomyContextBuilder;
 import com.ms.middleware.autonomy.decision.AutonomyDecisionEngine;
 import com.ms.middleware.autonomy.insight.DefaultMiddlewareInsightService;
 import com.ms.middleware.autonomy.insight.MiddlewareInsightService;
+import com.ms.middleware.autonomy.metrics.AutonomyMetrics;
 import com.ms.middleware.autonomy.plan.AutonomyRuleEngine;
 import com.ms.middleware.autonomy.policy.AutonomyPolicy;
 import com.ms.middleware.autonomy.run.AutonomyLedger;
 import com.ms.middleware.autonomy.run.InMemoryAutonomyLedger;
+import com.ms.middleware.autonomy.run.RedissonAutonomyLedger;
 import com.ms.middleware.autonomy.tenant.AutonomyTenantProvider;
 import com.ms.middleware.autonomy.tenant.SpringEnvironmentTenantProvider;
 import com.ms.middleware.health.FaultSelfHealing;
 import com.ms.middleware.metrics.MsMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -29,12 +38,12 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * 自治模块 Spring Boot 自动配置。
  *
  * <p>开关：{@code ms.middleware.autonomy.enabled=true}</p>
- * <p>可替换 Bean：{@link com.ms.middleware.autonomy.decision.AutonomyDecisionEngine}、
- * {@link AutonomyLedger}（ledger.type=redisson 时 Phase 2 注册 Redisson 实现）</p>
+ * <p>账本：{@code ledger.type=memory}（默认）或 {@code redisson}（需 RedissonClient）</p>
  */
 @Configuration
 @EnableScheduling
 @EnableConfigurationProperties(MsMiddlewareProperties.class)
+@AutoConfigureAfter(MsMiddlewareAutoConfiguration.class)
 @ConditionalOnProperty(prefix = "ms.middleware.autonomy", name = "enabled", havingValue = "true")
 public class AutonomyAutoConfiguration {
 
@@ -70,6 +79,12 @@ public class AutonomyAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(AutonomyMetrics.class)
+    public AutonomyMetrics autonomyMetrics(MeterRegistry meterRegistry) {
+        return new AutonomyMetrics(meterRegistry);
+    }
+
+    @Bean
     @ConditionalOnMissingBean(AutonomyLedger.class)
     @ConditionalOnProperty(prefix = "ms.middleware.autonomy.ledger", name = "type", havingValue = "memory", matchIfMissing = true)
     public AutonomyLedger inMemoryAutonomyLedger(ApplicationEventPublisher eventPublisher,
@@ -80,9 +95,32 @@ public class AutonomyAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(AutonomyLedger.class)
+    @ConditionalOnProperty(prefix = "ms.middleware.autonomy.ledger", name = "type", havingValue = "redisson")
+    @ConditionalOnClass(RedissonClient.class)
+    @ConditionalOnBean(RedissonClient.class)
+    public AutonomyLedger redissonAutonomyLedger(RedissonClient redissonClient,
+                                                  ObjectMapper objectMapper,
+                                                  ApplicationEventPublisher eventPublisher,
+                                                  AutonomyTenantProvider tenantProvider,
+                                                  MsMiddlewareProperties properties) {
+        MsMiddlewareProperties.LedgerProperties ledger = properties.getAutonomy().getLedger();
+        return new RedissonAutonomyLedger(
+                redissonClient,
+                objectMapper,
+                eventPublisher,
+                tenantProvider,
+                ledger.getKeyPrefix(),
+                ledger.getMaxRuns(),
+                ledger.getTtlHours());
+    }
+
+    @Bean
     @ConditionalOnMissingBean(MiddlewareInsightService.class)
-    public MiddlewareInsightService middlewareInsightService(AutonomyLedger ledger, MsMetrics metrics) {
-        return new DefaultMiddlewareInsightService(ledger, metrics);
+    public MiddlewareInsightService middlewareInsightService(AutonomyLedger ledger,
+                                                             MsMetrics metrics,
+                                                             AutonomyMetrics autonomyMetrics) {
+        return new DefaultMiddlewareInsightService(ledger, metrics, autonomyMetrics);
     }
 
     @Bean
@@ -91,8 +129,10 @@ public class AutonomyAutoConfiguration {
                                                      AutonomyPolicy policy,
                                                      AutonomyActuator actuator,
                                                      AutonomyLedger ledger,
-                                                     AutonomyTenantProvider tenantProvider) {
-        return new AutonomyOrchestrator(contextBuilder, decisionEngine, policy, actuator, ledger, tenantProvider);
+                                                     AutonomyTenantProvider tenantProvider,
+                                                     AutonomyMetrics autonomyMetrics) {
+        return new AutonomyOrchestrator(contextBuilder, decisionEngine, policy, actuator, ledger,
+                tenantProvider, autonomyMetrics);
     }
 
     @Bean
