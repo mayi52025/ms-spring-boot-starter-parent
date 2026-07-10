@@ -7,9 +7,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.redisson.api.RBucket;
+import org.redisson.api.RScript;
 import org.redisson.api.RScoredSortedSet;
 import org.redisson.api.RedissonClient;
 
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -18,6 +20,7 @@ import static org.mockito.Mockito.*;
 class RedisRateLimiterTest {
 
     private RedissonClient redissonClient;
+    private RScript rScript;
     private RBucket<Long> longBucket;
     private RBucket<RedisRateLimiter.TokenBucketState> tokenBucket;
     private RScoredSortedSet<String> sortedSet;
@@ -26,10 +29,14 @@ class RedisRateLimiterTest {
     @BeforeEach
     void setUp() {
         redissonClient = Mockito.mock(RedissonClient.class);
+        rScript = Mockito.mock(RScript.class);
         longBucket = Mockito.mock(RBucket.class);
         tokenBucket = Mockito.mock(RBucket.class);
         sortedSet = Mockito.mock(RScoredSortedSet.class);
         MeterRegistry meterRegistry = new SimpleMeterRegistry();
+        
+        // Mock script for counter rate limiter
+        when(redissonClient.getScript()).thenReturn(rScript);
         
         // 使用类型转换解决泛型问题
         when(redissonClient.getBucket("rate:limiter:counter:test-key")).thenReturn((RBucket) longBucket);
@@ -42,31 +49,64 @@ class RedisRateLimiterTest {
 
     @Test
     void testTryAcquireFirstTime() {
-        when(longBucket.get()).thenReturn(null);
+        // Mock Lua script返回1（成功）
+        when(rScript.eval(
+            eq(RScript.Mode.READ_WRITE),
+            anyString(),
+            eq(RScript.ReturnType.INTEGER),
+            any(),
+            any(),
+            any()
+        )).thenReturn(1L);
+        
         boolean result = rateLimiter.tryAcquire("test-key", 10, 1, TimeUnit.MINUTES);
         assertTrue(result);
-        verify(longBucket, times(1)).set(1L, 1, TimeUnit.MINUTES);
     }
 
     @Test
     void testTryAcquireWithinLimit() {
-        when(longBucket.get()).thenReturn(5L);
+        // Mock Lua script返回1（成功）
+        when(rScript.eval(
+            eq(RScript.Mode.READ_WRITE),
+            anyString(),
+            eq(RScript.ReturnType.INTEGER),
+            any(),
+            any(),
+            any()
+        )).thenReturn(1L);
+        
         boolean result = rateLimiter.tryAcquire("test-key", 10, 1, TimeUnit.MINUTES);
         assertTrue(result);
-        verify(longBucket, times(1)).set(6L, 1, TimeUnit.MINUTES);
     }
 
     @Test
     void testTryAcquireExceedLimit() {
-        when(longBucket.get()).thenReturn(10L);
+        // Mock Lua script返回0（限流）
+        when(rScript.eval(
+            eq(RScript.Mode.READ_WRITE),
+            anyString(),
+            eq(RScript.ReturnType.INTEGER),
+            any(),
+            any(),
+            any()
+        )).thenReturn(0L);
+        
         boolean result = rateLimiter.tryAcquire("test-key", 10, 1, TimeUnit.MINUTES);
         assertFalse(result);
-        verify(longBucket, never()).set(anyLong(), anyLong(), any());
     }
 
     @Test
     void testTryAcquireException() {
-        when(longBucket.get()).thenThrow(new RuntimeException("Redis error"));
+        // 抛出异常，测试降级策略
+        when(rScript.eval(
+            eq(RScript.Mode.READ_WRITE),
+            anyString(),
+            eq(RScript.ReturnType.INTEGER),
+            any(),
+            any(),
+            any()
+        )).thenThrow(new RuntimeException("Redis error"));
+        
         boolean result = rateLimiter.tryAcquire("test-key", 10, 1, TimeUnit.MINUTES);
         assertTrue(result); // 降级策略：允许请求通过
     }

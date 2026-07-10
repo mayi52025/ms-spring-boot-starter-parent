@@ -1084,6 +1084,7 @@ public class MsMiddlewareProperties {
         private String autoExecuteMaxRisk = "LOW";
         private double cacheHitRateWarnThreshold = 0.5;
         private long mqFailedWarnThreshold = 10;
+        private LedgerProperties ledger = new LedgerProperties();
 
         public boolean isEnabled() {
             return enabled;
@@ -1123,6 +1124,38 @@ public class MsMiddlewareProperties {
 
         public void setMqFailedWarnThreshold(long mqFailedWarnThreshold) {
             this.mqFailedWarnThreshold = mqFailedWarnThreshold;
+        }
+
+        public LedgerProperties getLedger() {
+            return ledger;
+        }
+
+        public void setLedger(LedgerProperties ledger) {
+            this.ledger = ledger;
+        }
+    }
+
+    /**
+     * 账本存储配置（Phase 1 默认 memory，Phase 2 可选 redisson）
+     */
+    public static class LedgerProperties {
+        private String type = "memory";
+        private int maxRuns = 200;
+
+        public String getType() {
+            return type;
+        }
+
+        public void setType(String type) {
+            this.type = type;
+        }
+
+        public int getMaxRuns() {
+            return maxRuns;
+        }
+
+        public void setMaxRuns(int maxRuns) {
+            this.maxRuns = maxRuns;
         }
     }
 

@@ -1,0 +1,3 @@
+com.ms.middleware.MsMiddlewareAutoConfiguration
+com.ms.middleware.autonomy.AutonomyAutoConfiguration
+com.ms.middleware.console.ConsoleAutoConfiguration

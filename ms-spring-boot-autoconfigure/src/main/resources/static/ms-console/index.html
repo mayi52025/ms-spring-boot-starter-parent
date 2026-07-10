@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>MS 智能中间件控制台</title>
+  <style>
+    :root { --bg: #0f1419; --panel: #1a2332; --text: #e7ecf3; --muted: #8b9cb3; --accent: #3b82f6; --ok: #22c55e; --warn: #f59e0b; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
+    header { padding: 12px 20px; background: var(--panel); border-bottom: 1px solid #2a3548; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { font-size: 1.1rem; margin: 0; font-weight: 600; }
+    main { display: grid; grid-template-columns: 280px 1fr 320px; gap: 0; min-height: 0; }
+    .panel { border-right: 1px solid #2a3548; padding: 12px; overflow: auto; }
+    .panel:last-child { border-right: none; border-left: 1px solid #2a3548; }
+    h2 { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin: 0 0 10px; }
+    .issue-card { background: #243044; border-radius: 8px; padding: 10px; margin-bottom: 8px; cursor: pointer; border: 1px solid transparent; }
+    .issue-card:hover, .issue-card.active { border-color: var(--accent); }
+    .issue-card .id { font-size: 0.75rem; color: var(--muted); }
+    #timeline { font-family: ui-monospace, monospace; font-size: 0.8rem; line-height: 1.6; }
+    .tl-item { padding: 6px 0; border-bottom: 1px solid #2a3548; }
+    .tl-phase { color: var(--accent); }
+    .rec { background: #1e2a3d; border-left: 3px solid var(--warn); padding: 8px; margin: 8px 0; border-radius: 4px; font-size: 0.85rem; }
+    footer { border-top: 1px solid #2a3548; padding: 10px; display: flex; gap: 8px; background: var(--panel); }
+    input, button { font: inherit; }
+    #chatInput { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid #2a3548; background: #0f1419; color: var(--text); }
+    button { padding: 10px 16px; border: none; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
+    #chatLog { max-height: 120px; overflow: auto; font-size: 0.85rem; margin-bottom: 8px; }
+    .status { font-size: 0.8rem; color: var(--muted); }
+    .status.ok { color: var(--ok); }
+  </style>
+</head>
+<body>
+<header>
+  <h1>MS 智能中间件控制台</h1>
+  <span class="status" id="sseStatus">SSE 连接中…</span>
+</header>
+<main>
+  <section class="panel">
+    <h2>当前问题</h2>
+    <div id="issues">加载中…</div>
+  </section>
+  <section class="panel">
+    <h2>自治时间线</h2>
+    <div id="timeline">选择左侧事件或等待新事件…</div>
+    <div id="recommendations"></div>
+  </section>
+  <section class="panel">
+    <h2>对话</h2>
+    <div id="chatLog"></div>
+  </section>
+</main>
+<footer>
+  <input id="chatInput" type="text" placeholder="问：当前有什么问题？最近 run？"/>
+  <button type="button" id="sendBtn">发送</button>
+</footer>
+<script>
+  const base = window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') || '/ms-console';
+  const api = base + '/api';
+  let selectedRunId = null;
+
+  async function loadIssues() {
+    const res = await fetch(api + '/issues');
+    const data = await res.json();
+    const el = document.getElementById('issues');
+    if (!data.runs || data.runs.length === 0) {
+      el.innerHTML = '<p style="color:var(--muted)">暂无活跃故障</p>';
+      return;
+    }
+    el.innerHTML = data.runs.map(r => `
+      <div class="issue-card" data-run="${r.runId}">
+        <div class="id">run ${r.runId} · ${r.status}</div>
+        <div>${(r.issues || []).join('；') || '—'}</div>
+      </div>`).join('');
+    el.querySelectorAll('.issue-card').forEach(card => {
+      card.onclick = () => selectRun(card.dataset.run);
+    });
+  }
+
+  async function selectRun(runId) {
+    selectedRunId = runId;
+    document.querySelectorAll('.issue-card').forEach(c => c.classList.toggle('active', c.dataset.run === runId));
+    const res = await fetch(api + '/runs/' + runId);
+    if (!res.ok) return;
+    const run = await res.json();
+    const tl = document.getElementById('timeline');
+    tl.innerHTML = (run.timeline || []).map(e => `
+      <div class="tl-item"><span class="tl-phase">[${e.phase}]</span> ${e.at} — ${e.message}</div>`).join('') || '无时间线';
+    const rec = document.getElementById('recommendations');
+    const recs = run.plan && run.plan.recommendations ? run.plan.recommendations : [];
+    rec.innerHTML = recs.length ? '<h2>推荐</h2>' + recs.map(r => `
+      <div class="rec"><strong>${r.title}</strong><br/>${r.description}
+      ${r.suggestedConfig ? '<br/><code>' + r.suggestedConfig + '</code>' : ''}</div>`).join('') : '';
+  }
+
+  function connectSse() {
+    const es = new EventSource(api + '/stream');
+    es.addEventListener('connected', () => {
+      document.getElementById('sseStatus').textContent = 'SSE 已连接';
+      document.getElementById('sseStatus').classList.add('ok');
+    });
+    es.addEventListener('timeline', ev => {
+      try {
+        const e = JSON.parse(ev.data);
+        const line = document.createElement('div');
+        line.className = 'tl-item';
+        line.innerHTML = `<span class="tl-phase">[${e.phase}]</span> ${e.at} — ${e.message}`;
+        document.getElementById('timeline').prepend(line);
+        if (e.runId) selectRun(e.runId);
+      } catch (_) {}
+      loadIssues();
+    });
+    es.onerror = () => {
+      document.getElementById('sseStatus').textContent = 'SSE 断开，3s 后刷新页面';
+    };
+  }
+
+  async function sendChat() {
+    const input = document.getElementById('chatInput');
+    const msg = input.value.trim();
+    if (!msg) return;
+    const log = document.getElementById('chatLog');
+    log.innerHTML += `<div><b>你：</b>${msg}</div>`;
+    const res = await fetch(api + '/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, runId: selectedRunId })
+    });
+    const data = await res.json();
+    log.innerHTML += `<div><b>助手：</b>${data.reply}</div>`;
+    input.value = '';
+    log.scrollTop = log.scrollHeight;
+  }
+
+  document.getElementById('sendBtn').onclick = sendChat;
+  document.getElementById('chatInput').onkeydown = e => { if (e.key === 'Enter') sendChat(); };
+  loadIssues();
+  connectSse();
+  setInterval(loadIssues, 30000);
+</script>
+</body>
+</html>
