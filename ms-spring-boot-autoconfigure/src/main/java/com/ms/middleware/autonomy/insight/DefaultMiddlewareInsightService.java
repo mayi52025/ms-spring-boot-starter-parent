@@ -12,6 +12,10 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * {@link MiddlewareInsightService} 默认实现：聚合账本 + MsMetrics。
+ * 控制台、规则聊天、未来 LangChain4j Tool 都应依赖此接口而非直接访问 Ledger。
+ */
 public class DefaultMiddlewareInsightService implements MiddlewareInsightService {
 
     private final AutonomyLedger ledger;
@@ -56,6 +60,7 @@ public class DefaultMiddlewareInsightService implements MiddlewareInsightService
         return snapshot;
     }
 
+    /** Phase 1 关键词匹配；Phase 5+ 可换 pgvector 语义检索 */
     @Override
     public List<AutonomyRun> searchSimilarRuns(String query, int topK) {
         if (query == null || query.isBlank()) {

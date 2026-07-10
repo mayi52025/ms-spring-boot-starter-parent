@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 一次巡检时的中间件状况快照
+ * 一次巡检时的中间件状况快照（只读 DTO，每次 tick 重新 build）。
  */
 public class AutonomyContext {
 
@@ -82,6 +82,7 @@ public class AutonomyContext {
         this.issues = issues != null ? issues : new ArrayList<>();
     }
 
+    /** issues 列表非空表示当前存在需自治处理的异常或预警 */
     public boolean hasIncident() {
         return !issues.isEmpty();
     }

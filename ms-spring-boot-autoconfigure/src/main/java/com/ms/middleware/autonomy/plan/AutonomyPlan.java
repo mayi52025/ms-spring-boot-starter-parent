@@ -5,6 +5,10 @@ import com.ms.middleware.autonomy.context.AutonomyContext;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 决策引擎产出的一次处置计划，挂在 {@link com.ms.middleware.autonomy.run.AutonomyRun} 上。
+ * incidentType 用于分类与搜索（如 REDIS_UNAVAILABLE、MQ_DEGRADED）。
+ */
 public class AutonomyPlan {
 
     private String incidentType;

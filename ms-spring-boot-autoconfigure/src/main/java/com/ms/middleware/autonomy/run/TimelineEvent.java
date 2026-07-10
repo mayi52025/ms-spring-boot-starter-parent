@@ -3,7 +3,8 @@ package com.ms.middleware.autonomy.run;
 import java.time.Instant;
 
 /**
- * 时间线事件（推送到 AI 控制台）
+ * 时间线单条事件，JSON 序列化后通过 SSE {@code event=timeline} 推送到浏览器。
+ * phase 常见值：DETECT / PLAN / ACTION / ADVISE / RECOMMEND / STABLE。
  */
 public class TimelineEvent {
 

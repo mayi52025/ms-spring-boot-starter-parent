@@ -1,7 +1,8 @@
 package com.ms.middleware.autonomy.plan;
 
 /**
- * 需人工确认或参考的优化建议（展示在 AI 窗口推荐区）
+ * 需人工确认的配置级建议（展示在控制台推荐区）。
+ * suggestedConfig 为 YAML 片段或配置键，Phase 3 可接「采纳」API 写回 Nacos。
  */
 public class AutonomyRecommendation {
 

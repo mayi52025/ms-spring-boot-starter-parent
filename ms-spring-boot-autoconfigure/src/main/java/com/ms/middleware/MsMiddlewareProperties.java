@@ -1076,7 +1076,8 @@ public class MsMiddlewareProperties {
     }
 
     /**
-     * 中间件自治（检测、计划、执行、账本）
+     * 中间件自治（检测、计划、执行、账本）。
+     * 总开关 {@code enabled}；扫描间隔、风险阈值、账本类型见子字段。
      */
     public static class AutonomyProperties {
         private boolean enabled = false;
@@ -1136,7 +1137,7 @@ public class MsMiddlewareProperties {
     }
 
     /**
-     * 账本存储配置（Phase 1 默认 memory，Phase 2 可选 redisson）
+     * 账本存储：memory（默认，重启丢失）| redisson（Phase 2）。
      */
     public static class LedgerProperties {
         private String type = "memory";

@@ -12,6 +12,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+/**
+ * SSE 广播中心：维护所有浏览器连接，监听 {@link ConsoleTimelineEvent} 并推送 timeline 事件。
+ */
 public class ConsoleStreamHub {
 
     private static final Logger logger = LoggerFactory.getLogger(ConsoleStreamHub.class);
@@ -23,6 +26,7 @@ public class ConsoleStreamHub {
         this.objectMapper = objectMapper;
     }
 
+    /** timeoutMs=0 表示不超时，由客户端断开或 onError 清理 */
     public SseEmitter subscribe(long timeoutMs) {
         SseEmitter emitter = new SseEmitter(timeoutMs);
         emitters.add(emitter);

@@ -9,6 +9,9 @@ import java.util.List;
 
 /**
  * 基于规则的处置计划（Phase 1 默认决策引擎，Phase 3 由 EasyRules 逐步替换）。
+ *
+ * <p>故障优先级（if-else 顺序即优先级）：Redis 宕机 &gt; RabbitMQ 宕机 &gt; MQ 失败计数 &gt; 缓存命中率低。
+ * 每个分支产出 {@link PlannedAction}（可自动执行）和 {@link AutonomyRecommendation}（仅建议，需人工采纳）。</p>
  */
 public class AutonomyRuleEngine implements AutonomyDecisionEngine {
 
@@ -27,6 +30,7 @@ public class AutonomyRuleEngine implements AutonomyDecisionEngine {
         List<AutonomyRecommendation> recommendations = new ArrayList<>();
 
         if (!context.isRedisHealthy()) {
+            // 最严重：L2 不可用，组合 L1 降级 + 热点预热 + 触发自愈
             plan.setIncidentType("REDIS_UNAVAILABLE");
             plan.setSummary("Redis 不可用，启用本地缓存与自愈组合处置");
 
@@ -57,6 +61,7 @@ public class AutonomyRuleEngine implements AutonomyDecisionEngine {
                     "故障期间可能重复投递，可适当延长幂等键过期时间（需人工确认）",
                     "ms.middleware.mq.idempotent.expiration-hours"));
         } else if (context.getMqFailedCount() > 0) {
+            // 组件健康但消费失败累积 — Phase 3 会加限流/重试动作
             plan.setIncidentType("MQ_DEGRADED");
             plan.setSummary("MQ 失败计数偏高，建议排查消费端与幂等");
             recommendations.add(new AutonomyRecommendation(

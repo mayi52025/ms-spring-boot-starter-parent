@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+/** SSE 端点：浏览器 EventSource 连接 {@code GET /ms-console/api/stream} */
 @RestController
 @RequestMapping("${ms.middleware.console.base-path:/ms-console}/api")
 public class ConsoleStreamController {

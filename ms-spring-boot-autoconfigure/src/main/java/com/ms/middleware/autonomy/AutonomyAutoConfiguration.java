@@ -25,6 +25,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+/**
+ * 自治模块 Spring Boot 自动配置。
+ *
+ * <p>开关：{@code ms.middleware.autonomy.enabled=true}</p>
+ * <p>可替换 Bean：{@link com.ms.middleware.autonomy.decision.AutonomyDecisionEngine}、
+ * {@link AutonomyLedger}（ledger.type=redisson 时 Phase 2 注册 Redisson 实现）</p>
+ */
 @Configuration
 @EnableScheduling
 @EnableConfigurationProperties(MsMiddlewareProperties.class)

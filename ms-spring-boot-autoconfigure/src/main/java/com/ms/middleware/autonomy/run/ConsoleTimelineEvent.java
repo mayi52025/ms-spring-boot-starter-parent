@@ -3,7 +3,7 @@ package com.ms.middleware.autonomy.run;
 import org.springframework.context.ApplicationEvent;
 
 /**
- * 时间线事件，供控制台 SSE 订阅
+ * Spring 事件：账本写入时间线时发布，{@link com.ms.middleware.console.stream.ConsoleStreamHub} 监听并 SSE 广播。
  */
 public class ConsoleTimelineEvent extends ApplicationEvent {
 

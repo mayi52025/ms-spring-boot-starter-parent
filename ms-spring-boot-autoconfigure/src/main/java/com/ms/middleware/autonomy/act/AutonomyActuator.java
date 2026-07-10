@@ -8,6 +8,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 
+/**
+ * 自治动作执行器：把 {@link com.ms.middleware.autonomy.AutonomyActionType} 映射到现有中间件能力。
+ *
+ * <p>不重复实现缓存/MQ 逻辑，而是调用 {@link FaultSelfHealing}、{@link HotKeyManager} 等已有组件，
+ * 保证自治层是薄编排层。</p>
+ */
 public class AutonomyActuator {
 
     private static final Logger logger = LoggerFactory.getLogger(AutonomyActuator.class);
@@ -21,10 +27,14 @@ public class AutonomyActuator {
         this.hotKeyManagerProvider = hotKeyManagerProvider;
     }
 
+    /**
+     * 执行单个计划动作，结果写回 action.executionStatus / executionDetail。
+     */
     public void execute(PlannedAction action) {
         AutonomyActionType type = action.getActionType();
         try {
             switch (type) {
+                // L1 降级已在 MultiLevelCache 请求路径内完成，此处仅确认策略生效
                 case ENSURE_L1_DEGRADE -> {
                     action.setExecutionStatus("SUCCESS");
                     action.setExecutionDetail("已依赖 MultiLevelCache 请求路径自动降级至 L1，无需额外调用");

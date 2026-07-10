@@ -12,8 +12,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 控制台页面控制器
- * 直接返回静态 HTML
+ * 控制台页面：返回 classpath:static/ms-console/index.html。
+ * 固定映射 /ms-console；API 路径可通过 base-path 配置（见 AutonomyConsoleController）。
  */
 @RestController
 @RequestMapping("/ms-console")

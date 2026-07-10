@@ -4,6 +4,10 @@ import com.ms.middleware.autonomy.AutonomyActionType;
 import com.ms.middleware.autonomy.AutonomyPolicyDecision;
 import com.ms.middleware.autonomy.AutonomyRisk;
 
+/**
+ * 计划中的单个可执行动作；经 Policy 评估后可能 AUTO 执行或仅 ADVISE。
+ * executionStatus 示例：SUCCESS / FAILED / SKIPPED / ADVISE。
+ */
 public class PlannedAction {
 
     private AutonomyActionType actionType;

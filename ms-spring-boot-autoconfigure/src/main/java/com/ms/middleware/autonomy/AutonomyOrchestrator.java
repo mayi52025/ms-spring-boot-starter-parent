@@ -17,7 +17,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * 自治编排：检测 → 计划 → 门控 → 执行 → 稳定判定
+ * 自治编排核心：把「检测 → 计划 → 门控 → 执行 → 稳定判定」串成一次 tick。
+ *
+ * <p>设计要点：</p>
+ * <ul>
+ *   <li>同一故障周期内复用同一个 run（{@link #activeRunId}），避免每次扫描都新建记录</li>
+ *   <li>指标恢复正常时写入 STABLE 并计算 MTTR，然后清空 activeRunId</li>
+ *   <li>高风险动作只写 ADVISE 时间线，不调用 Actuator（见 {@link AutonomyPolicy}）</li>
+ * </ul>
  */
 public class AutonomyOrchestrator {
 
@@ -30,6 +37,7 @@ public class AutonomyOrchestrator {
     private final AutonomyLedger ledger;
     private final AutonomyTenantProvider tenantProvider;
 
+    /** 当前 JVM 内正在处理的故障 run；稳定后置 null */
     private volatile String activeRunId;
 
     public AutonomyOrchestrator(AutonomyContextBuilder contextBuilder,
@@ -46,6 +54,10 @@ public class AutonomyOrchestrator {
         this.tenantProvider = tenantProvider;
     }
 
+    /**
+     * 单次自治扫描，由 {@link AutonomyScheduler} 定时调用。
+     * 无故障时只做稳定判定；有故障时走完整 plan → policy → act 流程。
+     */
     public void tick() {
         AutonomyContext context = contextBuilder.build();
 
@@ -86,6 +98,7 @@ public class AutonomyOrchestrator {
                 run.getRunId(), run.getTenant(), run.getStatus(), plan.getIncidentType());
     }
 
+    /** 故障持续期间复用未 STABLE 的 run；否则新建并写入账本 DETECT 事件 */
     private AutonomyRun resolveOrCreateRun(AutonomyContext context) {
         if (activeRunId != null) {
             Optional<AutonomyRun> existing = ledger.get(activeRunId);
@@ -104,6 +117,7 @@ public class AutonomyOrchestrator {
         return ledger.startRun(run);
     }
 
+    /** 中间件指标已正常，但之前有过故障 → 标记 STABLE 并记录 MTTR */
     private void stabilizeActiveRunIfNeeded(AutonomyContext context) {
         if (activeRunId == null) {
             return;

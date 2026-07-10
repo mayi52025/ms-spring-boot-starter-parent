@@ -9,6 +9,17 @@ import org.springframework.beans.factory.ObjectProvider;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 从现有中间件组件聚合一次「巡检快照」。
+ *
+ * <p>数据来源：</p>
+ * <ul>
+ *   <li>{@link com.ms.middleware.health.FaultSelfHealing} — Redis / RabbitMQ 健康</li>
+ *   <li>{@link com.ms.middleware.metrics.MsMetrics} — 命中率、MQ 失败计数</li>
+ *   <li>{@link com.ms.middleware.ai.HotKeyManager} — 热点 Key（可选）</li>
+ * </ul>
+ * <p>issues 非空即视为有故障（{@link AutonomyContext#hasIncident()}）。</p>
+ */
 public class AutonomyContextBuilder {
 
     private final MsMiddlewareProperties properties;
@@ -26,10 +37,14 @@ public class AutonomyContextBuilder {
         this.hotKeyManagerProvider = hotKeyManagerProvider;
     }
 
+    /**
+     * 构建当前时刻的中间件上下文；每次 tick 调用一次，不缓存。
+     */
     public AutonomyContext build() {
         AutonomyContext ctx = new AutonomyContext();
         MsMiddlewareProperties.AutonomyProperties autonomy = properties.getAutonomy();
 
+        // 组件级健康来自 FaultSelfHealing 的探活结果
         boolean redisHealthy = faultSelfHealing.getComponentHealth("Redis");
         boolean rabbitHealthy = faultSelfHealing.getComponentHealth("RabbitMQ");
         ctx.setRedisHealthy(redisHealthy);
@@ -41,6 +56,7 @@ public class AutonomyContextBuilder {
         hotKeyManagerProvider.ifAvailable(manager ->
                 ctx.setHotKeys(new ArrayList<>(manager.getHotKeys())));
 
+        // 以下规则与 ms.middleware.autonomy 阈值配置联动，写入可读 issues 供控制台展示
         List<String> issues = new ArrayList<>();
         if (!redisHealthy) {
             issues.add("Redis 不可用，分布式缓存 L2 可能失效");

@@ -21,6 +21,10 @@ public class ConsoleChatService {
         this.properties = properties;
     }
 
+    /**
+     * 规则模式聊天：按关键词路由到 Insight 查询。
+     * 支持：runId 详情 / 「问题」「故障」/ 「最近」「run」/ 「指标」「metric」
+     */
     public ConsoleChatResponse chat(String message, String runId) {
         if (properties.getConsole().isChatEnabled()) {
             return new ConsoleChatResponse(

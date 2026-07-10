@@ -15,6 +15,10 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+/**
+ * 控制台模块自动配置。依赖业务应用引入 spring-boot-starter-web。
+ * 开关：{@code ms.middleware.console.enabled=true}
+ */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(prefix = "ms.middleware.console", name = "enabled", havingValue = "true")
 @EnableConfigurationProperties(MsMiddlewareProperties.class)
