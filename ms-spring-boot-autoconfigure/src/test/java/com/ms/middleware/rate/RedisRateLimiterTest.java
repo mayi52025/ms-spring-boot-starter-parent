@@ -12,6 +12,7 @@ import org.redisson.api.RScoredSortedSet;
 import org.redisson.api.RedissonClient;
 
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -44,7 +45,7 @@ class RedisRateLimiterTest {
         when(redissonClient.getScoredSortedSet("rate:limiter:sliding:test-key")).thenReturn((RScoredSortedSet) sortedSet);
         
         MsMetrics metrics = new MsMetrics(meterRegistry);
-        rateLimiter = new RedisRateLimiter(redissonClient, metrics);
+        rateLimiter = new RedisRateLimiter(new AtomicReference<>(redissonClient), metrics);
     }
 
     @Test

@@ -18,6 +18,9 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.ms.middleware.redis.RedissonConnectionManager;
+import org.redisson.config.Config;
+
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,8 +47,12 @@ class RedissonAutonomyLedgerTest {
         when(redissonClient.getScoredSortedSet(anyString())).thenAnswer(inv -> mockIndex(inv.getArgument(0)));
 
         AutonomyTenantProvider tenantProvider = () -> TENANT;
+        Config config = new Config();
+        config.useSingleServer().setAddress("redis://127.0.0.1:6379");
+        RedissonConnectionManager connectionManager =
+                new RedissonConnectionManager(new AtomicReference<>(redissonClient), config);
         ledger = new RedissonAutonomyLedger(
-                new AtomicReference<>(redissonClient),
+                connectionManager,
                 new ObjectMapper().findAndRegisterModules(),
                 publishedEvents::add,
                 tenantProvider,

@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import com.ms.middleware.redis.RedissonConnectionManager;
 
 /**
  * 基于 Redisson 的自治账本：run 重启不丢失，按 tenant 隔离。
@@ -46,7 +47,7 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
     private final int maxRuns;
     private final Duration ttl;
 
-    public RedissonAutonomyLedger(AtomicReference<RedissonClient> redissonClientRef,
+    public RedissonAutonomyLedger(RedissonConnectionManager connectionManager,
                                   ObjectMapper objectMapper,
                                   ApplicationEventPublisher eventPublisher,
                                   AutonomyTenantProvider tenantProvider,
@@ -54,12 +55,28 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
                                   int maxRuns,
                                   long ttlHours) {
         super(eventPublisher, tenantProvider);
-        this.redissonClientRef = redissonClientRef;
+        this.redissonClientRef = connectionManager.getClientRef();
+        connectionManager.addAfterRecoverCallback(this::flushLocalFallbackToRedis);
         this.serde = new AutonomyRunSerde(objectMapper);
         this.keyPrefix = normalizePrefix(keyPrefix);
         this.indexPrefix = this.keyPrefix + "index:";
         this.maxRuns = maxRuns;
         this.ttl = Duration.ofHours(Math.max(1, ttlHours));
+    }
+
+    /** Redis 恢复后将降级期间写入内存的 run 回填到 Redis */
+    public void flushLocalFallbackToRedis() {
+        if (localFallback.isEmpty()) {
+            return;
+        }
+        logger.info("Flushing {} autonomy runs from local fallback to Redis", localFallback.size());
+        for (AutonomyRun run : List.copyOf(localFallback.values())) {
+            try {
+                persistToRedis(run);
+            } catch (Exception e) {
+                logger.warn("Failed to flush autonomy run {} to Redis: {}", run.getRunId(), e.getMessage());
+            }
+        }
     }
 
     @Override

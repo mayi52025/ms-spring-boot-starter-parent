@@ -8,8 +8,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import com.ms.middleware.redis.RedissonConnectionManager;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
+import org.redisson.config.Config;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -53,8 +56,11 @@ class MultiLevelCacheTest {
         distributedProperties.setEnabled(true);
 
         when(redissonClient.getBucket(anyString())).thenReturn(mockBucket);
-        AtomicReference<RedissonClient> redissonClientRef = new AtomicReference<>(redissonClient);
-        distributedCache = new DistributedCache(redissonClientRef, distributedProperties, properties, metrics);
+        Config config = new Config();
+        config.useSingleServer().setAddress("redis://127.0.0.1:6379");
+        RedissonConnectionManager connectionManager =
+                new RedissonConnectionManager(new AtomicReference<>(redissonClient), config);
+        distributedCache = new DistributedCache(connectionManager, distributedProperties, properties, metrics);
 
         // 初始化多级缓存
         multiLevelCache = new MultiLevelCache(localCache, distributedCache);

@@ -143,6 +143,11 @@ class MultiLevelCacheConsistencyIntegrationTest {
         }
 
         @Override
+        public boolean exists(String key) {
+            return cache.containsKey(key);
+        }
+
+        @Override
         public void clear() {
             cache.clear();
         }

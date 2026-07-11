@@ -152,9 +152,11 @@ ms:
 
 - [x] `RedissonAutonomyLedger` + `ledger.type=redisson`
 
-- [x] Micrometer：`ms.autonomy.run.total`、`ms.autonomy.mttr`
+- [x] Micrometer：`ms_autonomy_run_total`、`ms_autonomy_mttr_seconds`（Prometheus 抓取 `/actuator/prometheus`）
 
-- [x] 控制台 STABLE 事件展示 MTTR
+- [x] 控制台 STABLE 事件展示 MTTR；`/ms-console/api/history` 展示已恢复 run
+
+- [x] **P0 技术债（Redis 恢复统一）**：`RedissonConnectionManager` single-flight 重连；`DistributedCache` / `RedisRecoveryStrategy` / 账本共用；Lock / RateLimiter / IdempotentStore 每次 `ref.get()` 取最新 client；Redis 恢复后 `flushLocalFallbackToRedis` 回填账本
 
 **Redisson 账本配置：**
 
@@ -166,7 +168,19 @@ ms.middleware.autonomy.ledger:
   ttl-hours: 168
 ```
 
+**监控栈（`middleware-demo/monitoring`，部署在 102）：**
 
+- Prometheus `:9090` 抓取 `order-system:8080/actuator/prometheus`（Windows 主机需 `server.address: 0.0.0.0` + 防火墙放行）
+- Grafana `:3000` 预置 `ms-autonomy` 看板（run 总数、MTTR）
+
+**Phase 2 已知限制：**
+
+| 项 | 说明 |
+|----|------|
+| 编排锁 | 单 JVM 内 `recovering` 标志；多实例同时自愈需 Phase 4 分布式锁 |
+| 账本降级 | Redis 不可用时写内存 `localFallback`，恢复后异步回填 |
+| 控制台鉴权 | `/ms-console/**` 仍为 permitAll，生产需 Phase 4 token |
+| Resilience4j 单测 | 依赖版本与 `PredicateCreator` 不兼容，与 P0 无关，待单独升级 |
 
 ### Phase 3 — MQ 场景 + 采纳推荐（下一步）
 
@@ -232,8 +246,9 @@ com.ms.middleware.autonomy/
 
   ├── run/          # AutonomyLedger + InMemory / Redisson 实现
   ├── metrics/      # AutonomyMetrics（Micrometer）
-
   └── tenant/       # AutonomyTenantProvider
+
+com.ms.middleware.redis/        # RedissonConnectionManager、RedissonProbes（统一恢复）
 
 com.ms.middleware.console/      # AI 控制台 API + UI 静态资源
 

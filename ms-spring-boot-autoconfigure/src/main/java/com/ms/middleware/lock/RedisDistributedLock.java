@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 基于 Redis 的分布式锁实现
@@ -18,21 +19,22 @@ public class RedisDistributedLock implements DistributedLock {
 
     private static final Logger logger = LoggerFactory.getLogger(RedisDistributedLock.class);
 
-    private final RedissonClient redissonClient;
+    private final AtomicReference<RedissonClient> redissonClientRef;
     private final MsMetrics metrics;
     private final MsMiddlewareProperties.SecurityProperties securityProperties;
 
-    public RedisDistributedLock(RedissonClient redissonClient, MsMetrics metrics, MsMiddlewareProperties properties) {
-        this.redissonClient = redissonClient;
+    public RedisDistributedLock(AtomicReference<RedissonClient> redissonClientRef,
+                                MsMetrics metrics,
+                                MsMiddlewareProperties properties) {
+        this.redissonClientRef = redissonClientRef;
         this.metrics = metrics;
         this.securityProperties = properties.getSecurity();
     }
 
-    /**
-     * 生成安全的锁键
-     * @param key 原始键
-     * @return 安全的锁键
-     */
+    private RedissonClient client() {
+        return redissonClientRef.get();
+    }
+
     private String generateSecureLockKey(String key) {
         if (securityProperties.isEnabled() && securityProperties.getLock().isAccessControlEnabled()) {
             return SecurityUtils.generateSecureLockKey(key, securityProperties.getLock().getKeyPrefix());
@@ -45,7 +47,7 @@ public class RedisDistributedLock implements DistributedLock {
         try {
             String secureKey = generateSecureLockKey(key);
             Timer.Sample sample = metrics.startLockAcquisition();
-            RLock lock = redissonClient.getLock(secureKey);
+            RLock lock = client().getLock(secureKey);
             lock.lock();
             metrics.stopLockAcquisition(sample);
             logger.debug("Acquired lock: {}", key);
@@ -64,7 +66,7 @@ public class RedisDistributedLock implements DistributedLock {
         try {
             String secureKey = generateSecureLockKey(key);
             Timer.Sample sample = metrics.startLockAcquisition();
-            RLock lock = redissonClient.getLock(secureKey);
+            RLock lock = client().getLock(secureKey);
             lock.lock(timeout, unit);
             metrics.stopLockAcquisition(sample);
             logger.debug("Acquired lock: {} with timeout: {} {}", key, timeout, unit);
@@ -83,7 +85,7 @@ public class RedisDistributedLock implements DistributedLock {
         try {
             String secureKey = generateSecureLockKey(key);
             Timer.Sample sample = metrics.startLockAcquisition();
-            RLock lock = redissonClient.getLock(secureKey);
+            RLock lock = client().getLock(secureKey);
             boolean result = lock.tryLock(waitTime, timeout, unit);
             metrics.stopLockAcquisition(sample);
             if (result) {
@@ -105,7 +107,7 @@ public class RedisDistributedLock implements DistributedLock {
     public boolean unlock(String key) {
         try {
             String secureKey = generateSecureLockKey(key);
-            RLock lock = redissonClient.getLock(secureKey);
+            RLock lock = client().getLock(secureKey);
             if (lock.isHeldByCurrentThread()) {
                 lock.unlock();
                 logger.debug("Released lock: {}", key);
@@ -124,7 +126,7 @@ public class RedisDistributedLock implements DistributedLock {
     public boolean exists(String key) {
         try {
             String secureKey = generateSecureLockKey(key);
-            RLock lock = redissonClient.getLock(secureKey);
+            RLock lock = client().getLock(secureKey);
             return lock.isLocked();
         } catch (Exception e) {
             logger.error("Failed to check lock existence: {}", key, e);
@@ -136,12 +138,11 @@ public class RedisDistributedLock implements DistributedLock {
     public long getRemainingTime(String key, TimeUnit unit) {
         try {
             String secureKey = generateSecureLockKey(key);
-            RLock lock = redissonClient.getLock(secureKey);
+            RLock lock = client().getLock(secureKey);
             return lock.remainTimeToLive();
         } catch (Exception e) {
             logger.error("Failed to get remaining time: {}", key, e);
             return -1;
         }
     }
-
 }

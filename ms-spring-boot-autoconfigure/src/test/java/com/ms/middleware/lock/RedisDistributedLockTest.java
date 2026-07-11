@@ -11,6 +11,7 @@ import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -29,7 +30,7 @@ class RedisDistributedLockTest {
         MsMiddlewareProperties properties = new MsMiddlewareProperties();
         when(redissonClient.getLock(anyString())).thenReturn(rLock);
         MsMetrics metrics = new MsMetrics(meterRegistry);
-        distributedLock = new RedisDistributedLock(redissonClient, metrics, properties);
+        distributedLock = new RedisDistributedLock(new AtomicReference<>(redissonClient), metrics, properties);
     }
 
     @Test

@@ -5,6 +5,7 @@ import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.metrics.MsMetrics;
 import com.ms.middleware.mq.idempotent.IdempotentStore;
 import com.ms.middleware.mq.idempotent.RedisIdempotentStore;
+import java.util.concurrent.atomic.AtomicReference;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +37,7 @@ class RabbitMessageQueueTest {
         connectionFactory = Mockito.mock(CachingConnectionFactory.class);
         objectMapper = new ObjectMapper();
         RedissonClient redissonClient = Mockito.mock(RedissonClient.class);
-        idempotentStore = new RedisIdempotentStore(redissonClient);
+        idempotentStore = new RedisIdempotentStore(new AtomicReference<>(redissonClient));
         MeterRegistry meterRegistry = new SimpleMeterRegistry();
         MsMiddlewareProperties properties = new MsMiddlewareProperties();
         MsMetrics metrics = new MsMetrics(meterRegistry);

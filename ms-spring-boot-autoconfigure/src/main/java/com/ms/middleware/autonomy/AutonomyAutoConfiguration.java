@@ -20,6 +20,7 @@ import com.ms.middleware.autonomy.tenant.SpringEnvironmentTenantProvider;
 import com.ms.middleware.health.FaultSelfHealing;
 import com.ms.middleware.metrics.MsMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
+import com.ms.middleware.redis.RedissonConnectionManager;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -33,8 +34,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableScheduling;
-
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 自治模块 Spring Boot 自动配置。
@@ -100,15 +99,15 @@ public class AutonomyAutoConfiguration {
     @ConditionalOnMissingBean(AutonomyLedger.class)
     @ConditionalOnProperty(prefix = "ms.middleware.autonomy.ledger", name = "type", havingValue = "redisson")
     @ConditionalOnClass(RedissonClient.class)
-    @ConditionalOnBean(RedissonClient.class)
-    public AutonomyLedger redissonAutonomyLedger(AtomicReference<RedissonClient> redissonClientRef,
+    @ConditionalOnBean(RedissonConnectionManager.class)
+    public AutonomyLedger redissonAutonomyLedger(RedissonConnectionManager connectionManager,
                                                   ObjectMapper objectMapper,
                                                   ApplicationEventPublisher eventPublisher,
                                                   AutonomyTenantProvider tenantProvider,
                                                   MsMiddlewareProperties properties) {
         MsMiddlewareProperties.LedgerProperties ledger = properties.getAutonomy().getLedger();
         return new RedissonAutonomyLedger(
-                redissonClientRef,
+                connectionManager,
                 objectMapper,
                 eventPublisher,
                 tenantProvider,
