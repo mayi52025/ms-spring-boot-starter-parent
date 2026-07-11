@@ -4,7 +4,8 @@ import java.time.Instant;
 
 /**
  * 时间线单条事件，JSON 序列化后通过 SSE {@code event=timeline} 推送到浏览器。
- * phase 常见值：DETECT / PLAN / ACTION / ADVISE / RECOMMEND / STABLE。
+ *
+ * <p>phase 标准取值见 {@link AutonomyTimelinePhase}；兼容旧值 {@code ACTION}（等同 AUTO）。</p>
  */
 public class TimelineEvent {
 
@@ -13,6 +14,8 @@ public class TimelineEvent {
     private String phase;
     private String message;
     private String level = "INFO";
+    /** Step 4 采纳时关联 {@link com.ms.middleware.autonomy.plan.AutonomyRecommendation#getRecommendationId()} */
+    private String recommendationId;
 
     public TimelineEvent() {
     }
@@ -61,5 +64,13 @@ public class TimelineEvent {
 
     public void setLevel(String level) {
         this.level = level;
+    }
+
+    public String getRecommendationId() {
+        return recommendationId;
+    }
+
+    public void setRecommendationId(String recommendationId) {
+        this.recommendationId = recommendationId;
     }
 }

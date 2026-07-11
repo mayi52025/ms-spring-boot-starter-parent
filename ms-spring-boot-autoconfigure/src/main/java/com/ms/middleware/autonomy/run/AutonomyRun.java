@@ -18,7 +18,7 @@ import java.util.OptionalLong;
  * 一次自治运行的完整记录（对应控制台里的一条「故障事件」）。
  *
  * <p>生命周期：DETECTED → PLANNED → EXECUTING → STABLE（或 ESCALATED / CLOSED）。
- * 时间线 {@link #timeline} 与 SSE 推送一一对应，phase 常见值：DETECT / PLAN / ACTION / ADVISE / RECOMMEND / STABLE。</p>
+ * 时间线 {@link #timeline} 与 SSE 推送一一对应，phase 见 {@link AutonomyTimelinePhase}。</p>
  */
 public class AutonomyRun {
 

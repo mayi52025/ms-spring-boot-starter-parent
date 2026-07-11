@@ -182,17 +182,68 @@ ms.middleware.autonomy.ledger:
 | 控制台鉴权 | `/ms-console/**` 仍为 permitAll，生产需 Phase 4 token |
 | Resilience4j 单测 | 依赖版本与 `PredicateCreator` 不兼容，与 P0 无关，待单独升级 |
 
-### Phase 3 — MQ 场景 + 采纳推荐（下一步）
+### Phase 3 — 场景识别 + 推荐采纳（进行中）
 
 
 
-- [ ] EasyRules 实现 `AutonomyDecisionEngine`
+**目标：** 候选方案排序选优 + MQ 闭环 + 人机采纳；LLM 仍放 Phase 5。
+
+#### 分步计划
+
+| 步骤 | 内容 | 状态 |
+|------|------|------|
+| Step 0 | 决策契约与模型字段 | ✅ 已完成 |
+| Step 1 | MQ/检测阈值统一 | 待做 |
+| Step 2 | 候选动作 + 打分排序 | 待做 |
+| Step 3 | MQ/Rabbit 执行器 | 待做 |
+| Step 4 | 推荐采纳 + 人机审计 | 待做 |
+| Step 5 | YAML 规则外置 | 待做 |
+| Step 6 | 指标 + Tool SPI + 文档 | 待做 |
+| Step 7 | EasyRules（可选） | 待做 |
+
+#### Step 0 决策契约（已完成）
+
+**决策流水线（Step 2 起逐步实现）：**
+
+```
+Context → 候选动作池 → ActionRanker 打分排序
+       → Policy 门控（风险 + confidence）
+       → AUTO 执行 rank#1 且 LOW 风险
+       → RECOMMEND 展示其余方案与配置建议
+       → [ACCEPTED] 人工采纳（Step 4）
+       → STABLE
+```
+
+**模型字段：**
+
+| 类型 | 新增字段 | 说明 |
+|------|----------|------|
+| `PlannedAction` | `rank`, `score`, `confidence` | 排序位(1-based)、得分、自动执行置信度；未排序前为 0 |
+| `AutonomyRecommendation` | `recommendationId` | 8 位 UUID，采纳 API 主键 |
+| `TimelineEvent` | `recommendationId`（可选） | ACCEPTED 事件关联推荐 |
+| `AutonomyTimelinePhase` | 枚举 | DETECT / PLAN / AUTO / ADVISE / RECOMMEND / ACCEPTED / STABLE |
+
+**时间线 phase 语义：**
+
+- `DETECT` — 发现故障
+- `PLAN` — 产出计划（Step 2 起含排序理由）
+- `AUTO` — 已自动执行（兼容旧 `ACTION` 字符串）
+- `ADVISE` — 仅建议，等人确认
+- `RECOMMEND` — 配置级推荐
+- `ACCEPTED` — 人工采纳（Step 4）
+- `STABLE` — 结案 + MTTR
+
+**Step 0 刻意未改：** 编排器仍写 `ACTION` phase；`AutonomyRuleEngine` 逻辑不变；无新执行器。
+
+#### Step 1～7 待办（原 Phase 3 项）
+
+- [ ] EasyRules 或 YAML 实现 `AutonomyDecisionEngine`
 
 - [ ] 规则：`MQ_DEGRADED` → 限流/延迟重试执行器
 
 - [ ] `POST /api/recommendations/{id}/accept`
 
-- [ ] 时间线区分 AUTO / ADVISE
+- [ ] 时间线统一使用 `AUTO`（替代 `ACTION`）
 
 
 
