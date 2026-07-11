@@ -828,9 +828,9 @@ public class MsMiddlewareProperties {
         private int port = 6379;
 
         /**
-         * 密码
+         * 密码（未配置则为空，勿设错误默认值）
          */
-        private String password = "1234";
+        private String password;
 
         /**
          * 数据库

@@ -226,7 +226,11 @@ public class MsMiddlewareAutoConfiguration {
     @Bean
     @DependsOn({"redissonClientRef", "faultSelfHealing"})
     public RedisHealthChecker redisHealthChecker(AtomicReference<RedissonClient> redissonClientRef, FaultSelfHealing faultSelfHealing) {
-        RedisHealthChecker checker = new RedisHealthChecker(redissonClientRef);
+        RedisHealthChecker checker = new RedisHealthChecker(
+                redissonClientRef,
+                properties.getRedis().getHost(),
+                properties.getRedis().getPort(),
+                properties.getRedis().getPassword());
         // 注册Redis健康检查和恢复策略
         Config config = new Config();
         var singleServerConfig = config.useSingleServer()

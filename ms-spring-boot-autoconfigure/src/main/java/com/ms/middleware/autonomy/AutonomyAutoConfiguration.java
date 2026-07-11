@@ -34,6 +34,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 /**
  * 自治模块 Spring Boot 自动配置。
  *
@@ -99,14 +101,14 @@ public class AutonomyAutoConfiguration {
     @ConditionalOnProperty(prefix = "ms.middleware.autonomy.ledger", name = "type", havingValue = "redisson")
     @ConditionalOnClass(RedissonClient.class)
     @ConditionalOnBean(RedissonClient.class)
-    public AutonomyLedger redissonAutonomyLedger(RedissonClient redissonClient,
+    public AutonomyLedger redissonAutonomyLedger(AtomicReference<RedissonClient> redissonClientRef,
                                                   ObjectMapper objectMapper,
                                                   ApplicationEventPublisher eventPublisher,
                                                   AutonomyTenantProvider tenantProvider,
                                                   MsMiddlewareProperties properties) {
         MsMiddlewareProperties.LedgerProperties ledger = properties.getAutonomy().getLedger();
         return new RedissonAutonomyLedger(
-                redissonClient,
+                redissonClientRef,
                 objectMapper,
                 eventPublisher,
                 tenantProvider,

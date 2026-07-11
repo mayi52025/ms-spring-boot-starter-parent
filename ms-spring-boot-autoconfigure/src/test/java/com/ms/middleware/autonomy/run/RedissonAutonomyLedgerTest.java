@@ -18,6 +18,8 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyDouble;
@@ -43,7 +45,7 @@ class RedissonAutonomyLedgerTest {
 
         AutonomyTenantProvider tenantProvider = () -> TENANT;
         ledger = new RedissonAutonomyLedger(
-                redissonClient,
+                new AtomicReference<>(redissonClient),
                 new ObjectMapper().findAndRegisterModules(),
                 publishedEvents::add,
                 tenantProvider,

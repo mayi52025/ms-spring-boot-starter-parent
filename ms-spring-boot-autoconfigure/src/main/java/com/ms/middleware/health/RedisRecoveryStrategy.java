@@ -4,6 +4,8 @@ import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -12,6 +14,9 @@ import java.util.concurrent.atomic.AtomicReference;
 public class RedisRecoveryStrategy implements RecoveryStrategy {
 
     private static final Logger logger = LoggerFactory.getLogger(RedisRecoveryStrategy.class);
+    private static final int PROBE_TIMEOUT_SECONDS = 3;
+    private static final int MAX_ATTEMPTS = 3;
+
     private final AtomicReference<RedissonClient> redissonClientRef;
     private final Config config;
 
@@ -22,54 +27,88 @@ public class RedisRecoveryStrategy implements RecoveryStrategy {
 
     @Override
     public boolean recover() {
-        try {
-            logger.info("Attempting to recover Redis connection...");
-            
-            RedissonClient redissonClient = redissonClientRef.get();
-            
-            // 检查客户端是否为null或已关闭
-            boolean needReconnect = false;
-            try {
-                if (redissonClient == null) {
-                    needReconnect = true;
-                } else {
-                    // 尝试执行一个简单的命令来检查Redis连接
-                    redissonClient.getKeys().count();
-                    logger.info("Redis connection is already available");
-                    return true;
-                }
-            } catch (Exception e) {
-                logger.warn("Redis connection is not available, trying to reconnect...");
-                needReconnect = true;
-            }
-            
-            // 关闭现有连接
-            if (redissonClient != null) {
-                try {
-                    redissonClient.shutdown();
-                } catch (Exception e) {
-                    logger.warn("Failed to shutdown existing Redis connection: {}", e.getMessage());
-                }
-            }
-            
-            // 等待一段时间后重新创建连接
-            Thread.sleep(2000);
-            
-            // 重新创建连接（恢复场景需立即探活，不使用 lazyInitialization）
-            config.setLazyInitialization(false);
-            RedissonClient newRedissonClient = org.redisson.Redisson.create(config);
-            
-            // 测试新连接
-            newRedissonClient.getKeys().count();
-            
-            // 替换旧的客户端
-            redissonClientRef.set(newRedissonClient);
-            
-            logger.info("Redis connection recovered successfully");
+        logger.info("Attempting to recover Redis connection...");
+        RedissonClient existing = redissonClientRef.get();
+        if (probe(existing)) {
+            logger.info("Redis connection is already available");
             return true;
-        } catch (Exception e) {
-            logger.error("Failed to recover Redis connection: {}", e.getMessage());
+        }
+        shutdownQuietly(existing);
+        redissonClientRef.set(null);
+
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                if (attempt > 1) {
+                    Thread.sleep(1000L * attempt);
+                }
+                Config reconnectConfig = copyConfigForReconnect();
+                RedissonClient newClient = org.redisson.Redisson.create(reconnectConfig);
+                if (!probe(newClient)) {
+                    shutdownQuietly(newClient);
+                    continue;
+                }
+                redissonClientRef.set(newClient);
+                logger.info("Redis connection recovered successfully on attempt {}", attempt);
+                return true;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            } catch (Exception e) {
+                logger.warn("Redis recovery attempt {}/{} failed: {}", attempt, MAX_ATTEMPTS, e.getMessage());
+            }
+        }
+        logger.error("Failed to recover Redis connection after {} attempts", MAX_ATTEMPTS);
+        return false;
+    }
+
+    private boolean probe(RedissonClient client) {
+        if (client == null || client.isShutdown()) {
             return false;
         }
+        try {
+            client.getKeys().countAsync().get(PROBE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            return true;
+        } catch (Exception e) {
+            logger.debug("Redis probe failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private void shutdownQuietly(RedissonClient client) {
+        if (client == null) {
+            return;
+        }
+        try {
+            client.shutdown();
+        } catch (Exception e) {
+            logger.warn("Failed to shutdown existing Redis connection: {}", e.getMessage());
+        }
+    }
+
+    /** 每次重连使用独立 Config，避免污染共享实例 */
+    private Config copyConfigForReconnect() {
+        Config reconnect = new Config();
+        reconnect.setLazyInitialization(false);
+        if (config.isClusterConfig()) {
+            reconnect.useClusterServers().setNodeAddresses(config.useClusterServers().getNodeAddresses());
+        } else if (config.isSentinelConfig()) {
+            var src = config.useSentinelServers();
+            reconnect.useSentinelServers()
+                    .setMasterName(src.getMasterName())
+                    .setSentinelAddresses(src.getSentinelAddresses());
+        } else {
+            var src = config.useSingleServer();
+            var dst = reconnect.useSingleServer()
+                    .setAddress(src.getAddress())
+                    .setDatabase(src.getDatabase())
+                    .setConnectTimeout(src.getConnectTimeout())
+                    .setTimeout(src.getTimeout())
+                    .setRetryAttempts(src.getRetryAttempts())
+                    .setRetryInterval(src.getRetryInterval());
+            if (src.getPassword() != null) {
+                dst.setPassword(src.getPassword());
+            }
+        }
+        return reconnect;
     }
 }

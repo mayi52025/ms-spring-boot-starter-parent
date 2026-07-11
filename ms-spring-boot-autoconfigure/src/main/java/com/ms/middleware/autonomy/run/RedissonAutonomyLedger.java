@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 基于 Redisson 的自治账本：run 重启不丢失，按 tenant 隔离。
@@ -28,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>{@code {keyPrefix}{tenant}:{runId}} — RBucket，JSON 存 AutonomyRun</li>
  *   <li>{@code {indexPrefix}{tenant}} — RScoredSortedSet，score=startedAt，member=runId</li>
  * </ul>
- * <p>Redis 不可用时降级到进程内缓存，保证控制台与 SSE 仍可见（Phase 2 故障场景）。</p>
+ * <p>Redis 不可用时降级到进程内缓存；恢复后通过 {@link AtomicReference} 跟随自愈切换连接。</p>
  */
 public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
 
@@ -37,14 +39,14 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
     /** Redis 宕机时的进程内降级存储，避免「账本在 Redis 上却检测不到 Redis 故障」的死锁 */
     private final Map<String, AutonomyRun> localFallback = new ConcurrentHashMap<>();
 
-    private final RedissonClient redissonClient;
+    private final AtomicReference<RedissonClient> redissonClientRef;
     private final AutonomyRunSerde serde;
     private final String keyPrefix;
     private final String indexPrefix;
     private final int maxRuns;
     private final Duration ttl;
 
-    public RedissonAutonomyLedger(RedissonClient redissonClient,
+    public RedissonAutonomyLedger(AtomicReference<RedissonClient> redissonClientRef,
                                   ObjectMapper objectMapper,
                                   ApplicationEventPublisher eventPublisher,
                                   AutonomyTenantProvider tenantProvider,
@@ -52,7 +54,7 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
                                   int maxRuns,
                                   long ttlHours) {
         super(eventPublisher, tenantProvider);
-        this.redissonClient = redissonClient;
+        this.redissonClientRef = redissonClientRef;
         this.serde = new AutonomyRunSerde(objectMapper);
         this.keyPrefix = normalizePrefix(keyPrefix);
         this.indexPrefix = this.keyPrefix + "index:";
@@ -73,10 +75,14 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
     public Optional<AutonomyRun> get(String runId) {
         String tenant = currentTenant();
         AutonomyRun local = localFallback.get(storageKey(tenant, runId));
-        if (local != null) {
+        AutonomyRun remote = loadRun(tenant, runId);
+        if (local == null) {
+            return Optional.ofNullable(remote);
+        }
+        if (remote == null) {
             return Optional.of(local);
         }
-        return Optional.ofNullable(loadRun(tenant, runId));
+        return Optional.of(pickNewerRun(local, remote));
     }
 
     @Override
@@ -89,12 +95,15 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
         String tenant = currentTenant();
         Map<String, AutonomyRun> merged = new LinkedHashMap<>();
         try {
-            RScoredSortedSet<String> index = indexSet(tenant);
-            Collection<String> runIds = index.valueRangeReversed(0, Math.max(0, limit - 1));
-            for (String runId : runIds) {
-                AutonomyRun run = loadRun(tenant, runId);
-                if (run != null) {
-                    merged.put(run.getRunId(), run);
+            RedissonClient client = currentClient();
+            if (client != null) {
+                RScoredSortedSet<String> index = client.getScoredSortedSet(indexPrefix + tenant);
+                Collection<String> runIds = index.valueRangeReversed(0, Math.max(0, limit - 1));
+                for (String runId : runIds) {
+                    AutonomyRun run = loadRun(tenant, runId);
+                    if (run != null) {
+                        mergeRun(merged, run);
+                    }
                 }
             }
         } catch (Exception e) {
@@ -102,7 +111,7 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
         }
         localFallback.forEach((key, run) -> {
             if (tenant.equals(run.getTenant())) {
-                merged.putIfAbsent(run.getRunId(), run);
+                mergeRun(merged, run);
             }
         });
         return merged.values().stream()
@@ -139,8 +148,12 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
         ensureTenant(run);
         cacheLocally(run);
         try {
+            RedissonClient client = currentClient();
+            if (client == null) {
+                return;
+            }
             String key = runKey(run.getTenant(), run.getRunId());
-            RBucket<String> bucket = redissonClient.getBucket(key);
+            RBucket<String> bucket = client.getBucket(key);
             bucket.set(serde.toJson(run), ttl);
         } catch (Exception e) {
             logger.warn("Failed to save autonomy run {} to Redis, kept in local fallback", run.getRunId(), e);
@@ -162,13 +175,41 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
         localFallback.put(storageKey(run.getTenant(), run.getRunId()), run);
     }
 
+    private void mergeRun(Map<String, AutonomyRun> merged, AutonomyRun run) {
+        merged.merge(run.getRunId(), run, this::pickNewerRun);
+    }
+
+    private AutonomyRun pickNewerRun(AutonomyRun left, AutonomyRun right) {
+        Instant leftAt = left.getUpdatedAt();
+        Instant rightAt = right.getUpdatedAt();
+        if (leftAt == null) {
+            return right;
+        }
+        if (rightAt == null) {
+            return left;
+        }
+        return leftAt.isAfter(rightAt) ? left : right;
+    }
+
+    private RedissonClient currentClient() {
+        RedissonClient client = redissonClientRef.get();
+        if (client == null || client.isShutdown()) {
+            return null;
+        }
+        return client;
+    }
+
     private String storageKey(String tenant, String runId) {
         return tenant + ":" + runId;
     }
 
     private AutonomyRun loadRun(String tenant, String runId) {
         try {
-            RBucket<String> bucket = redissonClient.getBucket(runKey(tenant, runId));
+            RedissonClient client = currentClient();
+            if (client == null) {
+                return null;
+            }
+            RBucket<String> bucket = client.getBucket(runKey(tenant, runId));
             return serde.fromJson(bucket.get());
         } catch (Exception e) {
             logger.warn("Failed to load autonomy run {} for tenant {}", runId, tenant, e);
@@ -177,16 +218,20 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
     }
 
     private void indexRun(AutonomyRun run) {
+        RedissonClient client = currentClient();
+        if (client == null) {
+            return;
+        }
         double score = run.getStartedAt().toEpochMilli();
-        indexSet(run.getTenant()).add(score, run.getRunId());
-    }
-
-    private RScoredSortedSet<String> indexSet(String tenant) {
-        return redissonClient.getScoredSortedSet(indexPrefix + tenant);
+        client.getScoredSortedSet(indexPrefix + run.getTenant()).add(score, run.getRunId());
     }
 
     private void trimIfNeeded(String tenant) {
-        RScoredSortedSet<String> index = indexSet(tenant);
+        RedissonClient client = currentClient();
+        if (client == null) {
+            return;
+        }
+        RScoredSortedSet<String> index = client.getScoredSortedSet(indexPrefix + tenant);
         int size = index.size();
         if (size < maxRuns) {
             return;
@@ -194,7 +239,7 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
         int removeCount = size - maxRuns + 1;
         Collection<String> oldest = index.valueRange(0, removeCount - 1);
         for (String runId : oldest) {
-            redissonClient.getBucket(runKey(tenant, runId)).delete();
+            client.getBucket(runKey(tenant, runId)).delete();
             index.remove(runId);
         }
     }

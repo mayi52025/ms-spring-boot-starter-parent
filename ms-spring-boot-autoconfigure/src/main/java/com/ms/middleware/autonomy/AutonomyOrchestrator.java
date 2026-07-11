@@ -67,6 +67,7 @@ public class AutonomyOrchestrator {
         AutonomyContext context = contextBuilder.build();
 
         reconcileStaleActiveRuns(context);
+        context = contextBuilder.build();
 
         if (shouldStabilizeActiveRun(context)) {
             stabilizeActiveRunIfNeeded(context);
@@ -81,16 +82,17 @@ public class AutonomyOrchestrator {
 
         AutonomyRun run = resolveOrCreateRun(context);
 
-        // 同一故障周期内已 EXECUTING：只更新上下文并尝试重连，避免每轮重复刷 PLAN/ACTION
+        // 同一故障周期内已 EXECUTING：先尝试自愈，再用最新快照判定是否 STABLE
         if (run.getStatus() == AutonomyRunStatus.EXECUTING || run.getStatus() == AutonomyRunStatus.PLANNED) {
-            run.setContext(context);
             String incidentType = run.getPlan() != null ? run.getPlan().getIncidentType() : null;
-            if (contextBuilder.isIncidentResolved(incidentType, context)) {
+            retryRecoveryForActiveRun(context, run);
+            AutonomyContext latest = contextBuilder.build();
+            run.setContext(latest);
+            if (contextBuilder.isIncidentResolved(incidentType, latest)) {
                 activeRunId = run.getRunId();
-                stabilizeActiveRunIfNeeded(context);
+                stabilizeActiveRunIfNeeded(latest);
                 return;
             }
-            retryRecoveryForActiveRun(context, run);
             ledger.update(run);
             return;
         }
@@ -120,8 +122,10 @@ public class AutonomyOrchestrator {
                 continue;
             }
             String incidentType = run.getPlan() != null ? run.getPlan().getIncidentType() : null;
-            if (contextBuilder.isIncidentResolved(incidentType, context)) {
-                stabilizeRun(run, context);
+            retryRecoveryForActiveRun(context, run);
+            AutonomyContext latest = contextBuilder.build();
+            if (contextBuilder.isIncidentResolved(incidentType, latest)) {
+                stabilizeRun(run, latest);
             }
         }
     }
