@@ -3,19 +3,25 @@ package com.ms.middleware.autonomy.plan;
 import java.util.UUID;
 
 /**
- * 需人工确认的配置级建议（展示在控制台推荐区）。
+ * 控制台「推荐区」展示的配置级建议。
  *
- * <p>{@link #recommendationId} 为稳定标识，供 Step 4
- * {@code POST /api/recommendations/{id}/accept} 采纳审计。</p>
- *
- * <p>suggestedConfig 为 YAML 片段或配置键，Phase 4 可接 Nacos 写回。</p>
+ * <p>与 {@link PlannedAction} 区别：推荐通常不立即执行，需运维在控制台点击采纳；
+ * {@link #recommendationId} 用于采纳 API 与账本审计关联。</p>
  */
 public class AutonomyRecommendation {
 
+    /**
+     * 推荐唯一 ID（8 位），采纳时 URL 路径参数。
+     * 新建时自动生成；反序列化旧数据时若为空会懒补。
+     */
     private String recommendationId;
+    /** 推荐标题，展示在控制台 */
     private String title;
+    /** 详细说明 */
     private String description;
+    /** 建议修改的配置键或 YAML 片段；后续可对接 Nacos */
     private String suggestedConfig;
+    /** 是否默认需要人工确认（生产环境应为 true） */
     private boolean requiresApproval = true;
 
     public AutonomyRecommendation() {
@@ -29,6 +35,7 @@ public class AutonomyRecommendation {
         this.suggestedConfig = suggestedConfig;
     }
 
+    /** 保证每条推荐都有稳定 ID，便于采纳与回放 */
     private void assignRecommendationIdIfAbsent() {
         if (recommendationId == null || recommendationId.isBlank()) {
             this.recommendationId = UUID.randomUUID().toString().substring(0, 8);

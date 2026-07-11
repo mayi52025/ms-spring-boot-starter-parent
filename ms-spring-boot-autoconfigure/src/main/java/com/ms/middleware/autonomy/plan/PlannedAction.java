@@ -5,26 +5,39 @@ import com.ms.middleware.autonomy.AutonomyPolicyDecision;
 import com.ms.middleware.autonomy.AutonomyRisk;
 
 /**
- * 计划中的单个可执行动作；经 Policy 评估后可能 AUTO 执行或仅 ADVISE。
+ * 自治计划中的单个可执行动作。
  *
- * <p>Phase 3 Step 0：增加 {@link #rank}、{@link #score}、{@link #confidence}，
- * 供 Step 2 排序选优；未排序前均为 0。</p>
- *
- * <p>executionStatus 示例：SUCCESS / FAILED / SKIPPED / ADVISE。</p>
+ * <p>生命周期：决策引擎创建 → {@link com.ms.middleware.autonomy.policy.AutonomyPolicy} 评估
+ * → 通过则 {@link com.ms.middleware.autonomy.act.AutonomyActuator} 执行并写入时间线。</p>
  */
 public class PlannedAction {
 
+    /** 动作类型（预热、自愈、限流等） */
     private AutonomyActionType actionType;
+    /** 风险等级，用于策略门控 */
     private AutonomyRisk risk;
+    /** 人类可读的选用理由，展示在 PLAN 时间线 */
     private String reason;
-    /** 1-based 排序位，0 表示尚未参与排序（Step 2 前） */
+    /**
+     * 排序位（1 表示最优候选）。
+     * 0 表示尚未经过 ActionRanker 排序（当前规则引擎默认值）。
+     */
     private int rank;
-    /** 综合得分 0～1，Step 2 ActionRanker 写入 */
+    /**
+     * 综合得分 0～1，越高越优先。
+     * 由后续排序选优模块写入。
+     */
     private double score;
-    /** 自动执行置信度 0～1，低于阈值时只 ADVISE */
+    /**
+     * 自动执行置信度 0～1。
+     * 低于配置阈值时即使风险为 LOW 也只 ADVISE 不 AUTO。
+     */
     private double confidence;
+    /** 策略评估结果：AUTO 或 ADVISE */
     private AutonomyPolicyDecision policyDecision = AutonomyPolicyDecision.ADVISE;
+    /** 执行结果：SUCCESS / FAILED / SKIPPED / ADVISE */
     private String executionStatus;
+    /** 执行详情，写入 ACTION/AUTO 时间线 */
     private String executionDetail;
 
     public AutonomyActionType getActionType() {

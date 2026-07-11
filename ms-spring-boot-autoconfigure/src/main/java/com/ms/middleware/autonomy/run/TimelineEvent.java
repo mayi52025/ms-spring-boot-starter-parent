@@ -3,18 +3,29 @@ package com.ms.middleware.autonomy.run;
 import java.time.Instant;
 
 /**
- * 时间线单条事件，JSON 序列化后通过 SSE {@code event=timeline} 推送到浏览器。
+ * 自治 run 时间线上的单条事件。
  *
- * <p>phase 标准取值见 {@link AutonomyTimelinePhase}；兼容旧值 {@code ACTION}（等同 AUTO）。</p>
+ * <p>持久化在 {@link AutonomyRun#getTimeline()}，并通过 SSE {@code event=timeline} 实时推到控制台。
+ * phase 标准取值见 {@link AutonomyTimelinePhase}。</p>
  */
 public class TimelineEvent {
 
+    /** 事件发生时间 */
     private Instant at = Instant.now();
+    /** 所属 runId */
     private String runId;
+    /**
+     * 事件阶段，见 {@link AutonomyTimelinePhase}。
+     * 兼容历史值 ACTION（等同 AUTO）。
+     */
     private String phase;
+    /** 展示给运维的说明文字 */
     private String message;
+    /** 日志级别：INFO / WARN / ERROR */
     private String level = "INFO";
-    /** Step 4 采纳时关联 {@link com.ms.middleware.autonomy.plan.AutonomyRecommendation#getRecommendationId()} */
+    /**
+     * 当 phase 为 ACCEPTED 时，关联被采纳的 {@link com.ms.middleware.autonomy.plan.AutonomyRecommendation#getRecommendationId()}。
+     */
     private String recommendationId;
 
     public TimelineEvent() {

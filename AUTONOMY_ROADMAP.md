@@ -193,7 +193,7 @@ ms.middleware.autonomy.ledger:
 | 步骤 | 内容 | 状态 |
 |------|------|------|
 | Step 0 | 决策契约与模型字段 | ✅ 已完成 |
-| Step 1 | MQ/检测阈值统一 | 待做 |
+| Step 1 | MQ/检测阈值统一 | ✅ 已完成 |
 | Step 2 | 候选动作 + 打分排序 | 待做 |
 | Step 3 | MQ/Rabbit 执行器 | 待做 |
 | Step 4 | 推荐采纳 + 人机审计 | 待做 |
@@ -235,7 +235,14 @@ Context → 候选动作池 → ActionRanker 打分排序
 
 **Step 0 刻意未改：** 编排器仍写 `ACTION` phase；`AutonomyRuleEngine` 逻辑不变；无新执行器。
 
-#### Step 1～7 待办（原 Phase 3 项）
+#### 阈值统一（已完成）
+
+- `AutonomyContext` 携带 `mqFailedWarnThreshold`、`cacheHitRateWarnThreshold`
+- `isMqDegraded()` / `isCacheDegraded()` 供 issues、规则引擎、STABLE 共用
+- `AutonomyRuleEngine`：`MQ_DEGRADED` 仅在 `>= 阈值` 时触发（不再 `> 0`）
+- 单测：`AutonomyContextBuilderTest`、`AutonomyRuleEngineTest` 边界用例
+
+#### Step 2～7 待办（原 Phase 3 项）
 
 - [ ] EasyRules 或 YAML 实现 `AutonomyDecisionEngine`
 

@@ -25,5 +25,8 @@
  * </ul>
  *
  * <p>配置开关：{@code ms.middleware.autonomy.enabled=true}</p>
+ *
+ * <p><b>代码注释约定：</b>新增/修改的类与方法须附中文注释，说明职责、关键字段含义及与上下游模块的关系，
+ * 便于他人阅读与维护。</p>
  */
 package com.ms.middleware.autonomy;

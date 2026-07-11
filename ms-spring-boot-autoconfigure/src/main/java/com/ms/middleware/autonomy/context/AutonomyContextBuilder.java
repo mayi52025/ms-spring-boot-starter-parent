@@ -10,15 +10,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 从现有中间件组件聚合一次「巡检快照」。
+ * 自治「侦察兵」：从现有中间件组件聚合一次巡检快照 {@link AutonomyContext}。
  *
- * <p>数据来源：</p>
+ * <p>职责：</p>
  * <ul>
- *   <li>{@link com.ms.middleware.health.FaultSelfHealing} — Redis / RabbitMQ 健康</li>
- *   <li>{@link com.ms.middleware.metrics.MsMetrics} — 命中率、MQ 失败计数</li>
- *   <li>{@link com.ms.middleware.ai.HotKeyManager} — 热点 Key（可选）</li>
+ *   <li>读取 Redis/Rabbit 健康、命中率、MQ 失败数、热点 Key</li>
+ *   <li>把配置阈值写入上下文，保证检测、决策、结案三处标准一致</li>
+ *   <li>生成 issues 列表供控制台与 {@link com.ms.middleware.autonomy.plan.AutonomyRuleEngine} 使用</li>
  * </ul>
- * <p>issues 非空即视为有故障（{@link AutonomyContext#hasIncident()}）。</p>
  */
 public class AutonomyContextBuilder {
 
@@ -38,13 +37,14 @@ public class AutonomyContextBuilder {
     }
 
     /**
-     * 构建当前时刻的中间件上下文；每次 tick 调用一次，不缓存。
+     * 构建当前时刻的中间件上下文。
+     * 每次 {@link com.ms.middleware.autonomy.AutonomyScheduler} tick 调用一次，不做缓存。
      */
     public AutonomyContext build() {
         AutonomyContext ctx = new AutonomyContext();
         MsMiddlewareProperties.AutonomyProperties autonomy = properties.getAutonomy();
 
-        // 组件级健康来自 FaultSelfHealing 的探活结果
+        // 1. 采集原始信号
         boolean redisHealthy = faultSelfHealing.getComponentHealth("Redis");
         boolean rabbitHealthy = faultSelfHealing.getComponentHealth("RabbitMQ");
         ctx.setRedisHealthy(redisHealthy);
@@ -53,10 +53,14 @@ public class AutonomyContextBuilder {
         ctx.setMqFailedCount(metrics.getMessageFailedCount());
         ctx.setGlobalFailureCount(metrics.getFailureCount());
 
+        // 2. 把配置阈值带入上下文，后续 isMqDegraded/isCacheDegraded 与配置同源
+        ctx.setMqFailedWarnThreshold(autonomy.getMqFailedWarnThreshold());
+        ctx.setCacheHitRateWarnThreshold(autonomy.getCacheHitRateWarnThreshold());
+
         hotKeyManagerProvider.ifAvailable(manager ->
                 ctx.setHotKeys(new ArrayList<>(manager.getHotKeys())));
 
-        // 以下规则与 ms.middleware.autonomy 阈值配置联动，写入可读 issues 供控制台展示
+        // 3. 生成 issues（与 isMqDegraded/isCacheDegraded 判定逻辑保持一致）
         List<String> issues = new ArrayList<>();
         if (!redisHealthy) {
             issues.add("Redis 不可用，分布式缓存 L2 可能失效");
@@ -64,10 +68,10 @@ public class AutonomyContextBuilder {
         if (!rabbitHealthy) {
             issues.add("RabbitMQ 不可用，消息收发可能受影响");
         }
-        if (ctx.getCacheHitRate() < autonomy.getCacheHitRateWarnThreshold()) {
+        if (ctx.isCacheDegraded()) {
             issues.add(String.format("缓存命中率偏低: %.1f%%", ctx.getCacheHitRate() * 100));
         }
-        if (ctx.getMqFailedCount() >= autonomy.getMqFailedWarnThreshold()) {
+        if (ctx.isMqDegraded()) {
             issues.add(String.format("MQ 消费失败累计偏高: %d", ctx.getMqFailedCount()));
         }
         if (!ctx.getHotKeys().isEmpty() && !redisHealthy) {
@@ -79,18 +83,21 @@ public class AutonomyContextBuilder {
     }
 
     /**
-     * 判断某次 run 对应的主 incident 是否已恢复（用于 STABLE 判定，避免次要预警阻止结束）。
+     * 判断某次 run 的「主 incident」是否已恢复，用于 STABLE 结案。
+     *
+     * <p>只关心主故障类型（如 Redis 挂了就不看次要命中率预警），避免次要指标阻止 run 结束。
+     * 判定条件与 {@link AutonomyContext#isMqDegraded()} 等保持一致。</p>
      */
     public boolean isIncidentResolved(String incidentType, AutonomyContext context) {
         if (incidentType == null || "NONE".equals(incidentType)) {
             return !context.hasIncident();
         }
-        MsMiddlewareProperties.AutonomyProperties autonomy = properties.getAutonomy();
         return switch (incidentType) {
             case "REDIS_UNAVAILABLE" -> context.isRedisHealthy();
             case "RABBITMQ_UNAVAILABLE" -> context.isRabbitMqHealthy();
-            case "MQ_DEGRADED" -> context.getMqFailedCount() < autonomy.getMqFailedWarnThreshold();
-            case "CACHE_DEGRADED" -> context.getCacheHitRate() >= autonomy.getCacheHitRateWarnThreshold();
+            // MQ 主故障：失败计数降到阈值以下即视为恢复
+            case "MQ_DEGRADED" -> !context.isMqDegraded();
+            case "CACHE_DEGRADED" -> !context.isCacheDegraded();
             default -> !context.hasIncident();
         };
     }

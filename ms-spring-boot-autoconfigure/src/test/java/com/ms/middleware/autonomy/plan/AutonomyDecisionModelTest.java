@@ -10,10 +10,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Phase 3 Step 0：决策模型字段与 JSON 序列化契约。
+ * 验证决策模型字段（排序分、推荐 ID）的 JSON 序列化契约，
+ * 确保账本持久化与控制台 API 能正确读写。
  */
-class Phase3Step0ModelTest {
+class AutonomyDecisionModelTest {
 
+    /** PlannedAction 的 rank/score/confidence 应能序列化到 Redis 账本 */
     @Test
     void plannedActionSerializesRankScoreConfidence() throws Exception {
         PlannedAction action = new PlannedAction();
@@ -37,6 +39,7 @@ class Phase3Step0ModelTest {
         assertEquals(0.82, restored.getConfidence(), 0.001);
     }
 
+    /** 新建推荐应自动分配 8 位 recommendationId */
     @Test
     void recommendationAssignsStableId() {
         AutonomyRecommendation rec = new AutonomyRecommendation(
@@ -46,6 +49,7 @@ class Phase3Step0ModelTest {
         assertEquals(8, rec.getRecommendationId().length());
     }
 
+    /** 从 JSON 反序列化后 recommendationId 不应丢失 */
     @Test
     void recommendationIdPreservedOnDeserialize() throws Exception {
         AutonomyRecommendation rec = new AutonomyRecommendation("t", "d", "cfg");
