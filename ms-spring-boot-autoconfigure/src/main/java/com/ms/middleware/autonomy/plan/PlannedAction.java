@@ -19,18 +19,17 @@ public class PlannedAction {
     /** 人类可读的选用理由，展示在 PLAN 时间线 */
     private String reason;
     /**
-     * 排序位（1 表示最优候选）。
-     * 0 表示尚未经过 ActionRanker 排序（当前规则引擎默认值）。
+     * 排序位（1 表示 Runbook 选优后的首选动作）。
+     * 0 表示尚未经过 {@link ActionSelector} 选优。
      */
     private int rank;
     /**
-     * 综合得分 0～1，越高越优先。
-     * 由后续排序选优模块写入。
+     * 保留字段（JSON 契约兼容），规则选优不使用浮点得分，恒为 0。
      */
     private double score;
     /**
-     * 自动执行置信度 0～1。
-     * 低于配置阈值时即使风险为 LOW 也只 ADVISE 不 AUTO。
+     * 证据强度 0～1，由 {@link EvidenceStrengthEvaluator} 评估。
+     * 低于配置阈值时即使 LOW 风险也只 ADVISE 不 AUTO。
      */
     private double confidence;
     /** 策略评估结果：AUTO 或 ADVISE */

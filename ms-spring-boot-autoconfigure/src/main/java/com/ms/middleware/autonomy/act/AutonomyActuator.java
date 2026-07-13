@@ -60,6 +60,11 @@ public class AutonomyActuator {
                     action.setExecutionStatus(ok ? "SUCCESS" : "FAILED");
                     action.setExecutionDetail(ok ? "RabbitMQ 自愈已触发/连接正常" : "RabbitMQ 自愈未成功");
                 }
+                // Step 3 将对接限流与延迟重试；当前仅完成排序选优，执行时跳过
+                case THROTTLE_CONSUMER, DELAYED_RETRY_BATCH -> {
+                    action.setExecutionStatus("SKIPPED");
+                    action.setExecutionDetail("MQ 执行器尚未接入，当前仅完成候选排序与门控");
+                }
                 default -> {
                     action.setExecutionStatus("SKIPPED");
                     action.setExecutionDetail("未知动作");

@@ -1,6 +1,5 @@
 package com.ms.middleware.autonomy.plan;
 
-import com.ms.middleware.autonomy.AutonomyActionType;
 import com.ms.middleware.autonomy.context.AutonomyContext;
 import com.ms.middleware.autonomy.decision.AutonomyDecisionEngine;
 
@@ -10,18 +9,29 @@ import java.util.List;
 /**
  * 基于 if-else 规则的默认决策引擎（实现 {@link AutonomyDecisionEngine}）。
  *
- * <p>按故障严重程度依次匹配，<strong>先匹配者优先</strong>：</p>
+ * <p>流程：识别 incident → {@link IncidentActionCatalog} 产出 Runbook 候选池
+ * → {@link ActionSelector} 规则选优 → 写入 {@link AutonomyPlan}。</p>
+ *
+ * <p>incident 匹配优先级（先匹配者优先）：</p>
  * <ol>
  *   <li>Redis 不可用 → {@code REDIS_UNAVAILABLE}</li>
  *   <li>RabbitMQ 不可用 → {@code RABBITMQ_UNAVAILABLE}</li>
- *   <li>MQ 消费失败达阈值 → {@code MQ_DEGRADED}（使用 {@link AutonomyContext#isMqDegraded()}，非简单的 count&gt;0）</li>
+ *   <li>MQ 消费失败达阈值 → {@code MQ_DEGRADED}</li>
  *   <li>缓存命中率低 → {@code CACHE_DEGRADED}</li>
  * </ol>
- *
- * <p>每个分支产出 {@link PlannedAction}（可自动执行）与 {@link AutonomyRecommendation}（需人工采纳的配置建议）。
- * 后续可替换为 YAML/EasyRules 实现，编排层无需改动。</p>
  */
 public class AutonomyRuleEngine implements AutonomyDecisionEngine {
+
+    private final ActionSelector actionSelector;
+
+    /** 无参构造供测试；生产环境由自动配置注入 ActionSelector */
+    public AutonomyRuleEngine() {
+        this(new ActionSelector());
+    }
+
+    public AutonomyRuleEngine(ActionSelector actionSelector) {
+        this.actionSelector = actionSelector;
+    }
 
     @Override
     public AutonomyPlan plan(AutonomyContext context) {
@@ -34,77 +44,76 @@ public class AutonomyRuleEngine implements AutonomyDecisionEngine {
             return plan;
         }
 
-        List<PlannedAction> actions = new ArrayList<>();
-        List<AutonomyRecommendation> recommendations = new ArrayList<>();
+        String incidentType = resolveIncidentType(context);
+        plan.setIncidentType(incidentType);
+        plan.setSummary(buildSummary(incidentType, context));
 
-        if (!context.isRedisHealthy()) {
-            // 最高优先级：L2 不可用，组合 L1 降级 + 热点预热 + Redis 自愈
-            plan.setIncidentType("REDIS_UNAVAILABLE");
-            plan.setSummary("Redis 不可用，启用本地缓存与自愈组合处置");
+        List<AutonomyRecommendation> recommendations = buildRecommendations(incidentType);
+        List<ActionCandidate> candidates = IncidentActionCatalog.candidatesFor(incidentType, context);
+        List<PlannedAction> selectedActions = actionSelector.select(candidates, context);
 
-            actions.add(action(AutonomyActionType.ENSURE_L1_DEGRADE,
-                    "Redis 不可用时 MultiLevelCache 在请求路径自动降级至 L1"));
-            if (!context.getHotKeys().isEmpty()) {
-                actions.add(action(AutonomyActionType.WARMUP_HOT_KEYS,
-                        "热点 Key 较多，建议在 Redis 恢复前后预热本地缓存"));
-            }
-            actions.add(action(AutonomyActionType.TRIGGER_REDIS_RECOVERY,
-                    "主动触发 Redis 连接自愈"));
-
-            recommendations.add(new AutonomyRecommendation(
-                    "缩短本地缓存 TTL 差",
-                    "可将 distributed.ttl 与 local.ttl 比例调至 1:8，减少 Redis 恢复后陈旧数据窗口",
-                    "ms.middleware.cache.distributed.ttl / local.ttl"));
-            recommendations.add(new AutonomyRecommendation(
-                    "开启热点自动预热",
-                    "确保 ai.hotKey.autoWarmup=true，降低击穿风险",
-                    "ms.middleware.ai.hotKey.auto-warmup=true"));
-        } else if (!context.isRabbitMqHealthy()) {
-            // Rabbit 宕机优先于 MQ 失败计数（组件级故障更严重）
-            plan.setIncidentType("RABBITMQ_UNAVAILABLE");
-            plan.setSummary("RabbitMQ 不可用，触发自愈并关注消息堆积");
-            actions.add(action(AutonomyActionType.TRIGGER_RABBITMQ_RECOVERY,
-                    "主动触发 RabbitMQ 连接自愈"));
-            recommendations.add(new AutonomyRecommendation(
-                    "检查 MQ 幂等窗口",
-                    "故障期间可能重复投递，可适当延长幂等键过期时间（需人工确认）",
-                    "ms.middleware.mq.idempotent.expiration-hours"));
-        } else if (context.isMqDegraded()) {
-            // 组件健康但消费失败累计超阈值：与 ContextBuilder issues 使用同一阈值
-            plan.setIncidentType("MQ_DEGRADED");
-            plan.setSummary(String.format(
-                    "MQ 消费失败累计 %d（阈值 %d），建议排查消费端与幂等",
-                    context.getMqFailedCount(), context.getMqFailedWarnThreshold()));
-            recommendations.add(new AutonomyRecommendation(
-                    "查看失败消息 Trace",
-                    "在控制台聊天中提供 messageId 可进一步定位",
-                    null));
-            // 限流等自动动作将在后续排序选优 + 执行器中补齐
-        } else if (context.isCacheDegraded()) {
-            plan.setIncidentType("CACHE_DEGRADED");
-            plan.setSummary(String.format(
-                    "缓存命中率 %.1f%% 低于阈值 %.1f%%，建议预热热点",
-                    context.getCacheHitRate() * 100, context.getCacheHitRateWarnThreshold() * 100));
-            if (!context.getHotKeys().isEmpty()) {
-                actions.add(action(AutonomyActionType.WARMUP_HOT_KEYS, "命中率低且存在热点，执行预热"));
-            }
-        } else {
-            // 有 issues 但未命中已知类型时的兜底
-            plan.setIncidentType("UNKNOWN");
-            plan.setSummary("存在预警但未匹配已知 incident 类型");
-        }
-
-        plan.setActions(actions);
+        plan.setActions(selectedActions);
+        plan.setRankingSummary(actionSelector.buildSelectionSummary(selectedActions));
         plan.setRecommendations(recommendations);
         return plan;
     }
 
-    /** 构造计划动作，风险等级取自动作类型定义 */
-    private PlannedAction action(AutonomyActionType type, String reason) {
-        PlannedAction action = new PlannedAction();
-        action.setActionType(type);
-        action.setRisk(type.getRisk());
-        action.setReason(reason);
-        return action;
+    /** 按优先级链确定主 incident 类型 */
+    private String resolveIncidentType(AutonomyContext context) {
+        if (!context.isRedisHealthy()) {
+            return "REDIS_UNAVAILABLE";
+        }
+        if (!context.isRabbitMqHealthy()) {
+            return "RABBITMQ_UNAVAILABLE";
+        }
+        if (context.isMqDegraded()) {
+            return "MQ_DEGRADED";
+        }
+        if (context.isCacheDegraded()) {
+            return "CACHE_DEGRADED";
+        }
+        return "UNKNOWN";
+    }
+
+    private String buildSummary(String incidentType, AutonomyContext context) {
+        return switch (incidentType) {
+            case "REDIS_UNAVAILABLE" -> "Redis 不可用，启用本地缓存与自愈组合处置";
+            case "RABBITMQ_UNAVAILABLE" -> "RabbitMQ 不可用，触发自愈并关注消息堆积";
+            case "MQ_DEGRADED" -> String.format(
+                    "MQ 消费失败累计 %d（阈值 %d），建议排查消费端与幂等",
+                    context.getMqFailedCount(), context.getMqFailedWarnThreshold());
+            case "CACHE_DEGRADED" -> String.format(
+                    "缓存命中率 %.1f%% 低于阈值 %.1f%%，建议预热热点",
+                    context.getCacheHitRate() * 100, context.getCacheHitRateWarnThreshold() * 100);
+            default -> "存在预警但未匹配已知 incident 类型";
+        };
+    }
+
+    /** 配置级推荐（不参与动作选优，由编排器写入 RECOMMEND 时间线） */
+    private List<AutonomyRecommendation> buildRecommendations(String incidentType) {
+        List<AutonomyRecommendation> recommendations = new ArrayList<>();
+        switch (incidentType) {
+            case "REDIS_UNAVAILABLE" -> {
+                recommendations.add(new AutonomyRecommendation(
+                        "缩短本地缓存 TTL 差",
+                        "可将 distributed.ttl 与 local.ttl 比例调至 1:8，减少 Redis 恢复后陈旧数据窗口",
+                        "ms.middleware.cache.distributed.ttl / local.ttl"));
+                recommendations.add(new AutonomyRecommendation(
+                        "开启热点自动预热",
+                        "确保 ai.hotKey.autoWarmup=true，降低击穿风险",
+                        "ms.middleware.ai.hotKey.auto-warmup=true"));
+            }
+            case "RABBITMQ_UNAVAILABLE" -> recommendations.add(new AutonomyRecommendation(
+                    "检查 MQ 幂等窗口",
+                    "故障期间可能重复投递，可适当延长幂等键过期时间（需人工确认）",
+                    "ms.middleware.mq.idempotent.expiration-hours"));
+            case "MQ_DEGRADED" -> recommendations.add(new AutonomyRecommendation(
+                    "查看失败消息 Trace",
+                    "在控制台聊天中提供 messageId 可进一步定位",
+                    null));
+            default -> {
+            }
+        }
+        return recommendations;
     }
 }

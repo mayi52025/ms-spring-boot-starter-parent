@@ -1083,6 +1083,8 @@ public class MsMiddlewareProperties {
         private boolean enabled = false;
         private long scanIntervalMs = 30000;
         private String autoExecuteMaxRisk = "LOW";
+        /** 自动执行最低置信度，低于此值即使 LOW 风险也只 ADVISE */
+        private double autoExecuteMinConfidence = 0.7;
         private double cacheHitRateWarnThreshold = 0.5;
         private long mqFailedWarnThreshold = 10;
         private LedgerProperties ledger = new LedgerProperties();
@@ -1109,6 +1111,14 @@ public class MsMiddlewareProperties {
 
         public void setAutoExecuteMaxRisk(String autoExecuteMaxRisk) {
             this.autoExecuteMaxRisk = autoExecuteMaxRisk;
+        }
+
+        public double getAutoExecuteMinConfidence() {
+            return autoExecuteMinConfidence;
+        }
+
+        public void setAutoExecuteMinConfidence(double autoExecuteMinConfidence) {
+            this.autoExecuteMinConfidence = autoExecuteMinConfidence;
         }
 
         public double getCacheHitRateWarnThreshold() {

@@ -194,7 +194,7 @@ ms.middleware.autonomy.ledger:
 |------|------|------|
 | Step 0 | 决策契约与模型字段 | ✅ 已完成 |
 | Step 1 | MQ/检测阈值统一 | ✅ 已完成 |
-| Step 2 | 候选动作 + 打分排序 | 待做 |
+| Step 2 | 候选动作 + 规则选优 | ✅ 已完成 |
 | Step 3 | MQ/Rabbit 执行器 | 待做 |
 | Step 4 | 推荐采纳 + 人机审计 | 待做 |
 | Step 5 | YAML 规则外置 | 待做 |
@@ -206,8 +206,9 @@ ms.middleware.autonomy.ledger:
 **决策流水线（Step 2 起逐步实现）：**
 
 ```
-Context → 候选动作池 → ActionRanker 打分排序
-       → Policy 门控（风险 + confidence）
+Context → 候选动作池（Runbook）→ ActionSelector 规则选优
+       → EvidenceStrength 证据评估
+       → Policy 门控（风险 + 证据强度）
        → AUTO 执行 rank#1 且 LOW 风险
        → RECOMMEND 展示其余方案与配置建议
        → [ACCEPTED] 人工采纳（Step 4）
@@ -218,7 +219,7 @@ Context → 候选动作池 → ActionRanker 打分排序
 
 | 类型 | 新增字段 | 说明 |
 |------|----------|------|
-| `PlannedAction` | `rank`, `score`, `confidence` | 排序位(1-based)、得分、自动执行置信度；未排序前为 0 |
+| `PlannedAction` | `rank`, `score`, `confidence` | 排序位(1-based)、保留字段(恒0)、证据强度；未选优前 rank 为 0 |
 | `AutonomyRecommendation` | `recommendationId` | 8 位 UUID，采纳 API 主键 |
 | `TimelineEvent` | `recommendationId`（可选） | ACCEPTED 事件关联推荐 |
 | `AutonomyTimelinePhase` | 枚举 | DETECT / PLAN / AUTO / ADVISE / RECOMMEND / ACCEPTED / STABLE |
@@ -242,7 +243,16 @@ Context → 候选动作池 → ActionRanker 打分排序
 - `AutonomyRuleEngine`：`MQ_DEGRADED` 仅在 `>= 阈值` 时触发（不再 `> 0`）
 - 单测：`AutonomyContextBuilderTest`、`AutonomyRuleEngineTest` 边界用例
 
-#### Step 2～7 待办（原 Phase 3 项）
+#### Step 2 规则选优（已完成）
+
+- `IncidentActionCatalog`：各 incident 的 Runbook 候选（顺序、是否治根因）
+- `ActionSelector`：词典序选优（根因 > 风险 > Runbook 顺序），**不用浮点加权打分**
+- `EvidenceStrengthEvaluator`：独立评估证据强度，供 Policy 门控（踩线 ADVISE、明显超标 AUTO）
+- `AutonomyPlan.rankingSummary`：PLAN 时间线输出可解释的选优依据
+- 配置 `auto-execute-min-confidence`（默认 0.7）；编排器仅 rank#1 可 AUTO
+- 单测：`ActionSelectorTest`、`EvidenceStrengthEvaluatorTest`、`AutonomyPolicyTest`
+
+#### Step 3～7 待办（原 Phase 3 项）
 
 - [ ] EasyRules 或 YAML 实现 `AutonomyDecisionEngine`
 

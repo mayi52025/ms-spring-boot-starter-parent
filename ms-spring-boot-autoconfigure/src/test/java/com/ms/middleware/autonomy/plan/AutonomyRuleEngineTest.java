@@ -8,11 +8,11 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 验证 {@link AutonomyRuleEngine} 的 incident 分类与优先级：
- * Redis &gt; Rabbit &gt; MQ（阈值）&gt; Cache。
+ * 验证 {@link AutonomyRuleEngine} 的 incident 分类、规则选优与 PLAN 选优说明。
  */
 class AutonomyRuleEngineTest {
 
@@ -27,9 +27,9 @@ class AutonomyRuleEngineTest {
         assertTrue(plan.getActions().isEmpty());
     }
 
-    /** Redis 不可用应生成降级 + 自愈动作 */
+    /** Redis 不可用：自愈排第一，且 PLAN 含选优说明 */
     @Test
-    void redisDownPlansRecoveryActions() {
+    void redisDownPlansRankedRecoveryFirst() {
         AutonomyContext ctx = incidentContext();
         ctx.setRedisHealthy(false);
         ctx.getIssues().add("Redis 不可用");
@@ -38,8 +38,11 @@ class AutonomyRuleEngineTest {
         assertEquals("REDIS_UNAVAILABLE", plan.getIncidentType());
         List<PlannedAction> actions = plan.getActions();
         assertFalse(actions.isEmpty());
+        assertEquals(AutonomyActionType.TRIGGER_REDIS_RECOVERY, actions.get(0).getActionType());
+        assertEquals(1, actions.get(0).getRank());
         assertTrue(actions.stream().anyMatch(a -> a.getActionType() == AutonomyActionType.ENSURE_L1_DEGRADE));
-        assertTrue(actions.stream().anyMatch(a -> a.getActionType() == AutonomyActionType.TRIGGER_REDIS_RECOVERY));
+        assertNotNull(plan.getRankingSummary());
+        assertTrue(plan.getRankingSummary().contains("自动执行候选"));
         assertFalse(plan.getRecommendations().isEmpty());
     }
 
@@ -58,9 +61,9 @@ class AutonomyRuleEngineTest {
         assertEquals("CACHE_DEGRADED", plan.getIncidentType());
     }
 
-    /** MQ 达到阈值应生成 MQ_DEGRADED 计划 */
+    /** MQ 达到阈值：限流排第一；踩线时证据不足，仅 ADVISE */
     @Test
-    void mqAtThresholdPlansMqDegraded() {
+    void mqAtThresholdSelectsThrottleButWeakEvidence() {
         AutonomyContext ctx = incidentContext();
         ctx.setMqFailedCount(10);
         ctx.setMqFailedWarnThreshold(10);
@@ -69,8 +72,26 @@ class AutonomyRuleEngineTest {
         AutonomyPlan plan = engine.plan(ctx);
 
         assertEquals("MQ_DEGRADED", plan.getIncidentType());
-        assertTrue(plan.getSummary().contains("阈值 10"));
-        assertFalse(plan.getRecommendations().isEmpty());
+        PlannedAction top = plan.getActions().get(0);
+        assertEquals(AutonomyActionType.THROTTLE_CONSUMER, top.getActionType());
+        assertEquals(1, top.getRank());
+        assertTrue(top.getConfidence() < 0.7, "踩线时应 ADVISE，证据=" + top.getConfidence());
+        assertTrue(plan.getRankingSummary().contains("根因优先"));
+    }
+
+    /** MQ 明显超阈值：限流为 AUTO 候选 */
+    @Test
+    void mqAboveThresholdSelectsThrottleAsAutoCandidate() {
+        AutonomyContext ctx = incidentContext();
+        ctx.setMqFailedCount(15);
+        ctx.setMqFailedWarnThreshold(10);
+        ctx.getIssues().add("MQ 消费失败累计偏高: 15");
+
+        AutonomyPlan plan = engine.plan(ctx);
+
+        PlannedAction top = plan.getActions().get(0);
+        assertEquals(AutonomyActionType.THROTTLE_CONSUMER, top.getActionType());
+        assertTrue(top.getConfidence() >= 0.7);
     }
 
     /** Rabbit 宕机优先于 MQ 失败计数 */
@@ -85,6 +106,7 @@ class AutonomyRuleEngineTest {
         AutonomyPlan plan = engine.plan(ctx);
 
         assertEquals("RABBITMQ_UNAVAILABLE", plan.getIncidentType());
+        assertEquals(AutonomyActionType.TRIGGER_RABBITMQ_RECOVERY, plan.getActions().get(0).getActionType());
     }
 
     /** 构造「有 incident 且 Redis/Rabbit 健康」的通用上下文 */

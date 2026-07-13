@@ -13,6 +13,8 @@ public class AutonomyPlan {
 
     private String incidentType;
     private String summary;
+    /** PLAN 时间线附带的选优说明，由 {@link ActionSelector#buildSelectionSummary} 生成 */
+    private String rankingSummary;
     private AutonomyContext context;
     private List<PlannedAction> actions = new ArrayList<>();
     private List<AutonomyRecommendation> recommendations = new ArrayList<>();
@@ -31,6 +33,14 @@ public class AutonomyPlan {
 
     public void setSummary(String summary) {
         this.summary = summary;
+    }
+
+    public String getRankingSummary() {
+        return rankingSummary;
+    }
+
+    public void setRankingSummary(String rankingSummary) {
+        this.rankingSummary = rankingSummary;
     }
 
     public AutonomyContext getContext() {

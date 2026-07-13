@@ -100,7 +100,11 @@ public class AutonomyOrchestrator {
         AutonomyPlan plan = decisionEngine.plan(context);
         run.setPlan(plan);
         run.setStatus(AutonomyRunStatus.PLANNED);
-        ledger.appendTimeline(run, "PLAN", plan.getSummary());
+        String planDetail = plan.getSummary();
+        if (plan.getRankingSummary() != null && !plan.getRankingSummary().isBlank()) {
+            planDetail = planDetail + " | " + plan.getRankingSummary();
+        }
+        ledger.appendTimeline(run, "PLAN", planDetail);
         ledger.update(run);
 
         run.setStatus(AutonomyRunStatus.EXECUTING);
@@ -146,19 +150,35 @@ public class AutonomyOrchestrator {
                 .orElse(!context.hasIncident());
     }
 
+    /**
+     * 执行计划动作：仅 rank#1 且通过 Policy 的动作为 AUTO，其余写入 ADVISE。
+     * rank#2 及以后的候选作为备选方案展示，不自动执行。
+     */
     private void executePlanActions(AutonomyRun run, AutonomyPlan plan) {
         for (PlannedAction action : plan.getActions()) {
-            AutonomyPolicyDecision decision = policy.evaluate(action);
+            AutonomyPolicyDecision decision;
+            if (action.getRank() == 1) {
+                decision = policy.evaluate(action);
+            } else {
+                decision = AutonomyPolicyDecision.ADVISE;
+            }
             action.setPolicyDecision(decision);
+
             if (decision == AutonomyPolicyDecision.AUTO) {
                 actuator.execute(action);
-                ledger.appendTimeline(run, "ACTION",
-                        action.getActionType() + " → " + action.getExecutionStatus() + ": " + action.getExecutionDetail());
+                ledger.appendTimeline(run, "AUTO",
+                        action.getActionType() + " → " + action.getExecutionStatus()
+                                + ": " + action.getExecutionDetail());
             } else {
                 action.setExecutionStatus("ADVISE");
-                action.setExecutionDetail("风险超过 auto-execute-max-risk，仅展示建议，等待人工确认");
+                String detail = action.getRank() == 1
+                        ? String.format("证据强度 %.2f 低于阈值 %.2f 或风险超限，仅展示建议",
+                        action.getConfidence(), policy.getMinAutoConfidence())
+                        : String.format("备选方案 #%d（Runbook 顺位），等待人工采纳或升级",
+                        action.getRank());
+                action.setExecutionDetail(detail);
                 ledger.appendTimeline(run, "ADVISE",
-                        action.getActionType() + " 建议: " + action.getReason());
+                        action.getActionType() + " 建议: " + action.getReason() + "（" + detail + "）");
             }
         }
     }
@@ -175,7 +195,7 @@ public class AutonomyOrchestrator {
             action.setRisk(AutonomyActionType.TRIGGER_REDIS_RECOVERY.getRisk());
             actuator.execute(action);
             if ("SUCCESS".equals(action.getExecutionStatus())) {
-                ledger.appendTimeline(run, "ACTION",
+                ledger.appendTimeline(run, "AUTO",
                         action.getActionType() + " → SUCCESS: " + action.getExecutionDetail());
             }
         } else if ("RABBITMQ_UNAVAILABLE".equals(incidentType) && !context.isRabbitMqHealthy()) {
@@ -184,7 +204,7 @@ public class AutonomyOrchestrator {
             action.setRisk(AutonomyActionType.TRIGGER_RABBITMQ_RECOVERY.getRisk());
             actuator.execute(action);
             if ("SUCCESS".equals(action.getExecutionStatus())) {
-                ledger.appendTimeline(run, "ACTION",
+                ledger.appendTimeline(run, "AUTO",
                         action.getActionType() + " → SUCCESS: " + action.getExecutionDetail());
             }
         }

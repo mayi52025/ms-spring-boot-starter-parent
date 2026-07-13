@@ -68,6 +68,7 @@ ms:
       enabled: false
       scan-interval-ms: 30000
       auto-execute-max-risk: LOW
+      auto-execute-min-confidence: 0.7
       cache-hit-rate-warn-threshold: 0.5
       mq-failed-warn-threshold: 10
       ledger:

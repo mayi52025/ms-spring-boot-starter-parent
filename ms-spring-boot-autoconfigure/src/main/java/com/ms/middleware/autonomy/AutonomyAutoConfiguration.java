@@ -10,6 +10,7 @@ import com.ms.middleware.autonomy.decision.AutonomyDecisionEngine;
 import com.ms.middleware.autonomy.insight.DefaultMiddlewareInsightService;
 import com.ms.middleware.autonomy.insight.MiddlewareInsightService;
 import com.ms.middleware.autonomy.metrics.AutonomyMetrics;
+import com.ms.middleware.autonomy.plan.ActionSelector;
 import com.ms.middleware.autonomy.plan.AutonomyRuleEngine;
 import com.ms.middleware.autonomy.policy.AutonomyPolicy;
 import com.ms.middleware.autonomy.run.AutonomyLedger;
@@ -63,9 +64,15 @@ public class AutonomyAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(ActionSelector.class)
+    public ActionSelector actionSelector() {
+        return new ActionSelector();
+    }
+
+    @Bean
     @ConditionalOnMissingBean(AutonomyDecisionEngine.class)
-    public AutonomyDecisionEngine autonomyDecisionEngine() {
-        return new AutonomyRuleEngine();
+    public AutonomyDecisionEngine autonomyDecisionEngine(ActionSelector actionSelector) {
+        return new AutonomyRuleEngine(actionSelector);
     }
 
     @Bean
