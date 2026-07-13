@@ -11,6 +11,7 @@ import com.ms.middleware.autonomy.run.AutonomyLedger;
 import com.ms.middleware.autonomy.run.AutonomyRun;
 import com.ms.middleware.autonomy.metrics.AutonomyMetrics;
 import com.ms.middleware.autonomy.tenant.AutonomyTenantProvider;
+import com.ms.middleware.metrics.MsMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,6 +40,7 @@ public class AutonomyOrchestrator {
     private final AutonomyLedger ledger;
     private final AutonomyTenantProvider tenantProvider;
     private final AutonomyMetrics autonomyMetrics;
+    private final MsMetrics msMetrics;
 
     /** 当前 JVM 内正在处理的故障 run；稳定后置 null */
     private volatile String activeRunId;
@@ -49,7 +51,8 @@ public class AutonomyOrchestrator {
                                 AutonomyActuator actuator,
                                 AutonomyLedger ledger,
                                 AutonomyTenantProvider tenantProvider,
-                                AutonomyMetrics autonomyMetrics) {
+                                AutonomyMetrics autonomyMetrics,
+                                MsMetrics msMetrics) {
         this.contextBuilder = contextBuilder;
         this.decisionEngine = decisionEngine;
         this.policy = policy;
@@ -57,6 +60,7 @@ public class AutonomyOrchestrator {
         this.ledger = ledger;
         this.tenantProvider = tenantProvider;
         this.autonomyMetrics = autonomyMetrics;
+        this.msMetrics = msMetrics;
     }
 
     /**
@@ -101,6 +105,9 @@ public class AutonomyOrchestrator {
         run.setPlan(plan);
         run.setStatus(AutonomyRunStatus.PLANNED);
         String planDetail = plan.getSummary();
+        if (plan.getRulesVersion() != null && !plan.getRulesVersion().isBlank()) {
+            planDetail = planDetail + " | runbook=" + plan.getRulesVersion();
+        }
         if (plan.getRankingSummary() != null && !plan.getRankingSummary().isBlank()) {
             planDetail = planDetail + " | " + plan.getRankingSummary();
         }
@@ -275,6 +282,7 @@ public class AutonomyOrchestrator {
             String incidentType = run.getPlan() != null ? run.getPlan().getIncidentType() : "UNKNOWN";
             if ("MQ_DEGRADED".equals(incidentType)) {
                 actuator.clearMqThrottle();
+                msMetrics.clearRecentMqFailures();
             }
             ledger.appendTimeline(run, "STABLE",
                     String.format("中间件指标恢复正常，MTTR=%ds，本次自治结束", mttr));

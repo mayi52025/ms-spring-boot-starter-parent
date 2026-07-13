@@ -8,6 +8,7 @@ ms:
   middleware:
     autonomy:
       rules:
+        version: demo-mq@1.0   # 写入 PLAN 时间线 runbook= 审计
         # incident 识别链（有序，先匹配者优先）；整段替换默认链
         incident-detection:
           - condition: redis-unhealthy

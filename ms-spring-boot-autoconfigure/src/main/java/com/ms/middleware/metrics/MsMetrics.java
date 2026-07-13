@@ -1,5 +1,6 @@
 package com.ms.middleware.metrics;
 
+import com.ms.middleware.MsMiddlewareProperties;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -45,9 +46,13 @@ public class MsMetrics {
 
     // 故障次数
     private final AtomicLong failureCount = new AtomicLong(0);
+    /** 滑动窗口内 MQ 失败次数（自治检测用） */
+    private final MqFailureSlidingWindow mqFailureWindow;
 
     @Autowired
-    public MsMetrics(MeterRegistry meterRegistry) {
+    public MsMetrics(MeterRegistry meterRegistry, MqFailureSlidingWindow mqFailureWindow) {
+        this.mqFailureWindow = mqFailureWindow;
+
         // 缓存指标
         cacheHits = Counter.builder("ms.cache.hits")
                 .description("Cache hit count")
@@ -80,6 +85,10 @@ public class MsMetrics {
 
         messageFailed = Counter.builder("ms.mq.failed")
                 .description("Message failed count")
+                .register(meterRegistry);
+
+        Gauge.builder("ms.mq.failed.recent", mqFailureWindow, w -> w.countInWindow())
+                .description("MQ failures in sliding window for autonomy detection")
                 .register(meterRegistry);
 
         messageProcessingTime = Timer.builder("ms.mq.processing.time")
@@ -131,6 +140,11 @@ public class MsMetrics {
                 .register(meterRegistry);
     }
 
+    /** 单测等无 Spring 容器场景：使用默认 5 分钟滑动窗口 */
+    public MsMetrics(MeterRegistry meterRegistry) {
+        this(meterRegistry, new MqFailureSlidingWindow(new MsMiddlewareProperties()));
+    }
+
     // 缓存指标方法
     public void incrementCacheHits() {
         cacheHits.increment();
@@ -163,6 +177,7 @@ public class MsMetrics {
 
     public void incrementMessageFailed() {
         messageFailed.increment();
+        mqFailureWindow.recordFailure();
     }
 
     public Timer.Sample startMessageProcessing() {
@@ -236,7 +251,15 @@ public class MsMetrics {
     }
 
     public long getMessageFailedCount() {
+        return mqFailureWindow.countInWindow();
+    }
+
+    /** 累计失败次数（Prometheus 全量统计） */
+    public long getMessageFailedTotal() {
         return (long) messageFailed.count();
     }
 
+    public void clearRecentMqFailures() {
+        mqFailureWindow.clear();
+    }
 }

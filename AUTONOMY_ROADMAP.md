@@ -182,7 +182,7 @@ ms.middleware.autonomy.ledger:
 | 控制台鉴权 | `/ms-console/**` 仍为 permitAll，生产需 Phase 4 token |
 | Resilience4j 单测 | 依赖版本与 `PredicateCreator` 不兼容，与 P0 无关，待单独升级 |
 
-### Phase 3 — 场景识别 + 推荐采纳（进行中）
+### Phase 3 — 场景识别 + 推荐采纳（已完成）
 
 
 
@@ -294,6 +294,28 @@ Context → 候选动作池（Runbook）→ ActionSelector 规则选优
 #### Step 7 待办（可选）
 
 - [ ] EasyRules 决策引擎（可选）
+
+#### Phase 3.5 — 可观测与恢复性加固（已完成）
+
+| 项 | 内容 |
+|----|------|
+| MQ 滑动窗口 | `MqFailureSlidingWindow` + `ms.mq.failed.recent`；STABLE 时清空窗口，支持恢复 |
+| Runbook 审计 | `ms.middleware.autonomy.rules.version` 写入 PLAN 时间线 `runbook=` |
+| 控制台两态 | 战时态 banner + 优化建议折叠；战后态 MTTR + 建议展开 |
+| Demo 开关 | `demo.chaos.mq-fail.enabled` 替代 `demo.autonomy.mq-failure-consumer` |
+| Grafana | `ms-autonomy.json` 增补 AUTO 率、采纳率、plan.confidence、窗口 MQ 失败 |
+| Prometheus 告警 | `monitoring/prometheus/alerts/autonomy.yml` 示例规则 |
+| 金路径测试 | `AutonomyGoldenPathTest`（MQ_DEGRADED → AUTO → STABLE） |
+
+配置示例：
+
+```yaml
+ms.middleware.autonomy:
+  mq-failure-window-minutes: 5   # 自治检测滑动窗口
+  rules:
+    version: prod-mq@2.1         # PLAN 审计
+demo.chaos.mq-fail.enabled: false  # 故障注入演示，生产务必 false
+```
 
 
 

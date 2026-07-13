@@ -49,6 +49,10 @@
     .status.ok { color: var(--ok); }
     .issue-card.history { opacity: 0.85; border-left: 3px solid var(--ok); }
     .healthy-banner { background: rgba(34,197,94,.12); border: 1px solid var(--ok); border-radius: 8px; padding: 12px; margin-bottom: 12px; color: var(--ok); font-size: 0.9rem; }
+    .war-banner { background: rgba(245,158,11,.15); border: 1px solid var(--warn); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.9rem; }
+    .war-banner strong { color: var(--warn); }
+    .rec-section-collapsed details { margin-top: 8px; }
+    .rec-section-collapsed summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
   </style>
 </head>
 <body>
@@ -105,9 +109,13 @@
   function renderTimeline(run) {
     const tl = document.getElementById('timeline');
     const mttr = computeMttr(run);
+    const isWartime = run.status === 'EXECUTING' || run.status === 'PLANNED' || run.status === 'DETECTED';
     let html = '';
+    if (isWartime) {
+      html += `<div class="war-banner"><strong>战时态</strong> · 自治处置进行中 · run ${run.runId} · ${run.status}</div>`;
+    }
     if (run.status === 'STABLE' && mttr != null) {
-      html += `<div class="mttr-banner"><strong>已恢复</strong> · MTTR = <strong>${mttr}s</strong> · run ${run.runId}</div>`;
+      html += `<div class="mttr-banner"><strong>战后态 · 已恢复</strong> · MTTR = <strong>${mttr}s</strong> · run ${run.runId}</div>`;
     }
     html += (run.timeline || []).map(e => {
       const cls = e.phase === 'STABLE' ? 'tl-item tl-stable'
@@ -218,6 +226,7 @@
     const rec = document.getElementById('recommendations');
     const recs = run.plan && run.plan.recommendations ? run.plan.recommendations : [];
     const actions = run.plan && run.plan.actions ? run.plan.actions : [];
+    const isWartime = run.status === 'EXECUTING' || run.status === 'PLANNED' || run.status === 'DETECTED';
     let html = '';
 
     const primary = actions.find(a => a.rank === 1);
@@ -254,8 +263,7 @@
     }
 
     if (recs.length) {
-      html += '<h2 style="margin-top:12px">优化建议</h2><p class="section-hint">配置级建议，可选采纳，不阻塞故障恢复</p>';
-      html += recs.map(r => {
+      const recBody = recs.map(r => {
         const st = r.status || 'PENDING';
         const cls = st === 'ACCEPTED' ? 'rec accepted' : st === 'REJECTED' ? 'rec rejected' : 'rec';
         const badge = st !== 'PENDING' ? `<span style="color:var(--muted)"> [${st}]</span>` : '';
@@ -267,6 +275,14 @@
         return `<div class="${cls}"><strong>${r.title}</strong>${badge}<br/>${r.description}
         ${r.suggestedConfig ? '<br/><code>' + r.suggestedConfig + '</code>' : ''}${btns}</div>`;
       }).join('');
+      if (isWartime) {
+        html += '<div class="rec-section-collapsed"><h2 style="margin-top:12px">优化建议</h2>';
+        html += '<p class="section-hint">战时默认折叠，不阻塞止血；恢复后可展开处理</p>';
+        html += `<details><summary>展开 ${recs.length} 条配置建议</summary>${recBody}</details></div>`;
+      } else {
+        html += '<h2 style="margin-top:12px">优化建议</h2><p class="section-hint">战后复盘：配置级建议，可选采纳</p>';
+        html += recBody;
+      }
     }
 
     rec.innerHTML = html;

@@ -59,7 +59,7 @@ ms:
 ## 3. 场景 B：MQ 消费失败（限流 + 延迟重试）
 
 > **为什么之前测不了？** order-system 原来**只发消息、没有消费者**，`mqFailedCount` 永远不会涨。
-> 已在 demo 里加了 `MqFailureDemoConsumer`，开启 `demo.autonomy.mq-failure-consumer.enabled=true` 即可。
+> 已在 demo 里加了 `MqFailureDemoConsumer`，开启 `demo.chaos.mq-fail.enabled=true` 即可。
 
 ### 触发步骤（按顺序做）
 
@@ -91,7 +91,7 @@ mvn clean install -DskipTests
 Invoke-RestMethod http://localhost:8080/ms-console/api/metrics
 ```
 
-`mqFailedCount` 应 **≥ 3**（demo 已设 `mq-failed-warn-threshold: 3`）。
+`mqFailedCount` 应 **≥ 3**（demo 已设 `mq-failed-warn-threshold: 3`；计数为**滑动窗口**内失败次数，非累计 Counter）。
 
 **⑤ 等 10～20 秒**，再查：
 
@@ -103,7 +103,7 @@ Invoke-RestMethod http://localhost:8080/ms-console/api/issues
 
 **⑥ 测完关闭演示消费者**
 
-`application.yml` → `demo.autonomy.mq-failure-consumer.enabled: false`，重启。
+`application.yml` → `demo.chaos.mq-fail.enabled: false`，重启。STABLE 时会清空窗口计数，可立即恢复。
 
 ### 预期行为
 

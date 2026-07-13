@@ -15,6 +15,8 @@ public class AutonomyPlan {
     private String summary;
     /** PLAN 时间线附带的选优说明，由 {@link ActionSelector#buildSelectionSummary} 生成 */
     private String rankingSummary;
+    /** 本次 PLAN 使用的 Runbook 版本，来自 {@link com.ms.middleware.autonomy.rule.AutonomyRulesProperties#getVersion()} */
+    private String rulesVersion;
     private AutonomyContext context;
     private List<PlannedAction> actions = new ArrayList<>();
     private List<AutonomyRecommendation> recommendations = new ArrayList<>();
@@ -41,6 +43,14 @@ public class AutonomyPlan {
 
     public void setRankingSummary(String rankingSummary) {
         this.rankingSummary = rankingSummary;
+    }
+
+    public String getRulesVersion() {
+        return rulesVersion;
+    }
+
+    public void setRulesVersion(String rulesVersion) {
+        this.rulesVersion = rulesVersion;
     }
 
     public AutonomyContext getContext() {

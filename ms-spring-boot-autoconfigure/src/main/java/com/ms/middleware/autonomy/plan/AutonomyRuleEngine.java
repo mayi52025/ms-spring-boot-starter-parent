@@ -66,6 +66,7 @@ public class AutonomyRuleEngine implements AutonomyDecisionEngine {
 
         plan.setActions(selectedActions);
         plan.setRankingSummary(actionSelector.buildSelectionSummary(selectedActions));
+        plan.setRulesVersion(rules.getVersion());
         plan.setRecommendations(recommendations);
         return plan;
     }

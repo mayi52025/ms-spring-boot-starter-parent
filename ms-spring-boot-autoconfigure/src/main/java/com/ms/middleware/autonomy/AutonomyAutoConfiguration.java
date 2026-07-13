@@ -179,9 +179,10 @@ public class AutonomyAutoConfiguration {
                                                      AutonomyActuator actuator,
                                                      AutonomyLedger ledger,
                                                      AutonomyTenantProvider tenantProvider,
-                                                     AutonomyMetrics autonomyMetrics) {
+                                                     AutonomyMetrics autonomyMetrics,
+                                                     MsMetrics msMetrics) {
         return new AutonomyOrchestrator(contextBuilder, decisionEngine, policy, actuator, ledger,
-                tenantProvider, autonomyMetrics);
+                tenantProvider, autonomyMetrics, msMetrics);
     }
 
     @Bean

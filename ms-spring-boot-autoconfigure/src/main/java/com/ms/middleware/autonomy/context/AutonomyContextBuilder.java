@@ -72,7 +72,7 @@ public class AutonomyContextBuilder {
             issues.add(String.format("缓存命中率偏低: %.1f%%", ctx.getCacheHitRate() * 100));
         }
         if (ctx.isMqDegraded()) {
-            issues.add(String.format("MQ 消费失败累计偏高: %d", ctx.getMqFailedCount()));
+            issues.add(String.format("MQ 消费失败（窗口内）偏高: %d", ctx.getMqFailedCount()));
         }
         if (!ctx.getHotKeys().isEmpty() && !redisHealthy) {
             issues.add("存在热点 Key 且 Redis 不可用，存在缓存击穿风险");

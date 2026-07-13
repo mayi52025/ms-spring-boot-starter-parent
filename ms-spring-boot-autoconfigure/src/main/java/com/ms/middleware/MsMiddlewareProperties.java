@@ -1092,6 +1092,8 @@ public class MsMiddlewareProperties {
         private double autoExecuteMinConfidenceLow = 0.55;
         private double cacheHitRateWarnThreshold = 0.5;
         private long mqFailedWarnThreshold = 10;
+        /** MQ 失败滑动窗口（分钟），自治检测只看窗口内失败次数，默认 5 分钟 */
+        private long mqFailureWindowMinutes = 5;
         private LedgerProperties ledger = new LedgerProperties();
         /** MQ 自治执行器参数（限流、延迟重试） */
         private MqActuatorProperties mq = new MqActuatorProperties();
@@ -1150,6 +1152,14 @@ public class MsMiddlewareProperties {
 
         public void setMqFailedWarnThreshold(long mqFailedWarnThreshold) {
             this.mqFailedWarnThreshold = mqFailedWarnThreshold;
+        }
+
+        public long getMqFailureWindowMinutes() {
+            return mqFailureWindowMinutes;
+        }
+
+        public void setMqFailureWindowMinutes(long mqFailureWindowMinutes) {
+            this.mqFailureWindowMinutes = mqFailureWindowMinutes;
         }
 
         public LedgerProperties getLedger() {

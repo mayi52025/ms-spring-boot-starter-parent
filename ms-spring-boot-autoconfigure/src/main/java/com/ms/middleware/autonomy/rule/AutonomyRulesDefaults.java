@@ -23,6 +23,7 @@ public final class AutonomyRulesDefaults {
         AutonomyRulesProperties copy = new AutonomyRulesProperties();
         copy.setIncidentDetection(cloneDetection(DEFAULTS.getIncidentDetection()));
         copy.setIncidents(cloneIncidents(DEFAULTS.getIncidents()));
+        copy.setVersion(DEFAULTS.getVersion());
         return copy;
     }
 
@@ -45,6 +46,9 @@ public final class AutonomyRulesDefaults {
                 merged.put(entry.getKey(), cloneIncident(entry.getValue()));
             }
             resolved.setIncidents(merged);
+        }
+        if (user.getVersion() != null && !user.getVersion().isBlank()) {
+            resolved.setVersion(user.getVersion());
         }
         return resolved;
     }

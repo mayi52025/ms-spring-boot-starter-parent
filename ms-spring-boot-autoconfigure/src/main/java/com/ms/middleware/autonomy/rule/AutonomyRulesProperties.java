@@ -16,6 +16,9 @@ import java.util.Map;
 @ConfigurationProperties(prefix = "ms.middleware.autonomy.rules")
 public class AutonomyRulesProperties {
 
+    /** Runbook 版本号，写入 PLAN 时间线供审计；未配置时默认 default@1.0 */
+    private String version = "default@1.0";
+
     /**
      * 有序 incident 识别链：先匹配者优先。
      * 为空时使用内置默认链（Redis → Rabbit → MQ → Cache）。
@@ -27,6 +30,14 @@ public class AutonomyRulesProperties {
      * key 如 REDIS_UNAVAILABLE、MQ_DEGRADED。
      */
     private Map<String, IncidentRuleDefinition> incidents = new LinkedHashMap<>();
+
+    public String getVersion() {
+        return version;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
+    }
 
     public List<IncidentDetectionRule> getIncidentDetection() {
         return incidentDetection;
