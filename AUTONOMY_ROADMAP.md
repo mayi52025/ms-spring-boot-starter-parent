@@ -196,7 +196,7 @@ ms.middleware.autonomy.ledger:
 | Step 1 | MQ/检测阈值统一 | ✅ 已完成 |
 | Step 2 | 候选动作 + 规则选优 | ✅ 已完成 |
 | Step 3 | MQ/Rabbit 执行器 | ✅ 已完成 |
-| Step 4 | 推荐采纳 + 人机审计 | 待做 |
+| Step 4 | 推荐采纳 + 人机审计 | ✅ 已完成 |
 | Step 5 | YAML 规则外置 | 待做 |
 | Step 6 | 指标 + Tool SPI + 文档 | 待做 |
 | Step 7 | EasyRules（可选） | 待做 |
@@ -261,11 +261,18 @@ Context → 候选动作池（Runbook）→ ActionSelector 规则选优
 - 配置 `ms.middleware.autonomy.mq.*`（throttle-limit、delayed-retry-delay-ms 等）
 - 单测：`MqConsumerThrottleTest`、`MqDelayedRetryExecutorTest`、`AutonomyActuatorMqTest`
 
-#### Step 4～7 待办（原 Phase 3 项）
+#### Step 4 推荐采纳 + 人机审计（已完成）
 
-- [ ] `POST /api/recommendations/{id}/accept`
+- `HumanAdoptionService`：配置推荐采纳/拒绝（幂等）；备选 ADVISE 动作人工采纳后走 Actuator
+- `RecommendationAdoptionController`：`POST .../recommendations/{id}/accept|reject`、`POST .../runs/{runId}/actions/{rank}/accept`
+- `AutonomyRecommendation` 增 `status/decidedAt/operator/rejectReason`；`PlannedAction.humanAccepted`
+- 时间线 `ACCEPTED` phase 关联 `recommendationId`；控制台 `index.html` 采纳/拒绝/备选执行按钮
+- 配置推荐仅审计，不自动改 Nacos（Phase 4 再接真改配置）
+- 单测：`HumanAdoptionServiceTest`
 
-- [ ] 时间线统一使用 `AUTO`（替代 `ACTION`）
+#### Step 5～7 待办（原 Phase 3 项）
+
+- [ ] YAML 规则外置（Step 5）
 
 
 

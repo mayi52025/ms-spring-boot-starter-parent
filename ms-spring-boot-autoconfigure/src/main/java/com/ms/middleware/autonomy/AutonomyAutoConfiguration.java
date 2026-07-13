@@ -170,4 +170,11 @@ public class AutonomyAutoConfiguration {
     public AutonomyScheduler autonomyScheduler(AutonomyOrchestrator orchestrator) {
         return new AutonomyScheduler(orchestrator);
     }
+
+    @Bean
+    public com.ms.middleware.autonomy.adoption.HumanAdoptionService humanAdoptionService(
+            AutonomyLedger ledger,
+            AutonomyActuator actuator) {
+        return new com.ms.middleware.autonomy.adoption.HumanAdoptionService(ledger, actuator);
+    }
 }

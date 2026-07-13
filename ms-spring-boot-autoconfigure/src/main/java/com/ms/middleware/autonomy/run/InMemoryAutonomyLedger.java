@@ -41,7 +41,7 @@ public class InMemoryAutonomyLedger extends AbstractAutonomyLedger {
         ensureTenant(run);
         trimIfNeeded(run.getTenant());
         runs.put(storageKey(run.getTenant(), run.getRunId()), run);
-        publishTimeline(run, "DETECT", "检测到中间件异常，runId=" + run.getRunId());
+        publishTimeline(run, "DETECT", "检测到中间件异常，runId=" + run.getRunId(), null);
         return run;
     }
 
@@ -80,11 +80,6 @@ public class InMemoryAutonomyLedger extends AbstractAutonomyLedger {
         }
         active.sort(Comparator.comparing(AutonomyRun::getStartedAt).reversed());
         return active;
-    }
-
-    @Override
-    public void appendTimeline(AutonomyRun run, String phase, String message) {
-        publishTimeline(run, phase, message);
     }
 
     @Override

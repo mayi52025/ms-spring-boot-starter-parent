@@ -26,5 +26,10 @@ public interface AutonomyLedger {
     /** 追加时间线；实现类应同时发布 ConsoleTimelineEvent */
     void appendTimeline(AutonomyRun run, String phase, String message);
 
+    /**
+     * 追加时间线并关联推荐 ID（phase 为 ACCEPTED 时使用）。
+     */
+    void appendTimeline(AutonomyRun run, String phase, String message, String recommendationId);
+
     void update(AutonomyRun run);
 }

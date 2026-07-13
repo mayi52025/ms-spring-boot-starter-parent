@@ -1,5 +1,6 @@
 package com.ms.middleware.autonomy.plan;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -23,6 +24,14 @@ public class AutonomyRecommendation {
     private String suggestedConfig;
     /** 是否默认需要人工确认（生产环境应为 true） */
     private boolean requiresApproval = true;
+    /** 人机协同状态，由采纳/拒绝 API 更新 */
+    private RecommendationStatus status = RecommendationStatus.PENDING;
+    /** 采纳或拒绝时刻 */
+    private Instant decidedAt;
+    /** 操作人标识，写入审计 */
+    private String operator;
+    /** 拒绝时的原因（采纳时为 null） */
+    private String rejectReason;
 
     public AutonomyRecommendation() {
         assignRecommendationIdIfAbsent();
@@ -81,5 +90,37 @@ public class AutonomyRecommendation {
 
     public void setRequiresApproval(boolean requiresApproval) {
         this.requiresApproval = requiresApproval;
+    }
+
+    public RecommendationStatus getStatus() {
+        return status != null ? status : RecommendationStatus.PENDING;
+    }
+
+    public void setStatus(RecommendationStatus status) {
+        this.status = status;
+    }
+
+    public Instant getDecidedAt() {
+        return decidedAt;
+    }
+
+    public void setDecidedAt(Instant decidedAt) {
+        this.decidedAt = decidedAt;
+    }
+
+    public String getOperator() {
+        return operator;
+    }
+
+    public void setOperator(String operator) {
+        this.operator = operator;
+    }
+
+    public String getRejectReason() {
+        return rejectReason;
+    }
+
+    public void setRejectReason(String rejectReason) {
+        this.rejectReason = rejectReason;
     }
 }

@@ -82,7 +82,7 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
     @Override
     public AutonomyRun startRun(AutonomyRun run) {
         ensureTenant(run);
-        publishTimeline(run, "DETECT", "检测到中间件异常，runId=" + run.getRunId());
+        publishTimeline(run, "DETECT", "检测到中间件异常，runId=" + run.getRunId(), null);
         cacheLocally(run);
         persistToRedis(run);
         return run;
@@ -150,8 +150,8 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
     }
 
     @Override
-    public void appendTimeline(AutonomyRun run, String phase, String message) {
-        publishTimeline(run, phase, message);
+    public void appendTimeline(AutonomyRun run, String phase, String message, String recommendationId) {
+        publishTimeline(run, phase, message, recommendationId);
         saveRun(run);
     }
 

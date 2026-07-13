@@ -25,6 +25,16 @@
     .mttr-banner { background: rgba(34,197,94,.15); border: 1px solid var(--ok); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.9rem; }
     .mttr-banner strong { color: var(--ok); }
     .rec { background: #1e2a3d; border-left: 3px solid var(--warn); padding: 8px; margin: 8px 0; border-radius: 4px; font-size: 0.85rem; }
+    .rec.accepted { border-left-color: var(--ok); opacity: 0.85; }
+    .rec.rejected { border-left-color: #64748b; opacity: 0.7; }
+    .rec-actions { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .rec-actions button { padding: 4px 10px; font-size: 0.75rem; border-radius: 6px; }
+    .btn-accept { background: var(--ok); }
+    .btn-reject { background: #64748b; }
+    .btn-adopt { background: var(--warn); color: #111; }
+    .advise { background: #1a2438; border-left: 3px solid #6366f1; padding: 8px; margin: 8px 0; border-radius: 4px; font-size: 0.85rem; }
+    .tl-accepted { border-left: 3px solid #a78bfa; padding-left: 8px; }
+    .tl-accepted .tl-phase { color: #a78bfa; }
     footer { border-top: 1px solid #2a3548; padding: 10px; display: flex; gap: 8px; background: var(--panel); }
     input, button { font: inherit; }
     #chatInput { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid #2a3548; background: #0f1419; color: var(--text); }
@@ -95,7 +105,8 @@
       html += `<div class="mttr-banner"><strong>已恢复</strong> · MTTR = <strong>${mttr}s</strong> · run ${run.runId}</div>`;
     }
     html += (run.timeline || []).map(e => {
-      const cls = e.phase === 'STABLE' ? 'tl-item tl-stable' : 'tl-item';
+      const cls = e.phase === 'STABLE' ? 'tl-item tl-stable'
+        : e.phase === 'ACCEPTED' ? 'tl-item tl-accepted' : 'tl-item';
       return `<div class="${cls}"><span class="tl-phase">[${e.phase}]</span> ${e.at} — ${e.message}</div>`;
     }).join('') || '无时间线';
     tl.innerHTML = html;
@@ -168,6 +179,77 @@
     await selectRun(runId, true);
   }
 
+  async function adoptRecommendation(recommendationId, runId, accept) {
+    const path = accept ? 'accept' : 'reject';
+    const res = await fetch(api + '/recommendations/' + recommendationId + '/' + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ runId, operator: 'console' })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok && !data.success) {
+      alert(data.message || '操作失败 HTTP ' + res.status);
+      return;
+    }
+    await selectRun(runId, viewingHistory);
+  }
+
+  async function adoptAdvisedAction(runId, rank) {
+    const res = await fetch(api + '/runs/' + runId + '/actions/' + rank + '/accept', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operator: 'console' })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok && !data.success) {
+      alert(data.message || '执行失败 HTTP ' + res.status);
+      return;
+    }
+    await selectRun(runId, viewingHistory);
+  }
+
+  function renderRecommendations(run) {
+    const rec = document.getElementById('recommendations');
+    const recs = run.plan && run.plan.recommendations ? run.plan.recommendations : [];
+    const actions = run.plan && run.plan.actions ? run.plan.actions : [];
+    let html = '';
+    if (recs.length) {
+      html += '<h2>配置推荐</h2>' + recs.map(r => {
+        const st = r.status || 'PENDING';
+        const cls = st === 'ACCEPTED' ? 'rec accepted' : st === 'REJECTED' ? 'rec rejected' : 'rec';
+        const badge = st !== 'PENDING' ? `<span style="color:var(--muted)"> [${st}]</span>` : '';
+        const btns = st === 'PENDING' ? `
+          <div class="rec-actions">
+            <button type="button" class="btn-accept" data-rec="${r.recommendationId}" data-run="${run.runId}">采纳</button>
+            <button type="button" class="btn-reject" data-rec="${r.recommendationId}" data-run="${run.runId}">拒绝</button>
+          </div>` : '';
+        return `<div class="${cls}"><strong>${r.title}</strong>${badge}<br/>${r.description}
+        ${r.suggestedConfig ? '<br/><code>' + r.suggestedConfig + '</code>' : ''}${btns}</div>`;
+      }).join('');
+    }
+    const adviseActions = actions.filter(a => a.rank > 1 || a.executionStatus === 'ADVISE' || a.policyDecision === 'ADVISE');
+    if (adviseActions.length) {
+      html += '<h2 style="margin-top:12px">备选方案</h2>' + adviseActions.map(a => {
+        const adopted = a.humanAccepted;
+        const btns = !adopted ? `<div class="rec-actions">
+            <button type="button" class="btn-adopt" data-run="${run.runId}" data-rank="${a.rank}">采纳并执行</button>
+          </div>` : '<div style="color:var(--ok);font-size:0.75rem;margin-top:4px">已人工采纳</div>';
+        return `<div class="advise"><strong>#${a.rank} ${a.actionType}</strong> — ${a.reason || ''}<br/>
+          <span style="color:var(--muted);font-size:0.75rem">证据 ${(a.confidence||0).toFixed(2)}</span>${btns}</div>`;
+      }).join('');
+    }
+    rec.innerHTML = html;
+    rec.querySelectorAll('.btn-accept').forEach(btn => {
+      btn.onclick = () => adoptRecommendation(btn.dataset.rec, btn.dataset.run, true);
+    });
+    rec.querySelectorAll('.btn-reject').forEach(btn => {
+      btn.onclick = () => adoptRecommendation(btn.dataset.rec, btn.dataset.run, false);
+    });
+    rec.querySelectorAll('.btn-adopt').forEach(btn => {
+      btn.onclick = () => adoptAdvisedAction(btn.dataset.run, parseInt(btn.dataset.rank, 10));
+    });
+  }
+
   async function selectRun(runId, fromHistory = false) {
     selectedRunId = runId;
     viewingHistory = fromHistory;
@@ -179,11 +261,7 @@
     if (!res.ok) return;
     const run = await res.json();
     renderTimeline(run);
-    const rec = document.getElementById('recommendations');
-    const recs = run.plan && run.plan.recommendations ? run.plan.recommendations : [];
-    rec.innerHTML = recs.length ? '<h2>推荐</h2>' + recs.map(r => `
-      <div class="rec"><strong>${r.title}</strong><br/>${r.description}
-      ${r.suggestedConfig ? '<br/><code>' + r.suggestedConfig + '</code>' : ''}</div>`).join('') : '';
+    renderRecommendations(run);
   }
 
   function connectSse() {
@@ -196,7 +274,8 @@
       try {
         const e = JSON.parse(ev.data);
         const line = document.createElement('div');
-        line.className = e.phase === 'STABLE' ? 'tl-item tl-stable' : 'tl-item';
+        line.className = e.phase === 'STABLE' ? 'tl-item tl-stable'
+          : e.phase === 'ACCEPTED' ? 'tl-item tl-accepted' : 'tl-item';
         line.innerHTML = `<span class="tl-phase">[${e.phase}]</span> ${e.at} — ${e.message}`;
         document.getElementById('timeline').prepend(line);
         if (e.phase === 'STABLE') {

@@ -17,9 +17,22 @@ public abstract class AbstractAutonomyLedger implements AutonomyLedger {
         this.tenantProvider = tenantProvider;
     }
 
+    @Override
+    public void appendTimeline(AutonomyRun run, String phase, String message) {
+        appendTimeline(run, phase, message, null);
+    }
+
+    @Override
+    public void appendTimeline(AutonomyRun run, String phase, String message, String recommendationId) {
+        publishTimeline(run, phase, message, recommendationId);
+    }
+
     /** 追加时间线并广播 SSE；同时 mutate run.timeline 供 REST 查询 */
-    protected void publishTimeline(AutonomyRun run, String phase, String message) {
+    protected void publishTimeline(AutonomyRun run, String phase, String message, String recommendationId) {
         TimelineEvent event = new TimelineEvent(run.getRunId(), phase, message);
+        if (recommendationId != null && !recommendationId.isBlank()) {
+            event.setRecommendationId(recommendationId);
+        }
         run.addTimeline(event);
         eventPublisher.publishEvent(new ConsoleTimelineEvent(this, event));
     }

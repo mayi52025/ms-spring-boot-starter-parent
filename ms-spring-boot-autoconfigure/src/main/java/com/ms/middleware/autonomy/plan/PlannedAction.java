@@ -38,6 +38,8 @@ public class PlannedAction {
     private String executionStatus;
     /** 执行详情，写入 ACTION/AUTO 时间线 */
     private String executionDetail;
+    /** 是否已由人工采纳执行（备选 ADVISE 动作） */
+    private boolean humanAccepted;
 
     public AutonomyActionType getActionType() {
         return actionType;
@@ -109,5 +111,13 @@ public class PlannedAction {
 
     public void setExecutionDetail(String executionDetail) {
         this.executionDetail = executionDetail;
+    }
+
+    public boolean isHumanAccepted() {
+        return humanAccepted;
+    }
+
+    public void setHumanAccepted(boolean humanAccepted) {
+        this.humanAccepted = humanAccepted;
     }
 }
