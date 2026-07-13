@@ -197,7 +197,7 @@ ms.middleware.autonomy.ledger:
 | Step 2 | 候选动作 + 规则选优 | ✅ 已完成 |
 | Step 3 | MQ/Rabbit 执行器 | ✅ 已完成 |
 | Step 4 | 推荐采纳 + 人机审计 | ✅ 已完成 |
-| Step 5 | YAML 规则外置 | 待做 |
+| Step 5 | YAML 规则外置 | ✅ 已完成 |
 | Step 6 | 指标 + Tool SPI + 文档 | 待做 |
 | Step 7 | EasyRules（可选） | 待做 |
 
@@ -270,9 +270,18 @@ Context → 候选动作池（Runbook）→ ActionSelector 规则选优
 - 配置推荐仅审计，不自动改 Nacos（Phase 4 再接真改配置）
 - 单测：`HumanAdoptionServiceTest`
 
-#### Step 5～7 待办（原 Phase 3 项）
+#### Step 5 YAML 规则外置（已完成）
 
-- [ ] YAML 规则外置（Step 5）
+- `AutonomyRulesProperties`：`ms.middleware.autonomy.rules` 绑定 incident 识别链、Runbook、推荐
+- `AutonomyRulesDefaults`：未配置时兜底，行为与 Step 2 硬编码等价
+- `IncidentActionCatalog` / `AutonomyRuleEngine` 改为从 YAML 加载；`ActionSelector` 词典序选优不变
+- 条件词典：`redis-unhealthy`、`mq-degraded`、`hot-keys-present` 等（无脚本引擎）
+- 示例：`classpath:ms-middleware-autonomy-rules.example.yml`
+- 单测：`IncidentActionCatalogTest`、`AutonomyRulesYamlTest`
+
+#### Step 6～7 待办（原 Phase 3 项）
+
+- [ ] 指标 + Tool SPI + 文档（Step 6）
 
 
 

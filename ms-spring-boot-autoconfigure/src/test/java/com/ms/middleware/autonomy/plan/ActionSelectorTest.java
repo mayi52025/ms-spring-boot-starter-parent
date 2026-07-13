@@ -21,7 +21,7 @@ class ActionSelectorTest {
     void mqDegradedSelectsThrottleFirstByRunbookAndRisk() {
         AutonomyContext ctx = mqContext(15, 10);
         List<PlannedAction> selected = selector.select(
-                IncidentActionCatalog.candidatesFor("MQ_DEGRADED", ctx), ctx);
+                IncidentActionCatalog.defaultCandidatesFor("MQ_DEGRADED", ctx), ctx);
 
         assertEquals(2, selected.size());
         assertEquals(AutonomyActionType.THROTTLE_CONSUMER, selected.get(0).getActionType());
@@ -36,7 +36,7 @@ class ActionSelectorTest {
     void mqWellAboveThresholdMeetsAutoEvidence() {
         AutonomyContext ctx = mqContext(15, 10);
         List<PlannedAction> selected = selector.select(
-                IncidentActionCatalog.candidatesFor("MQ_DEGRADED", ctx), ctx);
+                IncidentActionCatalog.defaultCandidatesFor("MQ_DEGRADED", ctx), ctx);
 
         assertTrue(selected.get(0).getConfidence() >= 0.7,
                 "明显超阈值时限流证据应足够 AUTO，实际=" + selected.get(0).getConfidence());
@@ -50,7 +50,7 @@ class ActionSelectorTest {
         ctx.getHotKeys().add("order:1");
 
         List<PlannedAction> selected = selector.select(
-                IncidentActionCatalog.candidatesFor("REDIS_UNAVAILABLE", ctx), ctx);
+                IncidentActionCatalog.defaultCandidatesFor("REDIS_UNAVAILABLE", ctx), ctx);
 
         assertEquals(AutonomyActionType.TRIGGER_REDIS_RECOVERY, selected.get(0).getActionType());
         assertEquals(1, selected.get(0).getRank());
@@ -61,7 +61,7 @@ class ActionSelectorTest {
     void selectionSummaryExplainsRuleBasis() {
         AutonomyContext ctx = mqContext(15, 10);
         List<PlannedAction> selected = selector.select(
-                IncidentActionCatalog.candidatesFor("MQ_DEGRADED", ctx), ctx);
+                IncidentActionCatalog.defaultCandidatesFor("MQ_DEGRADED", ctx), ctx);
         String summary = selector.buildSelectionSummary(selected);
 
         assertTrue(summary.contains("根因优先"));

@@ -81,6 +81,18 @@ ms:
         max-runs: 200
         key-prefix: ms:autonomy:run
         ttl-hours: 168
+      # Step 5：自治规则外置（可选，未配置则用内置默认）
+      # 完整示例见 classpath:ms-middleware-autonomy-rules.example.yml
+      # rules:
+      #   incident-detection:
+      #     - condition: redis-unhealthy
+      #       incident-type: REDIS_UNAVAILABLE
+      #   incidents:
+      #     MQ_DEGRADED:
+      #       actions:
+      #         - type: THROTTLE_CONSUMER
+      #           order: 1
+      #           reason: "自定义限流理由"
     # AI 控制台（需同时开启 autonomy；默认关闭）
     console:
       enabled: false

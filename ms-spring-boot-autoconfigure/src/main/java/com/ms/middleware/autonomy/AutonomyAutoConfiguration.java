@@ -14,7 +14,9 @@ import com.ms.middleware.autonomy.insight.MiddlewareInsightService;
 import com.ms.middleware.autonomy.metrics.AutonomyMetrics;
 import com.ms.middleware.autonomy.plan.ActionSelector;
 import com.ms.middleware.autonomy.plan.AutonomyRuleEngine;
+import com.ms.middleware.autonomy.plan.IncidentActionCatalog;
 import com.ms.middleware.autonomy.policy.AutonomyPolicy;
+import com.ms.middleware.autonomy.rule.AutonomyRulesProperties;
 import com.ms.middleware.autonomy.run.AutonomyLedger;
 import com.ms.middleware.autonomy.run.InMemoryAutonomyLedger;
 import com.ms.middleware.autonomy.run.RedissonAutonomyLedger;
@@ -49,7 +51,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @Configuration
 @EnableScheduling
-@EnableConfigurationProperties(MsMiddlewareProperties.class)
+@EnableConfigurationProperties({MsMiddlewareProperties.class, AutonomyRulesProperties.class})
 @AutoConfigureAfter(MsMiddlewareAutoConfiguration.class)
 @ConditionalOnProperty(prefix = "ms.middleware.autonomy", name = "enabled", havingValue = "true")
 public class AutonomyAutoConfiguration {
@@ -75,9 +77,17 @@ public class AutonomyAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(IncidentActionCatalog.class)
+    public IncidentActionCatalog incidentActionCatalog(AutonomyRulesProperties rulesProperties) {
+        return new IncidentActionCatalog(rulesProperties);
+    }
+
+    @Bean
     @ConditionalOnMissingBean(AutonomyDecisionEngine.class)
-    public AutonomyDecisionEngine autonomyDecisionEngine(ActionSelector actionSelector) {
-        return new AutonomyRuleEngine(actionSelector);
+    public AutonomyDecisionEngine autonomyDecisionEngine(ActionSelector actionSelector,
+                                                         IncidentActionCatalog incidentActionCatalog,
+                                                         AutonomyRulesProperties rulesProperties) {
+        return new AutonomyRuleEngine(actionSelector, incidentActionCatalog, rulesProperties);
     }
 
     @Bean

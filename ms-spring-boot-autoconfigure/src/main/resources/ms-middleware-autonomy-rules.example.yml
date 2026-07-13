@@ -1,0 +1,39 @@
+# 自治规则外置示例（Step 5）
+# 复制到 application.yml 的 ms.middleware.autonomy.rules 下，或 spring.config.import 引入。
+#
+# 未配置时自动使用 classpath 内置默认规则（与 Step 2 硬编码等价）。
+# 仅覆盖需要调整的 incident 即可，其余仍走默认。
+
+ms:
+  middleware:
+    autonomy:
+      rules:
+        # incident 识别链（有序，先匹配者优先）；整段替换默认链
+        incident-detection:
+          - condition: redis-unhealthy
+            incident-type: REDIS_UNAVAILABLE
+          - condition: rabbitmq-unhealthy
+            incident-type: RABBITMQ_UNAVAILABLE
+          - condition: mq-degraded
+            incident-type: MQ_DEGRADED
+          - condition: cache-degraded
+            incident-type: CACHE_DEGRADED
+
+        # 按 incident 覆盖 Runbook / 推荐 / 摘要
+        incidents:
+          MQ_DEGRADED:
+            summary: "MQ 消费失败累计 {mqFailedCount}（阈值 {mqFailedWarnThreshold}），建议排查消费端与幂等"
+            actions:
+              - type: THROTTLE_CONSUMER
+                order: 1
+                addresses-root-cause: false
+                reason: "消费失败累计偏高，限流保护下游并争取消化积压"
+                when: always
+              - type: DELAYED_RETRY_BATCH
+                order: 2
+                addresses-root-cause: false
+                reason: "批量延迟重试失败消息，适合失败率已稳定场景"
+                when: always
+            recommendations:
+              - title: "查看失败消息 Trace"
+                description: "在控制台聊天中提供 messageId 可进一步定位"

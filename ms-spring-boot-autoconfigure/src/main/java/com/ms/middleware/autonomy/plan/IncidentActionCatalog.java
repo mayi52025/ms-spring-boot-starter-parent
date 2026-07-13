@@ -2,88 +2,82 @@ package com.ms.middleware.autonomy.plan;
 
 import com.ms.middleware.autonomy.AutonomyActionType;
 import com.ms.middleware.autonomy.context.AutonomyContext;
+import com.ms.middleware.autonomy.rule.AutonomyRulesDefaults;
+import com.ms.middleware.autonomy.rule.AutonomyRulesProperties;
+import com.ms.middleware.autonomy.rule.IncidentConditionEvaluator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 各 incident 类型的「动作候选池」——对应 SRE Runbook 条目。
  *
- * <p>只声明「有哪些手段、Runbook 顺序、是否治根因」；具体选优由 {@link ActionSelector} 按词典序完成。
- * Step 5 将把此目录外置到 YAML。</p>
+ * <p>Step 5 起从 {@link AutonomyRulesProperties} YAML 加载；未配置时使用 {@link AutonomyRulesDefaults}。</p>
+ * <p>只声明候选与顺序；选优仍由 {@link ActionSelector} 按词典序完成。</p>
  */
-public final class IncidentActionCatalog {
+public class IncidentActionCatalog {
 
-    private IncidentActionCatalog() {
+    private static final Logger logger = LoggerFactory.getLogger(IncidentActionCatalog.class);
+
+    /** 测试与无 Spring 场景下的默认目录 */
+    private static final IncidentActionCatalog DEFAULT =
+            new IncidentActionCatalog(AutonomyRulesDefaults.create());
+
+    private final Map<String, AutonomyRulesProperties.IncidentRuleDefinition> incidents;
+
+    public IncidentActionCatalog(AutonomyRulesProperties rulesProperties) {
+        AutonomyRulesProperties resolved = AutonomyRulesDefaults.resolve(rulesProperties);
+        this.incidents = resolved.getIncidents();
+    }
+
+    /**
+     * 静态便捷方法，使用内置默认规则（单测兼容）。
+     */
+    public static List<ActionCandidate> defaultCandidatesFor(String incidentType, AutonomyContext context) {
+        return DEFAULT.candidatesFor(incidentType, context);
     }
 
     /**
      * 按 incident 类型返回可参与选优的动作候选（不含配置类推荐）。
      *
      * @param incidentType 如 REDIS_UNAVAILABLE、MQ_DEGRADED
-     * @param context      当前快照，用于决定是否加入可选候选（如热点预热）
-     * @return 该 incident 下的动作候选列表
+     * @param context      当前快照，用于 when 条件过滤
      */
-    public static List<ActionCandidate> candidatesFor(String incidentType, AutonomyContext context) {
-        return switch (incidentType) {
-            case "REDIS_UNAVAILABLE" -> redisCandidates(context);
-            case "RABBITMQ_UNAVAILABLE" -> rabbitCandidates();
-            case "MQ_DEGRADED" -> mqCandidates();
-            case "CACHE_DEGRADED" -> cacheCandidates(context);
-            default -> List.of();
-        };
-    }
-
-    /**
-     * Redis 宕机 Runbook：
-     * 1. 自愈（根因） 2. L1 降级确认（止血） 3. 热点预热（有热点时）
-     */
-    private static List<ActionCandidate> redisCandidates(AutonomyContext context) {
-        List<ActionCandidate> list = new ArrayList<>();
-        list.add(ActionCandidate.of(
-                AutonomyActionType.TRIGGER_REDIS_RECOVERY, 1, true,
-                "Redis 不可用，优先触发自愈恢复 L2"));
-        list.add(ActionCandidate.of(
-                AutonomyActionType.ENSURE_L1_DEGRADE, 2, false,
-                "确认 MultiLevelCache 走 L1 降级，保障读路径可用"));
-        if (!context.getHotKeys().isEmpty()) {
-            list.add(ActionCandidate.of(
-                    AutonomyActionType.WARMUP_HOT_KEYS, 3, false,
-                    "存在热点 Key，预热本地缓存降低击穿"));
-        }
-        return list;
-    }
-
-    /** Rabbit 宕机 Runbook：连接自愈为唯一自动候选 */
-    private static List<ActionCandidate> rabbitCandidates() {
-        return List.of(ActionCandidate.of(
-                AutonomyActionType.TRIGGER_RABBITMQ_RECOVERY, 1, true,
-                "RabbitMQ 不可用，主动触发连接自愈"));
-    }
-
-    /**
-     * MQ 消费失败 Runbook：
-     * 1. 限流止血（LOW） 2. 延迟重试（MEDIUM，通常仅 ADVISE）
-     * 执行器 Step 3 接入。
-     */
-    private static List<ActionCandidate> mqCandidates() {
-        List<ActionCandidate> list = new ArrayList<>();
-        list.add(ActionCandidate.of(
-                AutonomyActionType.THROTTLE_CONSUMER, 1, false,
-                "消费失败累计偏高，限流保护下游并争取消化积压"));
-        list.add(ActionCandidate.of(
-                AutonomyActionType.DELAYED_RETRY_BATCH, 2, false,
-                "批量延迟重试失败消息，适合失败率已稳定场景"));
-        return list;
-    }
-
-    /** 缓存命中率低：有热点时预热为 Runbook 首选 */
-    private static List<ActionCandidate> cacheCandidates(AutonomyContext context) {
-        if (context.getHotKeys().isEmpty()) {
+    public List<ActionCandidate> candidatesFor(String incidentType, AutonomyContext context) {
+        AutonomyRulesProperties.IncidentRuleDefinition definition = incidents.get(incidentType);
+        if (definition == null || definition.getActions() == null) {
             return List.of();
         }
-        return List.of(ActionCandidate.of(
-                AutonomyActionType.WARMUP_HOT_KEYS, 1, false,
-                "命中率低且存在热点，执行预热提升命中"));
+        List<ActionCandidate> list = new ArrayList<>();
+        for (AutonomyRulesProperties.RuleActionDefinition actionDef : definition.getActions()) {
+            if (!IncidentConditionEvaluator.matchesActionWhen(actionDef.getWhen(), context)) {
+                continue;
+            }
+            AutonomyActionType actionType = parseActionType(actionDef.getType());
+            if (actionType == null) {
+                logger.warn("忽略未知动作类型: {} (incident={})", actionDef.getType(), incidentType);
+                continue;
+            }
+            list.add(ActionCandidate.of(
+                    actionType,
+                    actionDef.getOrder(),
+                    actionDef.isAddressesRootCause(),
+                    actionDef.getReason()));
+        }
+        return list;
+    }
+
+    private AutonomyActionType parseActionType(String typeName) {
+        if (typeName == null || typeName.isBlank()) {
+            return null;
+        }
+        try {
+            return AutonomyActionType.valueOf(typeName.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 }
