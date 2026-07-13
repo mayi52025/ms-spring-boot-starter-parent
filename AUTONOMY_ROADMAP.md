@@ -319,17 +319,208 @@ demo.chaos.mq-fail.enabled: false  # 故障注入演示，生产务必 false
 
 
 
-### Phase 4 — 安全与多应用（3 天）
+### Phase 4 — 生产就绪：可验证结案 + 可操作排障 + 安全 + 多实例（进行中）
 
+**目标：** 让用户一眼看懂「问题真的好了」；排障不依赖翻日志；控制台可上线；多实例不重复 AUTO。
 
+**原则：** 编排层契约先行 → 控制台/API 可见 → 安全与分布式最后（避免返工）。
 
-- [ ] `ms.middleware.console.auth-token`
+#### 分步计划
 
-- [ ] 多实例 run 按 tenant 隔离（Phase 1 已预留）
+| 步骤 | 内容 | 状态 | 预估 |
+|------|------|------|------|
+| Step 0 | 恢复证据契约与模型字段 | ✅ 已完成 | 0.5d |
+| Step 1 | STABLE 恢复依据（recoveryEvidence） | ✅ 已完成 | 1d |
+| Step 2 | 失败 Trace 列表 API + 控制台 | 待做 | 1d |
+| Step 3 | 控制台鉴权（auth-token） | 待做 | 1d |
+| Step 4 | 采纳语义澄清 + chat 配置重命名 | 待做 | 0.5d |
+| Step 5 | 多实例分布式编排锁 | 待做 | 1～1.5d |
+| Step 6 | Tenant 多应用隔离验收 | 待做 | 0.5d |
+| Step 7 | 配置推荐 Nacos 草稿采纳（可选） | 待做 | 1～2d |
 
+**启动方式：** 你说「启动 Step N」即从该步编码；Step 0 建议必做，Step 7 可跳过。
 
+---
 
-### Phase 5 — LangChain4j 聊天（1～2 周）
+#### Step 0 — 恢复证据契约（✅ 已完成）
+
+**解决什么：** Phase 3 只有 `STABLE + MTTR`，用户分不清「动作执行了」还是「指标真恢复了」。
+
+**交付：**
+
+| 类型 | 新增/扩展 | 说明 |
+|------|-----------|------|
+| `RecoveryEvidence` | 新模型 | incident 类型、恢复前后关键指标、判定条件摘要 |
+| `AutonomyRun` | `recoveryEvidence`（可选） | STABLE 时写入，供 API/控制台展示 |
+| `TimelineEvent` | STABLE message 结构化 | 兼容现有字符串，JSON 序列化可扩展 |
+| `AutonomyTimelinePhase` | 不变 | 仍用 `STABLE`，不新增 phase |
+
+**恢复证据字段（按 incident）：**
+
+| incident | 对比字段 | 恢复条件（与 Step 3 一致） |
+|----------|----------|---------------------------|
+| `MQ_DEGRADED` | `mqFailedCount` 前→后 | 窗口内失败 < 阈值 |
+| `REDIS_UNAVAILABLE` | `redisHealthy` false→true | Redis 探活恢复 |
+| `RABBITMQ_UNAVAILABLE` | `rabbitMqHealthy` false→true | Rabbit 探活恢复 |
+| `CACHE_DEGRADED` | `cacheHitRate` 前→后 | 命中率 ≥ 阈值 |
+
+**单测：** `RecoveryEvidenceBuilderTest`（纯逻辑，无 Spring）。
+
+**刻意不做：** 不改 STABLE 判定逻辑；不改编排 tick 频率。
+
+---
+
+#### Step 1 — STABLE 恢复依据落地（✅ 已完成）
+
+**解决什么：** 控制台/API 展示「为什么判定已恢复」。
+
+**交付：**
+
+- `RecoveryEvidenceBuilder`：对比 run 开始时 context 快照 vs STABLE 时 context
+- `AutonomyOrchestrator.stabilizeRun`：构建 evidence 写入 run + 丰富 STABLE 时间线  
+  示例：`中间件指标恢复正常，MTTR=42s | MQ失败 5→0（阈值3）`
+- 控制台 `index.html`：战后态 banner 下展示 recoveryEvidence 摘要
+- `GET /ms-console/api/runs/{id}` 响应含 `recoveryEvidence`
+- 文档：`MQ自治演示剧本.md` 增加「AUTO vs STABLE 验收」小节
+
+**单测：** 扩展 `AutonomyGoldenPathTest` 断言 STABLE message 含证据。
+
+---
+
+#### Step 2 — 失败 Trace 可操作化（待做）
+
+**解决什么：** messageId 只在日志里，推荐「查 Trace」无法落地。
+
+**交付：**
+
+- `GET /ms-console/api/traces/failed?limit=20`：委托 `MessageTraceManager.listFailedTraces`
+- 控制台：战时态下「最近失败消息」列表，一键复制 messageId / 跳转 Trace
+- `ConsoleChatService` / Tool：支持「最近失败」「failed traces」关键词
+- `MiddlewareInsightTool.listRecentFailedTraces(int)` SPI 扩展
+
+**单测：** `DefaultMiddlewareInsightToolTest` + Controller 切片测试。
+
+**刻意不做：** 不接 ES/持久化 Trace（仍内存，与 Phase 2 一致）。
+
+---
+
+#### Step 3 — 控制台鉴权（待做）
+
+**解决什么：** `/ms-console/**` 当前 permitAll，不能上生产。
+
+**交付：**
+
+- 配置 `ms.middleware.console.auth-token`（空则保持现状，兼容本地 Demo）
+- `ConsoleAuthFilter` 或 Spring Security 专用链：校验 Header `X-MS-Console-Token` 或 `?token=`
+- SSE `/api/stream` 同样受保护
+- 静态页登录框（token 存 sessionStorage）或文档说明 curl 带 token
+- `application-ms-middleware.yml` 示例
+
+**单测：** MockMvc 无 token 401、正确 token 200。
+
+**刻意不做：** 不接 OAuth/LDAP（Phase 4 只做 shared secret）。
+
+---
+
+#### Step 4 — 采纳语义澄清 + chat 配置重命名（待做）
+
+**解决什么：** `[ACCEPTED]` 被误解为「已改配置」；`chat-enabled=false` 反直觉。
+
+**交付：**
+
+- 控制台推荐区：`ACCEPTED` 显示 **「已记录采纳（未改配置）」** 徽章
+- 备选动作人工执行：显示 **「人工触发」** 与 AUTO 区分（时间线已有，UI 强化）
+- 配置重命名：`chat-enabled` → `llm-enabled`（旧 key 兼容一个版本 + deprecation 日志）
+- EXECUTING 态提示：**「限流/自愈已启用，根因未消除时可能无法 STABLE」**（MQ 场景）
+
+**单测：** 无逻辑变更为主；配置绑定测试可选。
+
+---
+
+#### Step 5 — 多实例分布式编排锁（待做）
+
+**解决什么：** 多 pod 同时 tick 可能重复 AUTO、争抢 activeRun。
+
+**交付：**
+
+- `AutonomyOrchestrator.tick` 入口：`Redisson` 分布式锁 `ms:autonomy:tick:{tenant}`（可配置 TTL）
+- 配置 `ms.middleware.autonomy.orchestrator.distributed-lock-enabled`（默认 false，单机无感）
+- 锁失败跳过本轮（不抛错，debug 日志）
+- 与现有 JVM 内 `activeRunId` 共存：锁保 cluster，activeRunId 保 thread
+
+**单测：** Redisson mock 或 `RedissonAutonomyLedgerTest` 同风格嵌入式测试。
+
+**依赖：** Redisson 已存在（Phase 2）。
+
+---
+
+#### Step 6 — Tenant 多应用隔离验收（待做）
+
+**解决什么：** Phase 1 预留 tenant，但未在多应用场景端到端验收。
+
+**交付：**
+
+- 确认 `AutonomyLedger` list/get 全链路 tenant 隔离（memory + redisson）
+- `Middleware-demo`：可选第二应用或文档说明同 Redis 账本 key 前缀 + 不同 `spring.application.name`
+- Insight API / 控制台 issues 仅当前 tenant
+- 文档 + 单测：`InMemoryAutonomyLedgerTest` 增 cross-tenant 用例
+
+**刻意不做：** 跨 tenant 运维大盘（留 Grafana label）。
+
+---
+
+#### Step 7 — 配置推荐 Nacos 草稿采纳（可选，待做）
+
+**解决什么：** Phase 3 采纳仅审计；运维希望「点采纳 → 出配置 diff → 确认后生效」。
+
+**交付：**
+
+- `HumanAdoptionService.acceptRecommendation` 可选模式：`audit-only`（默认）| `nacos-draft`
+- `NacosConfigDraftService`：生成 suggestedConfig 的 draft，不直接 publish（或 publish 到 draft dataId）
+- 时间线 `ACCEPTED` 附带 draftId / diff 摘要
+- 控制台：采纳后展示 diff + 「确认发布」二次按钮（Phase 4.5 或本步一并）
+
+**依赖：** 业务已接 Nacos Config；demo 可 mock。
+
+**刻意不做：** 自动 publish 生产配置（必须人工二次确认）。
+
+---
+
+#### Phase 4 配置预览（随 Step 逐步落地）
+
+```yaml
+ms:
+  middleware:
+    autonomy:
+      orchestrator:
+        distributed-lock-enabled: false   # Step 5
+        tick-lock-ttl-seconds: 30
+    console:
+      auth-token: ""                      # Step 3，非空则启用鉴权
+      llm-enabled: false                  # Step 4 重命名（兼容 chat-enabled）
+```
+
+#### Phase 4 与 Phase 3 的衔接
+
+| Phase 3 遗留 | Phase 4 哪步解决 |
+|--------------|------------------|
+| AUTO 成功但用户不知是否恢复 | Step 0 + 1 recoveryEvidence |
+| Trace 推荐无法操作 | Step 2 失败列表 API |
+| 控制台不能上生产 | Step 3 auth-token |
+| ACCEPTED 误解 | Step 4 语义 UI |
+| 多实例重复 AUTO | Step 5 分布式锁 |
+| tenant 未验收 | Step 6 |
+| 采纳不改 Nacos | Step 7（可选） |
+
+#### Phase 4 完成标准（Definition of Done）
+
+- [x] MQ 演示：STABLE 时间线可见 `5→0` 类恢复依据
+- [ ] 控制台可查最近失败 messageId，不必翻 IDEA 日志
+- [ ] 配置 auth-token 后无 token 无法访问 API/SSE
+- [ ] 两实例 order-system 仅一个实例执行 AUTO（Step 5 开启时）
+- [ ] 自治相关单测全绿 + 金路径覆盖 recoveryEvidence
+
+---
 
 
 

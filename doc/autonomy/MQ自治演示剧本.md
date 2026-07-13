@@ -113,6 +113,17 @@ Invoke-RestMethod http://localhost:8080/ms-console/api/issues
 - 「优化建议」区：查 Trace 等配置建议，**不阻塞恢复**
 - STABLE 时自动 `clearMqThrottle()`
 
+### AUTO vs STABLE 验收（Phase 4）
+
+| 看什么 | 含义 |
+|--------|------|
+| `[AUTO] ... SUCCESS` | **动作已执行**（限流/自愈等），不等于故障已结束 |
+| `[STABLE] ... MTTR=xxs \| MQ窗口失败 5→0（阈值<3）` | **指标已恢复**，系统认定本次故障周期结束 |
+| 控制台「恢复依据」卡片 | API 字段 `recoveryEvidence`，展示前后指标与判定条件 |
+| 左侧「当前问题」变「系统正常」 | 无活跃 run |
+
+**演示闭环：** 看到 AUTO 后，关闭 chaos 消费者 → 等 STABLE → 时间线应含 `5→0` 类摘要，右侧历史可查 `recoveryEvidence`。
+
 ### 聊天验证
 
 控制台聊天输入：

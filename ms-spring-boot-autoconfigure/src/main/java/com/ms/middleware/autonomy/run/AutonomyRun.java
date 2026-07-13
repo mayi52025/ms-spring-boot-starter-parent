@@ -8,6 +8,7 @@ import com.ms.middleware.autonomy.context.AutonomyContext;
 import com.ms.middleware.autonomy.plan.AutonomyPlan;
 import com.ms.middleware.autonomy.plan.AutonomyRecommendation;
 import com.ms.middleware.autonomy.plan.PlannedAction;
+import com.ms.middleware.autonomy.recovery.RecoveryEvidence;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -32,6 +33,10 @@ public class AutonomyRun {
     private AutonomyContext context;
     private AutonomyPlan plan;
     private List<TimelineEvent> timeline = new ArrayList<>();
+    /** 故障首次检测时的上下文基线，用于 STABLE recoveryEvidence 前后对比 */
+    private AutonomyContext incidentBaseline;
+    /** STABLE 时写入的恢复证据，供 API/控制台展示 */
+    private RecoveryEvidence recoveryEvidence;
 
     public String getRunId() {
         return runId;
@@ -100,6 +105,22 @@ public class AutonomyRun {
 
     public void addTimeline(TimelineEvent event) {
         timeline.add(event);
+    }
+
+    public AutonomyContext getIncidentBaseline() {
+        return incidentBaseline;
+    }
+
+    public void setIncidentBaseline(AutonomyContext incidentBaseline) {
+        this.incidentBaseline = incidentBaseline;
+    }
+
+    public RecoveryEvidence getRecoveryEvidence() {
+        return recoveryEvidence;
+    }
+
+    public void setRecoveryEvidence(RecoveryEvidence recoveryEvidence) {
+        this.recoveryEvidence = recoveryEvidence;
     }
 
     @JsonProperty("issues")

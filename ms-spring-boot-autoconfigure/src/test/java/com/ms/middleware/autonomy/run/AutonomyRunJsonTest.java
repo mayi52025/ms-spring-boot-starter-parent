@@ -55,4 +55,23 @@ class AutonomyRunJsonTest {
         assertTrue(json.contains("\"issues\""));
         assertTrue(json.contains("Redis 不可用"));
     }
+
+    @Test
+    void serializesRecoveryEvidenceOnStableRun() throws Exception {
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+
+        com.ms.middleware.autonomy.recovery.RecoveryEvidence evidence =
+                new com.ms.middleware.autonomy.recovery.RecoveryEvidence();
+        evidence.setIncidentType("MQ_DEGRADED");
+        evidence.setSummary("MQ窗口失败 5→0（阈值<3）");
+
+        AutonomyRun run = new AutonomyRun();
+        run.setRunId("stable01");
+        run.setStatus(AutonomyRunStatus.STABLE);
+        run.setRecoveryEvidence(evidence);
+
+        String json = mapper.writeValueAsString(run);
+        assertTrue(json.contains("\"recoveryEvidence\""));
+        assertTrue(json.contains("MQ窗口失败 5→0"));
+    }
 }

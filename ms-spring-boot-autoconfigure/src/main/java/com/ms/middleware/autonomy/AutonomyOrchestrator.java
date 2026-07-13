@@ -3,6 +3,9 @@ package com.ms.middleware.autonomy;
 import com.ms.middleware.autonomy.act.AutonomyActuator;
 import com.ms.middleware.autonomy.context.AutonomyContext;
 import com.ms.middleware.autonomy.context.AutonomyContextBuilder;
+import com.ms.middleware.autonomy.context.AutonomyContextSnapshot;
+import com.ms.middleware.autonomy.recovery.RecoveryEvidence;
+import com.ms.middleware.autonomy.recovery.RecoveryEvidenceBuilder;
 import com.ms.middleware.autonomy.decision.AutonomyDecisionEngine;
 import com.ms.middleware.autonomy.plan.AutonomyPlan;
 import com.ms.middleware.autonomy.plan.PlannedAction;
@@ -243,6 +246,7 @@ public class AutonomyOrchestrator {
             Optional<AutonomyRun> existing = ledger.get(activeRunId);
             if (existing.isPresent() && existing.get().getStatus() != AutonomyRunStatus.STABLE) {
                 AutonomyRun run = existing.get();
+                ensureIncidentBaseline(run, context);
                 run.setContext(context);
                 return run;
             }
@@ -251,16 +255,25 @@ public class AutonomyOrchestrator {
         if (!activeRuns.isEmpty()) {
             AutonomyRun run = activeRuns.get(0);
             activeRunId = run.getRunId();
+            ensureIncidentBaseline(run, context);
             run.setContext(context);
             return run;
         }
         AutonomyRun run = new AutonomyRun();
         run.setRunId(UUID.randomUUID().toString().substring(0, 8));
         run.setTenant(tenantProvider.getTenant());
+        ensureIncidentBaseline(run, context);
         run.setContext(context);
         run.setStatus(AutonomyRunStatus.DETECTED);
         activeRunId = run.getRunId();
         return ledger.startRun(run);
+    }
+
+    /** 首次进入故障周期时冻结基线上下文，供 STABLE recoveryEvidence 对比 */
+    private void ensureIncidentBaseline(AutonomyRun run, AutonomyContext context) {
+        if (run.getIncidentBaseline() == null && context != null) {
+            run.setIncidentBaseline(AutonomyContextSnapshot.copy(context));
+        }
     }
 
     /** 中间件指标已正常，但之前有过故障 → 标记 STABLE 并记录 MTTR */
@@ -278,18 +291,21 @@ public class AutonomyOrchestrator {
         run.setStatus(AutonomyRunStatus.STABLE);
         run.setStabilizedAt(context.getCapturedAt());
         run.setContext(context);
+        String incidentType = run.getPlan() != null ? run.getPlan().getIncidentType() : "UNKNOWN";
+        RecoveryEvidence evidence = RecoveryEvidenceBuilder.build(
+                incidentType, run.getIncidentBaseline(), context);
+        run.setRecoveryEvidence(evidence);
         run.getMttrSeconds().ifPresentOrElse(mttr -> {
-            String incidentType = run.getPlan() != null ? run.getPlan().getIncidentType() : "UNKNOWN";
             if ("MQ_DEGRADED".equals(incidentType)) {
                 actuator.clearMqThrottle();
                 msMetrics.clearRecentMqFailures();
             }
-            ledger.appendTimeline(run, "STABLE",
-                    String.format("中间件指标恢复正常，MTTR=%ds，本次自治结束", mttr));
+            ledger.appendTimeline(run, "STABLE", RecoveryEvidenceBuilder.formatStableMessage(evidence, mttr));
             autonomyMetrics.recordRunStabilized(run.getTenant(), incidentType, mttr);
-            logger.info("Autonomy run {} stabilized, mttr={}s incident={}",
-                    run.getRunId(), mttr, incidentType);
-        }, () -> ledger.appendTimeline(run, "STABLE", "中间件指标恢复正常，本次自治结束"));
+            logger.info("Autonomy run {} stabilized, mttr={}s incident={} evidence={}",
+                    run.getRunId(), mttr, incidentType, evidence.getSummary());
+        }, () -> ledger.appendTimeline(run, "STABLE",
+                RecoveryEvidenceBuilder.formatStableMessageWithoutMttr(evidence)));
         ledger.update(run);
         if (run.getRunId().equals(activeRunId)) {
             activeRunId = null;
