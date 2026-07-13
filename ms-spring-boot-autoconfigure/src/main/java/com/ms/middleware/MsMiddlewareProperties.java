@@ -1088,6 +1088,8 @@ public class MsMiddlewareProperties {
         private double cacheHitRateWarnThreshold = 0.5;
         private long mqFailedWarnThreshold = 10;
         private LedgerProperties ledger = new LedgerProperties();
+        /** MQ 自治执行器参数（限流、延迟重试） */
+        private MqActuatorProperties mq = new MqActuatorProperties();
 
         public boolean isEnabled() {
             return enabled;
@@ -1143,6 +1145,60 @@ public class MsMiddlewareProperties {
 
         public void setLedger(LedgerProperties ledger) {
             this.ledger = ledger;
+        }
+
+        public MqActuatorProperties getMq() {
+            return mq;
+        }
+
+        public void setMq(MqActuatorProperties mq) {
+            this.mq = mq;
+        }
+    }
+
+    /**
+     * MQ 自治执行器配置：消费限流与失败消息延迟重试批次。
+     */
+    public static class MqActuatorProperties {
+        /** 限流窗口内允许的最大消费次数 */
+        private int throttleLimit = 30;
+        /** 限流时间窗口（秒） */
+        private long throttleWindowSeconds = 60;
+        /** 延迟重试单批次最大条数 */
+        private int delayedRetryBatchSize = 10;
+        /** 延迟重试投递延迟（毫秒） */
+        private long delayedRetryDelayMs = 5000;
+
+        public int getThrottleLimit() {
+            return throttleLimit;
+        }
+
+        public void setThrottleLimit(int throttleLimit) {
+            this.throttleLimit = throttleLimit;
+        }
+
+        public long getThrottleWindowSeconds() {
+            return throttleWindowSeconds;
+        }
+
+        public void setThrottleWindowSeconds(long throttleWindowSeconds) {
+            this.throttleWindowSeconds = throttleWindowSeconds;
+        }
+
+        public int getDelayedRetryBatchSize() {
+            return delayedRetryBatchSize;
+        }
+
+        public void setDelayedRetryBatchSize(int delayedRetryBatchSize) {
+            this.delayedRetryBatchSize = delayedRetryBatchSize;
+        }
+
+        public long getDelayedRetryDelayMs() {
+            return delayedRetryDelayMs;
+        }
+
+        public void setDelayedRetryDelayMs(long delayedRetryDelayMs) {
+            this.delayedRetryDelayMs = delayedRetryDelayMs;
         }
     }
 

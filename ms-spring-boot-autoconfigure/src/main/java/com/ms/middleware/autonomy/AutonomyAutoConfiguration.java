@@ -5,6 +5,8 @@ import com.ms.middleware.MsMiddlewareAutoConfiguration;
 import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.ai.HotKeyManager;
 import com.ms.middleware.autonomy.act.AutonomyActuator;
+import com.ms.middleware.autonomy.act.MqConsumerThrottle;
+import com.ms.middleware.autonomy.act.MqDelayedRetryExecutor;
 import com.ms.middleware.autonomy.context.AutonomyContextBuilder;
 import com.ms.middleware.autonomy.decision.AutonomyDecisionEngine;
 import com.ms.middleware.autonomy.insight.DefaultMiddlewareInsightService;
@@ -20,6 +22,9 @@ import com.ms.middleware.autonomy.tenant.AutonomyTenantProvider;
 import com.ms.middleware.autonomy.tenant.SpringEnvironmentTenantProvider;
 import com.ms.middleware.health.FaultSelfHealing;
 import com.ms.middleware.metrics.MsMetrics;
+import com.ms.middleware.mq.MsMessageQueue;
+import com.ms.middleware.mq.trace.MessageTraceManager;
+import com.ms.middleware.rate.RateLimiter;
 import io.micrometer.core.instrument.MeterRegistry;
 import com.ms.middleware.redis.RedissonConnectionManager;
 import org.redisson.api.RedissonClient;
@@ -81,9 +86,27 @@ public class AutonomyAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnBean(RateLimiter.class)
+    public MqConsumerThrottle mqConsumerThrottle(RateLimiter rateLimiter,
+                                                  MsMiddlewareProperties properties) {
+        return new MqConsumerThrottle(rateLimiter, properties);
+    }
+
+    @Bean
+    @ConditionalOnBean(MsMessageQueue.class)
+    public MqDelayedRetryExecutor mqDelayedRetryExecutor(MsMessageQueue messageQueue,
+                                                          MsMiddlewareProperties properties) {
+        return new MqDelayedRetryExecutor(messageQueue, MessageTraceManager.getInstance(), properties);
+    }
+
+    @Bean
     public AutonomyActuator autonomyActuator(FaultSelfHealing faultSelfHealing,
-                                             ObjectProvider<HotKeyManager> hotKeyManagerProvider) {
-        return new AutonomyActuator(faultSelfHealing, hotKeyManagerProvider);
+                                             ObjectProvider<HotKeyManager> hotKeyManagerProvider,
+                                             ObjectProvider<MqConsumerThrottle> consumerThrottleProvider,
+                                             ObjectProvider<MqDelayedRetryExecutor> delayedRetryExecutorProvider,
+                                             MsMiddlewareProperties properties) {
+        return new AutonomyActuator(faultSelfHealing, hotKeyManagerProvider,
+                consumerThrottleProvider, delayedRetryExecutorProvider, properties);
     }
 
     @Bean

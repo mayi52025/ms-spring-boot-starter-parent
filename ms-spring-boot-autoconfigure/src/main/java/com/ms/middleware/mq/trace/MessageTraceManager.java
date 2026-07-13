@@ -3,6 +3,8 @@ package com.ms.middleware.mq.trace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -109,6 +111,61 @@ public class MessageTraceManager {
      */
     public MessageTrace getTrace(String messageId) {
         return traceCache.get(messageId);
+    }
+
+    /**
+     * 列出近期处理失败、且尚未调度延迟重试的消息 trace。
+     *
+     * @param max 最大条数
+     * @return 失败 trace 列表（按处理时间倒序）
+     */
+    public List<MessageTrace> listFailedTraces(int max) {
+        if (max <= 0) {
+            return List.of();
+        }
+        return traceCache.values().stream()
+                .filter(t -> t.getProcessTime() != null && !t.isSuccess())
+                .filter(t -> !isRetryScheduled(t))
+                .sorted((a, b) -> b.getProcessTime().compareTo(a.getProcessTime()))
+                .limit(max)
+                .toList();
+    }
+
+    /**
+     * 缓存失败消息体，供 {@link com.ms.middleware.autonomy.act.MqDelayedRetryExecutor} 延迟重投。
+     *
+     * @param messageId 消息 ID
+     * @param payload   原始消息体（可为 Map、String 等）
+     */
+    public void storeRetryPayload(String messageId, Object payload) {
+        if (messageId == null || payload == null) {
+            return;
+        }
+        MessageTrace trace = traceCache.get(messageId);
+        if (trace == null) {
+            return;
+        }
+        Map<String, Object> extra = trace.getExtra() != null
+                ? new HashMap<>(trace.getExtra()) : new HashMap<>();
+        extra.put("retryPayload", payload);
+        trace.setExtra(extra);
+    }
+
+    /** 标记该失败消息已调度延迟重试，避免重复投递 */
+    public void markRetryScheduled(String messageId) {
+        MessageTrace trace = traceCache.get(messageId);
+        if (trace == null) {
+            return;
+        }
+        Map<String, Object> extra = trace.getExtra() != null
+                ? new HashMap<>(trace.getExtra()) : new HashMap<>();
+        extra.put("retryScheduled", true);
+        trace.setExtra(extra);
+    }
+
+    private boolean isRetryScheduled(MessageTrace trace) {
+        Map<String, Object> extra = trace.getExtra();
+        return extra != null && Boolean.TRUE.equals(extra.get("retryScheduled"));
     }
 
     /**

@@ -195,7 +195,7 @@ ms.middleware.autonomy.ledger:
 | Step 0 | 决策契约与模型字段 | ✅ 已完成 |
 | Step 1 | MQ/检测阈值统一 | ✅ 已完成 |
 | Step 2 | 候选动作 + 规则选优 | ✅ 已完成 |
-| Step 3 | MQ/Rabbit 执行器 | 待做 |
+| Step 3 | MQ/Rabbit 执行器 | ✅ 已完成 |
 | Step 4 | 推荐采纳 + 人机审计 | 待做 |
 | Step 5 | YAML 规则外置 | 待做 |
 | Step 6 | 指标 + Tool SPI + 文档 | 待做 |
@@ -252,11 +252,16 @@ Context → 候选动作池（Runbook）→ ActionSelector 规则选优
 - 配置 `auto-execute-min-confidence`（默认 0.7）；编排器仅 rank#1 可 AUTO
 - 单测：`ActionSelectorTest`、`EvidenceStrengthEvaluatorTest`、`AutonomyPolicyTest`
 
-#### Step 3～7 待办（原 Phase 3 项）
+#### Step 3 MQ/Rabbit 执行器（已完成）
 
-- [ ] EasyRules 或 YAML 实现 `AutonomyDecisionEngine`
+- `MqConsumerThrottle`：THROTTLE_CONSUMER 对接 `RedisRateLimiter`，消费路径背压
+- `MqDelayedRetryExecutor`：DELAYED_RETRY_BATCH 从 trace 取失败消息 `sendDelayed` 重投
+- `RabbitMessageQueue` 消费前 `awaitPermit()`；失败时 `storeRetryPayload` 供重试
+- `AutonomyOrchestrator` STABLE 时自动 `clearMqThrottle()`
+- 配置 `ms.middleware.autonomy.mq.*`（throttle-limit、delayed-retry-delay-ms 等）
+- 单测：`MqConsumerThrottleTest`、`MqDelayedRetryExecutorTest`、`AutonomyActuatorMqTest`
 
-- [ ] 规则：`MQ_DEGRADED` → 限流/延迟重试执行器
+#### Step 4～7 待办（原 Phase 3 项）
 
 - [ ] `POST /api/recommendations/{id}/accept`
 

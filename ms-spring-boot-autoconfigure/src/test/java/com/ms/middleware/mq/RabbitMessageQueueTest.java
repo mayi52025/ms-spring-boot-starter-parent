@@ -14,6 +14,7 @@ import org.mockito.Mockito;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
+import org.springframework.beans.factory.ObjectProvider;
 import org.redisson.api.RedissonClient;
 
 import java.util.Map;
@@ -42,9 +43,12 @@ class RabbitMessageQueueTest {
         MsMiddlewareProperties properties = new MsMiddlewareProperties();
         MsMetrics metrics = new MsMetrics(meterRegistry);
         RabbitAdmin rabbitAdmin = Mockito.mock(RabbitAdmin.class);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<com.ms.middleware.autonomy.act.MqConsumerThrottle> throttleProvider =
+                Mockito.mock(ObjectProvider.class);
 
-        // 创建消息队列实例
-        messageQueue = new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper, idempotentStore, properties, metrics, rabbitAdmin);
+        messageQueue = new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper,
+                idempotentStore, properties, metrics, rabbitAdmin, throttleProvider);
     }
 
     @Test

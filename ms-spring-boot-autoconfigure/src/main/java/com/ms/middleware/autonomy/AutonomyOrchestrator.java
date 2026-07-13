@@ -253,6 +253,9 @@ public class AutonomyOrchestrator {
         run.setContext(context);
         run.getMttrSeconds().ifPresentOrElse(mttr -> {
             String incidentType = run.getPlan() != null ? run.getPlan().getIncidentType() : "UNKNOWN";
+            if ("MQ_DEGRADED".equals(incidentType)) {
+                actuator.clearMqThrottle();
+            }
             ledger.appendTimeline(run, "STABLE",
                     String.format("中间件指标恢复正常，MTTR=%ds，本次自治结束", mttr));
             autonomyMetrics.recordRunStabilized(run.getTenant(), incidentType, mttr);

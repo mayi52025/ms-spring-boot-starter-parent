@@ -207,13 +207,14 @@ public class MsMiddlewareAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(MsMessageQueue.class)
     @ConditionalOnProperty(prefix = "ms.middleware.mq", name = "enabled", havingValue = "true")
-    public MsMessageQueue msMessageQueue(RabbitTemplate rabbitTemplate, 
-                                         CachingConnectionFactory connectionFactory, 
-                                         ObjectMapper objectMapper, 
-                                         IdempotentStore idempotentStore, 
-                                         MsMetrics metrics, 
-                                         RabbitAdmin rabbitAdmin) {
-        return new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper, idempotentStore, properties, metrics, rabbitAdmin);
+    public MsMessageQueue msMessageQueue(RabbitTemplate rabbitTemplate,
+                                         CachingConnectionFactory connectionFactory,
+                                         ObjectMapper objectMapper,
+                                         IdempotentStore idempotentStore,
+                                         MsMetrics metrics,
+                                         RabbitAdmin rabbitAdmin,
+                                         org.springframework.beans.factory.ObjectProvider<com.ms.middleware.autonomy.act.MqConsumerThrottle> consumerThrottleProvider) {
+        return new RabbitMessageQueue(rabbitTemplate, connectionFactory, objectMapper, idempotentStore, properties, metrics, rabbitAdmin, consumerThrottleProvider);
     }
 
     // ==================== 故障自愈配置 ====================

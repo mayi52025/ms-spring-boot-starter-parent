@@ -71,6 +71,11 @@ ms:
       auto-execute-min-confidence: 0.7
       cache-hit-rate-warn-threshold: 0.5
       mq-failed-warn-threshold: 10
+      mq:
+        throttle-limit: 30
+        throttle-window-seconds: 60
+        delayed-retry-batch-size: 10
+        delayed-retry-delay-ms: 5000
       ledger:
         type: memory
         max-runs: 200

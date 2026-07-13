@@ -1,5 +1,6 @@
 package com.ms.middleware.mq;
 
+import com.ms.middleware.autonomy.act.MqConsumerThrottle;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.metrics.MsMetrics;
@@ -19,6 +20,7 @@ import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.time.Instant;
 import java.util.Map;
@@ -43,14 +45,17 @@ public class RabbitMessageQueue implements MsMessageQueue {
     private final MsMiddlewareProperties properties;
     private final MsMiddlewareProperties.SecurityProperties securityProperties;
     private final RabbitAdmin rabbitAdmin;
+    /** 自治消费限流（autonomy.enabled 时可选注入） */
+    private final ObjectProvider<MqConsumerThrottle> consumerThrottleProvider;
 
-    public RabbitMessageQueue(RabbitTemplate rabbitTemplate, 
-                           ConnectionFactory connectionFactory, 
-                           ObjectMapper objectMapper, 
-                           IdempotentStore idempotentStore, 
-                           MsMiddlewareProperties properties, 
-                           MsMetrics metrics, 
-                           RabbitAdmin rabbitAdmin) {
+    public RabbitMessageQueue(RabbitTemplate rabbitTemplate,
+                           ConnectionFactory connectionFactory,
+                           ObjectMapper objectMapper,
+                           IdempotentStore idempotentStore,
+                           MsMiddlewareProperties properties,
+                           MsMetrics metrics,
+                           RabbitAdmin rabbitAdmin,
+                           ObjectProvider<MqConsumerThrottle> consumerThrottleProvider) {
         this.rabbitTemplate = rabbitTemplate;
         this.connectionFactory = connectionFactory;
         this.objectMapper = objectMapper;
@@ -60,7 +65,8 @@ public class RabbitMessageQueue implements MsMessageQueue {
         this.securityProperties = properties.getSecurity();
         this.metrics = metrics;
         this.rabbitAdmin = rabbitAdmin;
-        
+        this.consumerThrottleProvider = consumerThrottleProvider;
+
         // 配置消息转换器
         rabbitTemplate.setMessageConverter(new Jackson2JsonMessageConverter(objectMapper));
     }
@@ -366,6 +372,9 @@ public class RabbitMessageQueue implements MsMessageQueue {
                 payload = objectMapper.readValue(message.getBody(), Object.class);
             }
 
+            // 自治限流：MQ_DEGRADED 时消费端背压
+            awaitConsumerThrottle();
+
             // 记录消息接收
             traceManager.recordReceive(messageId, message.getMessageProperties().getConsumerQueue(), getReceiver());
 
@@ -395,9 +404,18 @@ public class RabbitMessageQueue implements MsMessageQueue {
 
         } catch (Exception e) {
             e.printStackTrace();
+            traceManager.storeRetryPayload(messageId, payload);
             traceManager.recordProcess(messageId, false, e.getMessage(), 0);
             metrics.incrementMessageFailed();
             metrics.incrementFailureCount();
+        }
+    }
+
+    /** 消费前等待自治限流许可（未启用时无操作） */
+    private void awaitConsumerThrottle() throws InterruptedException {
+        MqConsumerThrottle throttle = consumerThrottleProvider.getIfAvailable();
+        if (throttle != null) {
+            throttle.awaitPermit();
         }
     }
 
