@@ -198,7 +198,7 @@ ms.middleware.autonomy.ledger:
 | Step 3 | MQ/Rabbit 执行器 | ✅ 已完成 |
 | Step 4 | 推荐采纳 + 人机审计 | ✅ 已完成 |
 | Step 5 | YAML 规则外置 | ✅ 已完成 |
-| Step 6 | 指标 + Tool SPI + 文档 | 待做 |
+| Step 6 | 指标 + Tool SPI + 文档 | ✅ 已完成 |
 | Step 7 | EasyRules（可选） | 待做 |
 
 #### Step 0 决策契约（已完成）
@@ -279,9 +279,21 @@ Context → 候选动作池（Runbook）→ ActionSelector 规则选优
 - 示例：`classpath:ms-middleware-autonomy-rules.example.yml`
 - 单测：`IncidentActionCatalogTest`、`AutonomyRulesYamlTest`
 
-#### Step 6～7 待办（原 Phase 3 项）
+#### Step 6 指标 + Tool SPI + 文档（已完成）
 
-- [ ] 指标 + Tool SPI + 文档（Step 6）
+- **Micrometer 决策指标**（`AutonomyMetrics`）：
+  - `ms.autonomy.action.auto.total`（tag: trigger=auto|human）
+  - `ms.autonomy.recommendation.total` / `accepted.total` / `rejected.total`
+  - `ms.autonomy.plan.confidence`（rank#1 证据强度）
+- 埋点：`AutonomyOrchestrator`（PLAN/AUTO/RECOMMEND）、`HumanAdoptionService`（采纳/拒绝/人工执行）
+- **Tool SPI**：`MiddlewareInsightTool` + `DefaultMiddlewareInsightTool`，控制台聊天与未来 LangChain4j 统一读数契约
+- `ConsoleChatService` 改走 Tool；支持 trace messageId 查询
+- 文档：`doc/autonomy/MQ自治演示剧本.md`
+- 单测：`AutonomyMetricsTest`、`DefaultMiddlewareInsightToolTest`
+
+#### Step 7 待办（可选）
+
+- [ ] EasyRules 决策引擎（可选）
 
 
 

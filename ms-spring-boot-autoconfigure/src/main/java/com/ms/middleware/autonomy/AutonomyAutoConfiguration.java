@@ -11,6 +11,8 @@ import com.ms.middleware.autonomy.context.AutonomyContextBuilder;
 import com.ms.middleware.autonomy.decision.AutonomyDecisionEngine;
 import com.ms.middleware.autonomy.insight.DefaultMiddlewareInsightService;
 import com.ms.middleware.autonomy.insight.MiddlewareInsightService;
+import com.ms.middleware.autonomy.insight.tool.DefaultMiddlewareInsightTool;
+import com.ms.middleware.autonomy.insight.tool.MiddlewareInsightTool;
 import com.ms.middleware.autonomy.metrics.AutonomyMetrics;
 import com.ms.middleware.autonomy.plan.ActionSelector;
 import com.ms.middleware.autonomy.plan.AutonomyRuleEngine;
@@ -165,6 +167,12 @@ public class AutonomyAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(MiddlewareInsightTool.class)
+    public MiddlewareInsightTool middlewareInsightTool(MiddlewareInsightService insightService) {
+        return new DefaultMiddlewareInsightTool(insightService);
+    }
+
+    @Bean
     public AutonomyOrchestrator autonomyOrchestrator(AutonomyContextBuilder contextBuilder,
                                                      AutonomyDecisionEngine decisionEngine,
                                                      AutonomyPolicy policy,
@@ -184,7 +192,8 @@ public class AutonomyAutoConfiguration {
     @Bean
     public com.ms.middleware.autonomy.adoption.HumanAdoptionService humanAdoptionService(
             AutonomyLedger ledger,
-            AutonomyActuator actuator) {
-        return new com.ms.middleware.autonomy.adoption.HumanAdoptionService(ledger, actuator);
+            AutonomyActuator actuator,
+            AutonomyMetrics autonomyMetrics) {
+        return new com.ms.middleware.autonomy.adoption.HumanAdoptionService(ledger, actuator, autonomyMetrics);
     }
 }

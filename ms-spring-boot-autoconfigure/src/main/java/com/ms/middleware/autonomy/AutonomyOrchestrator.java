@@ -107,11 +107,14 @@ public class AutonomyOrchestrator {
         ledger.appendTimeline(run, "PLAN", planDetail);
         ledger.update(run);
 
+        recordPlanMetrics(run, plan);
+
         run.setStatus(AutonomyRunStatus.EXECUTING);
         executePlanActions(run, plan);
 
         for (var rec : plan.getRecommendations()) {
             ledger.appendTimeline(run, "RECOMMEND", rec.getTitle() + " — " + rec.getDescription());
+            autonomyMetrics.recordRecommendation(run.getTenant(), plan.getIncidentType());
         }
 
         ledger.update(run);
@@ -169,6 +172,11 @@ public class AutonomyOrchestrator {
                 ledger.appendTimeline(run, "AUTO",
                         action.getActionType() + " → " + action.getExecutionStatus()
                                 + ": " + action.getExecutionDetail());
+                autonomyMetrics.recordActionAuto(
+                        run.getTenant(),
+                        plan.getIncidentType(),
+                        action.getActionType().name(),
+                        "auto");
             } else {
                 action.setExecutionStatus("ADVISE");
                 String detail = action.getRank() == 1
@@ -181,6 +189,18 @@ public class AutonomyOrchestrator {
                         action.getActionType() + " 建议: " + action.getReason() + "（" + detail + "）");
             }
         }
+    }
+
+    /** PLAN 完成后记录 rank#1 证据强度 */
+    private void recordPlanMetrics(AutonomyRun run, AutonomyPlan plan) {
+        if (plan.getActions() == null || plan.getActions().isEmpty()) {
+            return;
+        }
+        PlannedAction top = plan.getActions().stream()
+                .filter(a -> a.getRank() == 1)
+                .findFirst()
+                .orElse(plan.getActions().get(0));
+        autonomyMetrics.recordPlanConfidence(run.getTenant(), plan.getIncidentType(), top.getConfidence());
     }
 
     /** EXECUTING 期间若组件仍不可用，静默重试自愈（不写重复 PLAN） */

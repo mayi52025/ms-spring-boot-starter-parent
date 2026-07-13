@@ -5,6 +5,7 @@ import com.ms.middleware.autonomy.act.AutonomyActuator;
 import com.ms.middleware.autonomy.plan.AutonomyRecommendation;
 import com.ms.middleware.autonomy.plan.PlannedAction;
 import com.ms.middleware.autonomy.plan.RecommendationStatus;
+import com.ms.middleware.autonomy.metrics.AutonomyMetrics;
 import com.ms.middleware.autonomy.run.AutonomyLedger;
 import com.ms.middleware.autonomy.run.AutonomyRun;
 import com.ms.middleware.autonomy.run.AutonomyTimelinePhase;
@@ -31,10 +32,12 @@ public class HumanAdoptionService {
 
     private final AutonomyLedger ledger;
     private final AutonomyActuator actuator;
+    private final AutonomyMetrics autonomyMetrics;
 
-    public HumanAdoptionService(AutonomyLedger ledger, AutonomyActuator actuator) {
+    public HumanAdoptionService(AutonomyLedger ledger, AutonomyActuator actuator, AutonomyMetrics autonomyMetrics) {
         this.ledger = ledger;
         this.actuator = actuator;
+        this.autonomyMetrics = autonomyMetrics;
     }
 
     /**
@@ -71,6 +74,8 @@ public class HumanAdoptionService {
         ledger.appendTimeline(run, AutonomyTimelinePhase.ACCEPTED.code(), message, recommendationId);
         ledger.update(run);
 
+        autonomyMetrics.recordRecommendationAccepted(run.getTenant(), incidentTypeOf(run));
+
         logger.info("Recommendation accepted run={} id={} operator={}",
                 run.getRunId(), recommendationId, rec.getOperator());
         return AdoptionResult.ok(run.getRunId(), recommendationId, RecommendationStatus.ACCEPTED, message);
@@ -106,6 +111,8 @@ public class HumanAdoptionService {
         String message = buildRecommendationMessage("拒绝推荐", rec, request);
         ledger.appendTimeline(run, AutonomyTimelinePhase.ACCEPTED.code(), message, recommendationId);
         ledger.update(run);
+
+        autonomyMetrics.recordRecommendationRejected(run.getTenant(), incidentTypeOf(run));
 
         logger.info("Recommendation rejected run={} id={} operator={}",
                 run.getRunId(), recommendationId, rec.getOperator());
@@ -167,6 +174,12 @@ public class HumanAdoptionService {
                         + ": " + action.getExecutionDetail(), null);
         ledger.update(run);
 
+        autonomyMetrics.recordActionAuto(
+                run.getTenant(),
+                incidentTypeOf(run),
+                action.getActionType().name(),
+                "human");
+
         logger.info("Advised action accepted run={} rank={} type={} status={}",
                 runId, rank, action.getActionType(), action.getExecutionStatus());
         return AdoptionResult.actionOk(runId, rank, acceptMsg);
@@ -215,6 +228,13 @@ public class HumanAdoptionService {
             return request.getOperator();
         }
         return "console";
+    }
+
+    private String incidentTypeOf(AutonomyRun run) {
+        if (run.getPlan() != null && run.getPlan().getIncidentType() != null) {
+            return run.getPlan().getIncidentType();
+        }
+        return "UNKNOWN";
     }
 
     private record ResolvedTarget(AutonomyRun run, AutonomyRecommendation recommendation) {

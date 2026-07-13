@@ -10,6 +10,7 @@ import com.ms.middleware.autonomy.plan.PlannedAction;
 import com.ms.middleware.autonomy.plan.RecommendationStatus;
 import com.ms.middleware.autonomy.run.AutonomyRun;
 import com.ms.middleware.autonomy.run.AutonomyTimelinePhase;
+import com.ms.middleware.autonomy.metrics.AutonomyMetrics;
 import com.ms.middleware.autonomy.run.InMemoryAutonomyLedger;
 import com.ms.middleware.autonomy.tenant.AutonomyTenantProvider;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,6 +43,9 @@ class HumanAdoptionServiceTest {
     @Mock
     private AutonomyActuator actuator;
 
+    @Mock
+    private AutonomyMetrics autonomyMetrics;
+
     private InMemoryAutonomyLedger ledger;
     private HumanAdoptionService service;
 
@@ -51,7 +55,7 @@ class HumanAdoptionServiceTest {
         ApplicationEventPublisher publisher = events::add;
         AutonomyTenantProvider tenantProvider = () -> TENANT;
         ledger = new InMemoryAutonomyLedger(publisher, tenantProvider, 20);
-        service = new HumanAdoptionService(ledger, actuator);
+        service = new HumanAdoptionService(ledger, actuator, autonomyMetrics);
     }
 
     /** 首次采纳推荐应更新状态并写入带 recommendationId 的 ACCEPTED 时间线 */
