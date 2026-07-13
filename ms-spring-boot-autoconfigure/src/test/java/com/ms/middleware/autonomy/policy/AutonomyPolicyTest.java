@@ -23,11 +23,29 @@ class AutonomyPolicyTest {
         assertEquals(AutonomyPolicyDecision.AUTO, policy.evaluate(action));
     }
 
-    /** LOW 风险但置信度不足 → ADVISE */
+    /** LOW 风险踩线证据（0.65）→ 低档门槛 AUTO */
+    @Test
+    void lowRiskAtThresholdAutoWithLowTier() {
+        AutonomyPolicy policy = policyWithMinConfidence(0.7);
+        PlannedAction action = action(AutonomyRisk.LOW, 0.65);
+
+        assertEquals(AutonomyPolicyDecision.AUTO, policy.evaluate(action));
+    }
+
+    /** LOW 风险但证据极低 → ADVISE */
+    @Test
+    void lowRiskVeryLowConfidenceAdvise() {
+        AutonomyPolicy policy = policyWithMinConfidence(0.7);
+        PlannedAction action = action(AutonomyRisk.LOW, 0.40);
+
+        assertEquals(AutonomyPolicyDecision.ADVISE, policy.evaluate(action));
+    }
+
+    /** LOW 风险但置信度不足 → ADVISE（旧用例：0.55 在默认低档 0.55 边界仍 AUTO，改为 0.54） */
     @Test
     void lowRiskLowConfidenceAdvise() {
         AutonomyPolicy policy = policyWithMinConfidence(0.7);
-        PlannedAction action = action(AutonomyRisk.LOW, 0.55);
+        PlannedAction action = action(AutonomyRisk.LOW, 0.54);
 
         assertEquals(AutonomyPolicyDecision.ADVISE, policy.evaluate(action));
     }

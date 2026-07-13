@@ -180,9 +180,9 @@ public class AutonomyOrchestrator {
             } else {
                 action.setExecutionStatus("ADVISE");
                 String detail = action.getRank() == 1
-                        ? String.format("证据强度 %.2f 低于阈值 %.2f 或风险超限，仅展示建议",
-                        action.getConfidence(), policy.getMinAutoConfidence())
-                        : String.format("备选方案 #%d（Runbook 顺位），等待人工采纳或升级",
+                        ? String.format("证据强度 %.2f 未达自动门槛（LOW≥%.2f 或 标准≥%.2f），需人工确认",
+                        action.getConfidence(), policy.getMinAutoConfidenceLow(), policy.getMinAutoConfidence())
+                        : String.format("备选方案 #%d（Runbook 顺位），非首选不自动执行，可人工采纳",
                         action.getRank());
                 action.setExecutionDetail(detail);
                 ledger.appendTimeline(run, "ADVISE",

@@ -42,7 +42,7 @@ class AutonomyRuleEngineTest {
         assertEquals(1, actions.get(0).getRank());
         assertTrue(actions.stream().anyMatch(a -> a.getActionType() == AutonomyActionType.ENSURE_L1_DEGRADE));
         assertNotNull(plan.getRankingSummary());
-        assertTrue(plan.getRankingSummary().contains("自动执行候选"));
+        assertTrue(plan.getRankingSummary().contains("首选"));
         assertFalse(plan.getRecommendations().isEmpty());
     }
 
@@ -61,9 +61,9 @@ class AutonomyRuleEngineTest {
         assertEquals("CACHE_DEGRADED", plan.getIncidentType());
     }
 
-    /** MQ 达到阈值：限流排第一；踩线时证据不足，仅 ADVISE */
+    /** MQ 达到阈值：限流排第一；踩线证据 &lt; 0.7 但 LOW 档可 AUTO */
     @Test
-    void mqAtThresholdSelectsThrottleButWeakEvidence() {
+    void mqAtThresholdSelectsThrottleWithLowTierAutoEvidence() {
         AutonomyContext ctx = incidentContext();
         ctx.setMqFailedCount(10);
         ctx.setMqFailedWarnThreshold(10);
@@ -75,8 +75,9 @@ class AutonomyRuleEngineTest {
         PlannedAction top = plan.getActions().get(0);
         assertEquals(AutonomyActionType.THROTTLE_CONSUMER, top.getActionType());
         assertEquals(1, top.getRank());
-        assertTrue(top.getConfidence() < 0.7, "踩线时应 ADVISE，证据=" + top.getConfidence());
-        assertTrue(plan.getRankingSummary().contains("根因优先"));
+        assertTrue(top.getConfidence() >= 0.55, "踩线证据应满足 LOW 档自动止血");
+        assertTrue(top.getConfidence() < 0.7);
+        assertTrue(plan.getRankingSummary().contains("首选"));
     }
 
     /** MQ 明显超阈值：限流为 AUTO 候选 */

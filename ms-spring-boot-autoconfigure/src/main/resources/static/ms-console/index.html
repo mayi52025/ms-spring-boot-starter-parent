@@ -22,6 +22,11 @@
     .tl-phase { color: var(--accent); }
     .tl-stable { border-left: 3px solid var(--ok); padding-left: 8px; background: rgba(34,197,94,.08); }
     .tl-stable .tl-phase { color: var(--ok); }
+    .tl-auto { border-left: 3px solid var(--ok); padding-left: 8px; background: rgba(34,197,94,.06); }
+    .tl-auto .tl-phase { color: var(--ok); }
+    .action-primary { background: rgba(34,197,94,.12); border: 1px solid var(--ok); border-radius: 8px; padding: 12px; margin: 12px 0; font-size: 0.9rem; }
+    .action-primary.pending { background: rgba(245,158,11,.1); border-color: var(--warn); }
+    .section-hint { font-size: 0.75rem; color: var(--muted); margin: -6px 0 10px; font-weight: normal; text-transform: none; letter-spacing: 0; }
     .mttr-banner { background: rgba(34,197,94,.15); border: 1px solid var(--ok); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.9rem; }
     .mttr-banner strong { color: var(--ok); }
     .rec { background: #1e2a3d; border-left: 3px solid var(--warn); padding: 8px; margin: 8px 0; border-radius: 4px; font-size: 0.85rem; }
@@ -106,6 +111,7 @@
     }
     html += (run.timeline || []).map(e => {
       const cls = e.phase === 'STABLE' ? 'tl-item tl-stable'
+        : e.phase === 'AUTO' ? 'tl-item tl-auto'
         : e.phase === 'ACCEPTED' ? 'tl-item tl-accepted' : 'tl-item';
       return `<div class="${cls}"><span class="tl-phase">[${e.phase}]</span> ${e.at} — ${e.message}</div>`;
     }).join('') || '无时间线';
@@ -213,8 +219,43 @@
     const recs = run.plan && run.plan.recommendations ? run.plan.recommendations : [];
     const actions = run.plan && run.plan.actions ? run.plan.actions : [];
     let html = '';
+
+    const primary = actions.find(a => a.rank === 1);
+    if (primary) {
+      const executed = primary.executionStatus === 'SUCCESS' || primary.policyDecision === 'AUTO';
+      const bannerCls = executed ? 'action-primary' : 'action-primary pending';
+      let statusText = '';
+      if (primary.executionStatus === 'SUCCESS') {
+        statusText = '<span style="color:var(--ok)">✓ 已自动执行</span>';
+        if (primary.executionDetail) {
+          statusText += ' — ' + primary.executionDetail;
+        }
+      } else if (primary.policyDecision === 'AUTO') {
+        statusText = '<span style="color:var(--ok)">已调度自动执行</span>';
+      } else {
+        statusText = '<span style="color:var(--warn)">未自动执行（证据或风险未达门槛，需人工确认）</span>';
+      }
+      html += `<h2>自治处置</h2><p class="section-hint">系统首选动作，LOW 风险止血优先自动执行</p>`;
+      html += `<div class="${bannerCls}"><strong>#1 ${primary.actionType}</strong><br/>${primary.reason || ''}<br/>
+        <span style="color:var(--muted);font-size:0.8rem">证据 ${(primary.confidence||0).toFixed(2)} · ${statusText}</span></div>`;
+    }
+
+    const alternates = actions.filter(a => a.rank > 1);
+    if (alternates.length) {
+      html += '<h2 style="margin-top:12px">备选方案</h2><p class="section-hint">非首选动作，默认不自动执行，可人工采纳</p>';
+      html += alternates.map(a => {
+        const adopted = a.humanAccepted;
+        const btns = !adopted ? `<div class="rec-actions">
+            <button type="button" class="btn-adopt" data-run="${run.runId}" data-rank="${a.rank}">采纳并执行</button>
+          </div>` : '<div style="color:var(--ok);font-size:0.75rem;margin-top:4px">已人工采纳</div>';
+        return `<div class="advise"><strong>#${a.rank} ${a.actionType}</strong> — ${a.reason || ''}<br/>
+          <span style="color:var(--muted);font-size:0.75rem">证据 ${(a.confidence||0).toFixed(2)} · 风险较高或顺位靠后</span>${btns}</div>`;
+      }).join('');
+    }
+
     if (recs.length) {
-      html += '<h2>配置推荐</h2>' + recs.map(r => {
+      html += '<h2 style="margin-top:12px">优化建议</h2><p class="section-hint">配置级建议，可选采纳，不阻塞故障恢复</p>';
+      html += recs.map(r => {
         const st = r.status || 'PENDING';
         const cls = st === 'ACCEPTED' ? 'rec accepted' : st === 'REJECTED' ? 'rec rejected' : 'rec';
         const badge = st !== 'PENDING' ? `<span style="color:var(--muted)"> [${st}]</span>` : '';
@@ -227,17 +268,7 @@
         ${r.suggestedConfig ? '<br/><code>' + r.suggestedConfig + '</code>' : ''}${btns}</div>`;
       }).join('');
     }
-    const adviseActions = actions.filter(a => a.rank > 1 || a.executionStatus === 'ADVISE' || a.policyDecision === 'ADVISE');
-    if (adviseActions.length) {
-      html += '<h2 style="margin-top:12px">备选方案</h2>' + adviseActions.map(a => {
-        const adopted = a.humanAccepted;
-        const btns = !adopted ? `<div class="rec-actions">
-            <button type="button" class="btn-adopt" data-run="${run.runId}" data-rank="${a.rank}">采纳并执行</button>
-          </div>` : '<div style="color:var(--ok);font-size:0.75rem;margin-top:4px">已人工采纳</div>';
-        return `<div class="advise"><strong>#${a.rank} ${a.actionType}</strong> — ${a.reason || ''}<br/>
-          <span style="color:var(--muted);font-size:0.75rem">证据 ${(a.confidence||0).toFixed(2)}</span>${btns}</div>`;
-      }).join('');
-    }
+
     rec.innerHTML = html;
     rec.querySelectorAll('.btn-accept').forEach(btn => {
       btn.onclick = () => adoptRecommendation(btn.dataset.rec, btn.dataset.run, true);
@@ -275,6 +306,7 @@
         const e = JSON.parse(ev.data);
         const line = document.createElement('div');
         line.className = e.phase === 'STABLE' ? 'tl-item tl-stable'
+          : e.phase === 'AUTO' ? 'tl-item tl-auto'
           : e.phase === 'ACCEPTED' ? 'tl-item tl-accepted' : 'tl-item';
         line.innerHTML = `<span class="tl-phase">[${e.phase}]</span> ${e.at} — ${e.message}`;
         document.getElementById('timeline').prepend(line);

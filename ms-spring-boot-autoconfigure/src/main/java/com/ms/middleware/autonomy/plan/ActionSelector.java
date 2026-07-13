@@ -78,8 +78,8 @@ public class ActionSelector {
 
         PlannedAction top = selectedActions.get(0);
         sb.append(String.format(Locale.ROOT,
-                "。自动执行候选：#%d %s",
-                top.getRank(), top.getActionType()));
+                "。首选 #1 %s 将优先自动执行（LOW 风险止血）；其余为备选方案。",
+                top.getActionType()));
         return sb.toString();
     }
 

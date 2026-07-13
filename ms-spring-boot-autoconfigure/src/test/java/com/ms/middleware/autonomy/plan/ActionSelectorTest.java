@@ -67,7 +67,7 @@ class ActionSelectorTest {
         assertTrue(summary.contains("根因优先"));
         assertTrue(summary.contains("THROTTLE_CONSUMER"));
         assertTrue(summary.contains("证据强度"));
-        assertTrue(summary.contains("自动执行候选"));
+        assertTrue(summary.contains("首选"));
     }
 
     private AutonomyContext mqContext(long failedCount, long threshold) {

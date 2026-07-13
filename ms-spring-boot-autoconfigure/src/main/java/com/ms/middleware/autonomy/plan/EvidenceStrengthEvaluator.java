@@ -33,7 +33,7 @@ public final class EvidenceStrengthEvaluator {
     }
 
     /**
-     * MQ 限流证据：刚踩线时偏低（建议人看），明显超标时升高。
+     * MQ 限流证据：刚踩线即可 LOW 档自动止血，明显超标时证据更高。
      */
     private static double mqThrottleEvidence(AutonomyContext context) {
         if (!context.isMqDegraded()) {
@@ -50,7 +50,7 @@ public final class EvidenceStrengthEvaluator {
         if (count > threshold) {
             return 0.78;
         }
-        // 刚好等于阈值：信号偏弱，倾向 ADVISE
+        // 已达阈值：信号足够触发 LOW 风险自动止血（Policy 低档门槛默认 0.55）
         return 0.65;
     }
 

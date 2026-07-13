@@ -58,17 +58,59 @@ ms:
 
 ## 3. 场景 B：MQ 消费失败（限流 + 延迟重试）
 
-### 触发
+> **为什么之前测不了？** order-system 原来**只发消息、没有消费者**，`mqFailedCount` 永远不会涨。
+> 已在 demo 里加了 `MqFailureDemoConsumer`，开启 `demo.autonomy.mq-failure-consumer.enabled=true` 即可。
 
-1. 保证 Redis / Rabbit 正常
-2. 让消费端持续失败（如故意抛异常、或堆积失败消息至阈值以上）
-3. `mq-failed-warn-threshold` 默认 10，演示可设为 5
+### 触发步骤（按顺序做）
+
+**① 确认 Redis / Rabbit 正常**（不要停 Redis，否则会变成场景 A）
+
+**② 重装 starter 并重启 order-system**
+
+```powershell
+cd d:\projects\ms-spring-boot-starter-parent\ms-spring-boot-starter-parent
+mvn clean install -DskipTests
+# IDEA Reload Maven → Run order-system
+```
+
+启动日志应出现：`已注册 order-created 失败演示消费者`
+
+**③ 连续创建 3 个订单**（每单 1 条消息 → 消费失败 1 次）
+
+```powershell
+1..3 | ForEach-Object {
+  Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/orders `
+    -ContentType "application/json" `
+    -Body '{"customerId":"demo-user","amount":99.9}'
+}
+```
+
+**④ 看失败计数**
+
+```powershell
+Invoke-RestMethod http://localhost:8080/ms-console/api/metrics
+```
+
+`mqFailedCount` 应 **≥ 3**（demo 已设 `mq-failed-warn-threshold: 3`）。
+
+**⑤ 等 10～20 秒**，再查：
+
+```powershell
+Invoke-RestMethod http://localhost:8080/ms-console/api/issues
+```
+
+应出现 `MQ_DEGRADED`；浏览器打开 `/ms-console` 看时间线。
+
+**⑥ 测完关闭演示消费者**
+
+`application.yml` → `demo.autonomy.mq-failure-consumer.enabled: false`，重启。
 
 ### 预期行为
 
 - incident 类型：`MQ_DEGRADED`
-- rank#1：`THROTTLE_CONSUMER`（踩线时 ADVISE，明显超标时 AUTO）
-- rank#2：`DELAYED_RETRY_BATCH`（通常 ADVISE，需人工采纳）
+- rank#1：`THROTTLE_CONSUMER` **自动执行（AUTO）** — LOW 风险踩线即止血
+- rank#2：`DELAYED_RETRY_BATCH` 仅备选（ADVISE），需人工「采纳并执行」
+- 「优化建议」区：查 Trace 等配置建议，**不阻塞恢复**
 - STABLE 时自动 `clearMqThrottle()`
 
 ### 聊天验证

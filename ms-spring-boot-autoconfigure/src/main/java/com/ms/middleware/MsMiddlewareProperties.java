@@ -1083,8 +1083,13 @@ public class MsMiddlewareProperties {
         private boolean enabled = false;
         private long scanIntervalMs = 30000;
         private String autoExecuteMaxRisk = "LOW";
-        /** 自动执行最低置信度，低于此值即使 LOW 风险也只 ADVISE */
+        /** 标准自动执行最低证据强度（默认 0.7），用于 MEDIUM 等较高要求场景 */
         private double autoExecuteMinConfidence = 0.7;
+        /**
+         * LOW 风险止血动作最低证据强度（默认 0.55）。
+         * 踩线 MQ 限流等「先自治、后人工」场景走此档，MEDIUM 仍须满足 {@link #autoExecuteMinConfidence} 且不超过 maxRisk。
+         */
+        private double autoExecuteMinConfidenceLow = 0.55;
         private double cacheHitRateWarnThreshold = 0.5;
         private long mqFailedWarnThreshold = 10;
         private LedgerProperties ledger = new LedgerProperties();
@@ -1121,6 +1126,14 @@ public class MsMiddlewareProperties {
 
         public void setAutoExecuteMinConfidence(double autoExecuteMinConfidence) {
             this.autoExecuteMinConfidence = autoExecuteMinConfidence;
+        }
+
+        public double getAutoExecuteMinConfidenceLow() {
+            return autoExecuteMinConfidenceLow;
+        }
+
+        public void setAutoExecuteMinConfidenceLow(double autoExecuteMinConfidenceLow) {
+            this.autoExecuteMinConfidenceLow = autoExecuteMinConfidenceLow;
         }
 
         public double getCacheHitRateWarnThreshold() {
