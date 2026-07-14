@@ -98,7 +98,8 @@ ms:
     console:
       enabled: false
       base-path: /ms-console
-      chat-enabled: false
+      llm-enabled: false
+      # chat-enabled: false   # 已废弃，请用 llm-enabled
       # auth-token: ""   # 非空时启用控制台 API 鉴权（Header X-MS-Console-Token 或 ?token=）
     # Redis配置
     redis:

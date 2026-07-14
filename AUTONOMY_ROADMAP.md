@@ -333,7 +333,7 @@ demo.chaos.mq-fail.enabled: false  # 故障注入演示，生产务必 false
 | Step 1 | STABLE 恢复依据（recoveryEvidence） | ✅ 已完成 | 1d |
 | Step 2 | 失败 Trace 列表 API + 控制台 | ✅ 已完成 | 1d |
 | Step 3 | 控制台鉴权（auth-token） | ✅ 已完成 | 1d |
-| Step 4 | 采纳语义澄清 + chat 配置重命名 | 待做 | 0.5d |
+| Step 4 | 采纳语义澄清 + chat 配置重命名 | ✅ 已完成 | 0.5d |
 | Step 5 | 多实例分布式编排锁 | 待做 | 1～1.5d |
 | Step 6 | Tenant 多应用隔离验收 | 待做 | 0.5d |
 | Step 7 | 配置推荐 Nacos 草稿采纳（可选） | 待做 | 1～2d |
@@ -422,7 +422,7 @@ demo.chaos.mq-fail.enabled: false  # 故障注入演示，生产务必 false
 
 ---
 
-#### Step 4 — 采纳语义澄清 + chat 配置重命名（待做）
+#### Step 4 — 采纳语义澄清 + chat 配置重命名（✅ 已完成）
 
 **解决什么：** `[ACCEPTED]` 被误解为「已改配置」；`chat-enabled=false` 反直觉。
 
@@ -432,8 +432,9 @@ demo.chaos.mq-fail.enabled: false  # 故障注入演示，生产务必 false
 - 备选动作人工执行：显示 **「人工触发」** 与 AUTO 区分（时间线已有，UI 强化）
 - 配置重命名：`chat-enabled` → `llm-enabled`（旧 key 兼容一个版本 + deprecation 日志）
 - EXECUTING 态提示：**「限流/自愈已启用，根因未消除时可能无法 STABLE」**（MQ 场景）
+- 采纳时间线文案补充「未实际修改配置」
 
-**单测：** 无逻辑变更为主；配置绑定测试可选。
+**单测：** `ConsolePropertiesTest`（llm-enabled / chat-enabled 绑定兼容）。
 
 ---
 
@@ -528,7 +529,7 @@ ms:
 
 - [ ] Tool 基于 `MiddlewareInsightService`
 
-- [ ] `chat-enabled=true` 时走 LLM
+- [ ] `llm-enabled=true` 时走 LLM（兼容旧 `chat-enabled`）
 
 
 

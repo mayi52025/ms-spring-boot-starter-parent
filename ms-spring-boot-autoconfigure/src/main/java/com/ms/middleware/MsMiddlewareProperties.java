@@ -1,5 +1,7 @@
 package com.ms.middleware;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -1273,9 +1275,17 @@ public class MsMiddlewareProperties {
      * AI 控制台（问题列表、时间线、聊天入口）
      */
     public static class ConsoleProperties {
+
+        private static final Logger log = LoggerFactory.getLogger(ConsoleProperties.class);
+
         private boolean enabled = false;
         private String basePath = "/ms-console";
-        private boolean chatEnabled = false;
+        /** 是否启用 LLM 对话（false 时使用规则模式 Insight Tool） */
+        private boolean llmEnabled = false;
+        /** 旧配置项，兼容一个版本 */
+        private boolean chatEnabledLegacy = false;
+        private boolean chatEnabledLegacySet = false;
+        private boolean llmEnabledExplicit = false;
         /**
          * 控制台 API 共享密钥；非空时启用鉴权（Header X-MS-Console-Token 或 ?token=）。
          * 本地 Demo 留空即可。
@@ -1298,12 +1308,37 @@ public class MsMiddlewareProperties {
             this.basePath = basePath;
         }
 
-        public boolean isChatEnabled() {
-            return chatEnabled;
+        public boolean isLlmEnabled() {
+            if (llmEnabledExplicit) {
+                return llmEnabled;
+            }
+            if (chatEnabledLegacySet) {
+                return chatEnabledLegacy;
+            }
+            return llmEnabled;
         }
 
+        public void setLlmEnabled(boolean llmEnabled) {
+            this.llmEnabled = llmEnabled;
+            this.llmEnabledExplicit = true;
+        }
+
+        /**
+         * @deprecated 请改用 {@code ms.middleware.console.llm-enabled}
+         */
+        @Deprecated
+        public boolean isChatEnabled() {
+            return isLlmEnabled();
+        }
+
+        /**
+         * @deprecated 请改用 {@code ms.middleware.console.llm-enabled}
+         */
+        @Deprecated
         public void setChatEnabled(boolean chatEnabled) {
-            this.chatEnabled = chatEnabled;
+            log.warn("配置 ms.middleware.console.chat-enabled 已废弃，请改用 llm-enabled");
+            this.chatEnabledLegacy = chatEnabled;
+            this.chatEnabledLegacySet = true;
         }
 
         public String getAuthToken() {

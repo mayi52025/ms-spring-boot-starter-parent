@@ -25,7 +25,7 @@ public class ConsoleChatService {
      * 支持：runId 详情 / 「问题」「故障」/ 「最近失败」/ 「最近」「run」/ 「指标」「metric」/ messageId 追踪
      */
     public ConsoleChatResponse chat(String message, String runId) {
-        if (properties.getConsole().isChatEnabled()) {
+        if (properties.getConsole().isLlmEnabled()) {
             return new ConsoleChatResponse(
                     "聊天 LLM 将在 Phase 5 接入 LangChain4j。当前请使用 runId 查询账本。",
                     false);

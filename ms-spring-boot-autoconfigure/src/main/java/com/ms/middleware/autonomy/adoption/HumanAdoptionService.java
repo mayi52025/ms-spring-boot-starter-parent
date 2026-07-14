@@ -212,6 +212,9 @@ public class HumanAdoptionService {
     private String buildRecommendationMessage(String verb, AutonomyRecommendation rec, AdoptionRequest request) {
         StringBuilder sb = new StringBuilder();
         sb.append(verb).append("「").append(rec.getTitle()).append("」");
+        if ("采纳推荐".equals(verb)) {
+            sb.append("，未实际修改配置");
+        }
         if (rec.getSuggestedConfig() != null && !rec.getSuggestedConfig().isBlank()) {
             sb.append("，配置项 ").append(rec.getSuggestedConfig());
         }
