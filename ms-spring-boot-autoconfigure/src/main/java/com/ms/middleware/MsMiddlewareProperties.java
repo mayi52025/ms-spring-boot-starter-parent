@@ -1276,6 +1276,11 @@ public class MsMiddlewareProperties {
         private boolean enabled = false;
         private String basePath = "/ms-console";
         private boolean chatEnabled = false;
+        /**
+         * 控制台 API 共享密钥；非空时启用鉴权（Header X-MS-Console-Token 或 ?token=）。
+         * 本地 Demo 留空即可。
+         */
+        private String authToken = "";
 
         public boolean isEnabled() {
             return enabled;
@@ -1299,6 +1304,14 @@ public class MsMiddlewareProperties {
 
         public void setChatEnabled(boolean chatEnabled) {
             this.chatEnabled = chatEnabled;
+        }
+
+        public String getAuthToken() {
+            return authToken;
+        }
+
+        public void setAuthToken(String authToken) {
+            this.authToken = authToken;
         }
     }
 }

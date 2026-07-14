@@ -1,7 +1,9 @@
 package com.ms.middleware.console.api;
 
+import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.autonomy.insight.FailedMessageTraceView;
 import com.ms.middleware.autonomy.insight.MiddlewareInsightService;
+import com.ms.middleware.console.auth.ConsoleAuthSupport;
 import com.ms.middleware.console.chat.ConsoleChatService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,6 +31,10 @@ class AutonomyConsoleControllerTracesTest {
     private MiddlewareInsightService insightService;
     @Mock
     private ConsoleChatService chatService;
+    @Mock
+    private MsMiddlewareProperties properties;
+    @Mock
+    private ConsoleAuthSupport consoleAuthSupport;
 
     @InjectMocks
     private AutonomyConsoleController controller;
@@ -50,5 +56,18 @@ class AutonomyConsoleControllerTracesTest {
                 .andExpect(jsonPath("$.count").value(1))
                 .andExpect(jsonPath("$.traces[0].messageId").value("abc-12345678"))
                 .andExpect(jsonPath("$.traces[0].queue").value("order-created"));
+    }
+
+    @Test
+    void authStatusEndpointReportsRequiredFlag() throws Exception {
+        MsMiddlewareProperties.ConsoleProperties console = new MsMiddlewareProperties.ConsoleProperties();
+        when(properties.getConsole()).thenReturn(console);
+        when(consoleAuthSupport.isAuthRequired(console)).thenReturn(true);
+
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+        mockMvc.perform(get("/ms-console/api/auth/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.authRequired").value(true));
     }
 }

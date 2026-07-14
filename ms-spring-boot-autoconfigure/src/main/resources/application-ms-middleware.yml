@@ -99,6 +99,7 @@ ms:
       enabled: false
       base-path: /ms-console
       chat-enabled: false
+      # auth-token: ""   # 非空时启用控制台 API 鉴权（Header X-MS-Console-Token 或 ?token=）
     # Redis配置
     redis:
       # 主机

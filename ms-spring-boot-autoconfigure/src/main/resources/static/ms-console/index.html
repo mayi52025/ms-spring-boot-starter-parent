@@ -56,18 +56,36 @@
     #chatLog { max-height: 120px; overflow: auto; font-size: 0.85rem; margin-bottom: 8px; }
     .status { font-size: 0.8rem; color: var(--muted); }
     .status.ok { color: var(--ok); }
+    #authLoginBtn { font-size: 0.8rem; color: var(--text); background: #2a3548; border: 1px solid #3d4f66; border-radius: 6px; padding: 6px 10px; cursor: pointer; margin-left: 8px; }
+    #authLoginBtn:hover { background: #354560; }
     .issue-card.history { opacity: 0.85; border-left: 3px solid var(--ok); }
     .healthy-banner { background: rgba(34,197,94,.12); border: 1px solid var(--ok); border-radius: 8px; padding: 12px; margin-bottom: 12px; color: var(--ok); font-size: 0.9rem; }
     .war-banner { background: rgba(245,158,11,.15); border: 1px solid var(--warn); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.9rem; }
     .war-banner strong { color: var(--warn); }
     .rec-section-collapsed details { margin-top: 8px; }
     .rec-section-collapsed summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+    .auth-gate { position: fixed; inset: 0; background: rgba(15,20,25,.92); display: none; align-items: center; justify-content: center; z-index: 1000; }
+    .auth-gate.show { display: flex; }
+    .auth-card { background: var(--panel); border: 1px solid #2a3548; border-radius: 12px; padding: 24px; width: min(420px, 90vw); }
+    .auth-card h2 { margin: 0 0 8px; font-size: 1rem; color: var(--text); text-transform: none; letter-spacing: 0; }
+    .auth-card p { margin: 0 0 16px; color: var(--muted); font-size: 0.85rem; }
+    #tokenInput { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #2a3548; background: #0f1419; color: var(--text); margin-bottom: 12px; }
+    #tokenSubmit { width: 100%; }
   </style>
 </head>
 <body>
+<div id="authGate" class="auth-gate">
+  <div class="auth-card">
+    <h2>控制台鉴权</h2>
+    <p>请输入运维 token（对应配置 ms.middleware.console.auth-token）</p>
+    <input id="tokenInput" type="password" placeholder="X-MS-Console-Token"/>
+    <button type="button" id="tokenSubmit">进入控制台</button>
+  </div>
+</div>
 <header>
   <h1>MS 智能中间件控制台</h1>
   <span class="status" id="sseStatus">SSE 连接中…</span>
+  <button type="button" id="authLoginBtn" title="输入 ms.middleware.console.auth-token">Token 登录</button>
 </header>
 <main>
   <section class="panel">
@@ -94,8 +112,106 @@
 <script>
   const base = window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') || '/ms-console';
   const api = base + '/api';
+  const TOKEN_KEY = 'msConsoleToken';
+  let consoleToken = sessionStorage.getItem(TOKEN_KEY) || '';
+  let authRequired = false;
+  let sseSource = null;
   let selectedRunId = null;
   let viewingHistory = false;
+
+  function showAuthGate(message) {
+    const gate = document.getElementById('authGate');
+    gate.classList.add('show');
+    if (message) {
+      gate.querySelector('p').textContent = message;
+    }
+  }
+
+  function hideAuthGate() {
+    document.getElementById('authGate').classList.remove('show');
+  }
+
+  async function apiFetch(url, options = {}) {
+    const headers = Object.assign({}, options.headers || {});
+    if (consoleToken) {
+      headers['X-MS-Console-Token'] = consoleToken;
+    }
+    if (options.body && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    const res = await fetch(url, Object.assign({}, options, { headers }));
+    if (res.status === 401) {
+      authRequired = true;
+      sessionStorage.removeItem(TOKEN_KEY);
+      consoleToken = '';
+      showAuthGate('需要控制台 token（请在上方弹窗输入，不是底部「对话」框）。Demo 默认：demo-secret');
+      throw new Error('Unauthorized');
+    }
+    return res;
+  }
+
+  function streamUrl() {
+    let url = api + '/stream';
+    if (consoleToken) {
+      url += '?token=' + encodeURIComponent(consoleToken);
+    }
+    return url;
+  }
+
+  async function bootstrap() {
+    try {
+      const statusRes = await fetch(api + '/auth/status');
+      if (statusRes.ok) {
+        const status = await statusRes.json().catch(() => ({}));
+        authRequired = !!status.authRequired;
+      } else if (statusRes.status === 404) {
+        authRequired = false;
+        document.getElementById('sseStatus').textContent = '旧版 starter（无鉴权 API），请 reinstall 后重启';
+        document.getElementById('sseStatus').style.color = '#f59e0b';
+      } else {
+        throw new Error('HTTP ' + statusRes.status);
+      }
+      if (authRequired && !consoleToken) {
+        showAuthGate('请输入运维 token（Demo 默认 demo-secret）');
+        return;
+      }
+      hideAuthGate();
+      startConsole();
+    } catch (err) {
+      document.getElementById('issues').innerHTML =
+        `<p style="color:#f59e0b">无法连接控制台 API：${err.message}</p>`;
+    }
+  }
+
+  function startConsole() {
+    loadIssues();
+    loadHistory();
+    connectSse();
+    if (!window.consolePollStarted) {
+      window.consolePollStarted = true;
+      setInterval(() => { loadIssues(); loadHistory(); }, 10000);
+    }
+  }
+
+  document.getElementById('tokenSubmit').onclick = () => {
+    const val = document.getElementById('tokenInput').value.trim();
+    if (!val) return;
+    consoleToken = val;
+    sessionStorage.setItem(TOKEN_KEY, val);
+    hideAuthGate();
+    if (sseSource) {
+      sseSource.close();
+      sseSource = null;
+    }
+    startConsole();
+  };
+  document.getElementById('authLoginBtn').onclick = () => {
+    document.getElementById('tokenInput').value = consoleToken;
+    showAuthGate('请输入或更新控制台 token（不是底部「对话」）');
+  };
+  document.getElementById('tokenInput').onkeydown = e => {
+    if (e.key === 'Enter') document.getElementById('tokenSubmit').click();
+  };
 
   function showHealthyView() {
     document.getElementById('timeline').innerHTML =
@@ -159,7 +275,7 @@
   async function loadIssues() {
     const el = document.getElementById('issues');
     try {
-      const res = await fetch(api + '/issues');
+      const res = await apiFetch(api + '/issues');
       if (!res.ok) {
         el.innerHTML = `<p style="color:#f59e0b">加载失败 HTTP ${res.status}，请确认已重启 order-system 并 reinstall starter</p>`;
         return;
@@ -188,7 +304,7 @@
   async function loadHistory() {
     const el = document.getElementById('history');
     try {
-      const res = await fetch(api + '/history');
+      const res = await apiFetch(api + '/history');
       if (!res.ok) {
         el.innerHTML = `<p style="color:#f59e0b">加载失败 HTTP ${res.status}</p>`;
         return;
@@ -225,9 +341,8 @@
 
   async function adoptRecommendation(recommendationId, runId, accept) {
     const path = accept ? 'accept' : 'reject';
-    const res = await fetch(api + '/recommendations/' + recommendationId + '/' + path, {
+    const res = await apiFetch(api + '/recommendations/' + recommendationId + '/' + path, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ runId, operator: 'console' })
     });
     const data = await res.json().catch(() => ({}));
@@ -239,9 +354,8 @@
   }
 
   async function adoptAdvisedAction(runId, rank) {
-    const res = await fetch(api + '/runs/' + runId + '/actions/' + rank + '/accept', {
+    const res = await apiFetch(api + '/runs/' + runId + '/actions/' + rank + '/accept', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ operator: 'console' })
     });
     const data = await res.json().catch(() => ({}));
@@ -254,7 +368,7 @@
 
   async function loadFailedTraces(limit = 10) {
     try {
-      const res = await fetch(api + '/traces/failed?limit=' + limit);
+      const res = await apiFetch(api + '/traces/failed?limit=' + limit);
       if (!res.ok) return [];
       const data = await res.json();
       return data.traces || [];
@@ -378,7 +492,7 @@
       document.querySelectorAll('.issue-card:not(.history-card)').forEach(c => c.classList.toggle('active', c.dataset.run === runId));
       document.querySelectorAll('.history-card').forEach(c => c.classList.remove('active'));
     }
-    const res = await fetch(api + '/runs/' + runId);
+    const res = await apiFetch(api + '/runs/' + runId);
     if (!res.ok) return;
     const run = await res.json();
     renderTimeline(run);
@@ -393,7 +507,11 @@
   }
 
   function connectSse() {
-    const es = new EventSource(api + '/stream');
+    if (sseSource) {
+      sseSource.close();
+    }
+    const es = new EventSource(streamUrl());
+    sseSource = es;
     es.addEventListener('connected', () => {
       document.getElementById('sseStatus').textContent = 'SSE 已连接';
       document.getElementById('sseStatus').classList.add('ok');
@@ -429,9 +547,8 @@
     const log = document.getElementById('chatLog');
     log.innerHTML += `<div><b>你：</b>${msg}</div>`;
     try {
-      const res = await fetch(api + '/chat', {
+      const res = await apiFetch(api + '/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: msg, runId: selectedRunId })
       });
       const data = await res.json().catch(() => ({}));
@@ -446,10 +563,7 @@
 
   document.getElementById('sendBtn').onclick = sendChat;
   document.getElementById('chatInput').onkeydown = e => { if (e.key === 'Enter') sendChat(); };
-  loadIssues();
-  loadHistory();
-  connectSse();
-  setInterval(() => { loadIssues(); loadHistory(); }, 10000);
+  bootstrap();
 </script>
 </body>
 </html>

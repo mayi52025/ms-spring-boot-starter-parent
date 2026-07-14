@@ -143,7 +143,30 @@ Invoke-RestMethod http://localhost:8080/ms-console/api/issues
 也可 PowerShell 直接查：
 
 ```powershell
-Invoke-RestMethod "http://localhost:8080/ms-console/api/traces/failed?limit=10"
+$h = @{ "X-MS-Console-Token" = "demo-secret" }
+Invoke-RestMethod -Uri "http://localhost:8080/ms-console/api/traces/failed?limit=10" -Headers $h
+```
+
+### 控制台鉴权（Phase 4 Step 3）
+
+`order-system` 已预置 `auth-token: demo-secret`（见 `application.yml`）。生产环境请改为强密钥：
+
+```yaml
+ms:
+  middleware:
+    console:
+      auth-token: "your-console-secret"   # 非空即启用
+```
+
+- Header：`X-MS-Console-Token: demo-secret`
+- SSE / curl：`?token=demo-secret`
+- 浏览器：首次打开 `/ms-console` 会弹出 token 输入框（存 sessionStorage，填 `demo-secret`）
+- 探测：`GET /ms-console/api/auth/status` → `{ "authRequired": true/false }`
+
+```powershell
+# 带 token 访问 API
+$h = @{ "X-MS-Console-Token" = "demo-secret" }
+Invoke-RestMethod -Uri http://localhost:8080/ms-console/api/issues -Headers $h
 ```
 
 ---

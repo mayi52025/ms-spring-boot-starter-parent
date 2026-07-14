@@ -332,7 +332,7 @@ demo.chaos.mq-fail.enabled: false  # 故障注入演示，生产务必 false
 | Step 0 | 恢复证据契约与模型字段 | ✅ 已完成 | 0.5d |
 | Step 1 | STABLE 恢复依据（recoveryEvidence） | ✅ 已完成 | 1d |
 | Step 2 | 失败 Trace 列表 API + 控制台 | ✅ 已完成 | 1d |
-| Step 3 | 控制台鉴权（auth-token） | 待做 | 1d |
+| Step 3 | 控制台鉴权（auth-token） | ✅ 已完成 | 1d |
 | Step 4 | 采纳语义澄清 + chat 配置重命名 | 待做 | 0.5d |
 | Step 5 | 多实例分布式编排锁 | 待做 | 1～1.5d |
 | Step 6 | Tenant 多应用隔离验收 | 待做 | 0.5d |
@@ -404,7 +404,7 @@ demo.chaos.mq-fail.enabled: false  # 故障注入演示，生产务必 false
 
 ---
 
-#### Step 3 — 控制台鉴权（待做）
+#### Step 3 — 控制台鉴权（✅ 已完成）
 
 **解决什么：** `/ms-console/**` 当前 permitAll，不能上生产。
 
@@ -516,7 +516,7 @@ ms:
 
 - [x] MQ 演示：STABLE 时间线可见 `5→0` 类恢复依据
 - [x] 控制台可查最近失败 messageId，不必翻 IDEA 日志
-- [ ] 配置 auth-token 后无 token 无法访问 API/SSE
+- [x] 配置 auth-token 后无 token 无法访问 API/SSE
 - [ ] 两实例 order-system 仅一个实例执行 AUTO（Step 5 开启时）
 - [ ] 自治相关单测全绿 + 金路径覆盖 recoveryEvidence
 

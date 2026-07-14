@@ -1,8 +1,10 @@
 package com.ms.middleware.console.api;
 
+import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.autonomy.insight.FailedMessageTraceView;
 import com.ms.middleware.autonomy.insight.MiddlewareInsightService;
 import com.ms.middleware.autonomy.run.AutonomyRun;
+import com.ms.middleware.console.auth.ConsoleAuthSupport;
 import com.ms.middleware.console.chat.ConsoleChatService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,11 +29,25 @@ public class AutonomyConsoleController {
 
     private final MiddlewareInsightService insightService;
     private final ConsoleChatService chatService;
+    private final MsMiddlewareProperties properties;
+    private final ConsoleAuthSupport consoleAuthSupport;
 
     public AutonomyConsoleController(MiddlewareInsightService insightService,
-                                     ConsoleChatService chatService) {
+                                     ConsoleChatService chatService,
+                                     MsMiddlewareProperties properties,
+                                     ConsoleAuthSupport consoleAuthSupport) {
         this.insightService = insightService;
         this.chatService = chatService;
+        this.properties = properties;
+        this.consoleAuthSupport = consoleAuthSupport;
+    }
+
+    /** 鉴权状态探测（无需 token），供静态页决定是否弹出登录 */
+    @GetMapping("/auth/status")
+    public Map<String, Object> authStatus() {
+        Map<String, Object> body = new HashMap<>();
+        body.put("authRequired", consoleAuthSupport.isAuthRequired(properties.getConsole()));
+        return body;
     }
 
     @GetMapping("/runs")
