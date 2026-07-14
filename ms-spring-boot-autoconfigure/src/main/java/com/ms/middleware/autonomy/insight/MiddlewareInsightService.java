@@ -21,6 +21,11 @@ public interface MiddlewareInsightService {
 
     Optional<MessageTrace> getTrace(String messageId);
 
+    /**
+     * 列出近期消费失败且尚未调度延迟重试的 MQ trace，供控制台排障。
+     */
+    List<FailedMessageTraceView> listFailedTraces(int limit);
+
     MiddlewareMetricsSnapshot getMetrics();
 
     /**

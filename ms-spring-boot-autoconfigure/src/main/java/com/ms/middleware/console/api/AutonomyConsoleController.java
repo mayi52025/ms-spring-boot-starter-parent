@@ -1,5 +1,6 @@
 package com.ms.middleware.console.api;
 
+import com.ms.middleware.autonomy.insight.FailedMessageTraceView;
 import com.ms.middleware.autonomy.insight.MiddlewareInsightService;
 import com.ms.middleware.autonomy.run.AutonomyRun;
 import com.ms.middleware.console.chat.ConsoleChatService;
@@ -9,6 +10,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
@@ -73,6 +75,18 @@ public class AutonomyConsoleController {
         body.put("activeRunCount", snapshot.getActiveRunCount());
         body.put("lastMttrSeconds", snapshot.getLastMttrSeconds());
         body.put("completedAutonomyRuns", snapshot.getCompletedAutonomyRuns());
+        return body;
+    }
+
+    /**
+     * 近期消费失败的 MQ trace 列表，供控制台复制 messageId 排障。
+     */
+    @GetMapping("/traces/failed")
+    public Map<String, Object> failedTraces(@RequestParam(defaultValue = "20") int limit) {
+        List<FailedMessageTraceView> traces = insightService.listFailedTraces(limit);
+        Map<String, Object> body = new HashMap<>();
+        body.put("count", traces.size());
+        body.put("traces", traces);
         return body;
     }
 

@@ -1,5 +1,6 @@
 package com.ms.middleware.autonomy.insight.tool;
 
+import com.ms.middleware.autonomy.insight.FailedMessageTraceView;
 import com.ms.middleware.autonomy.insight.MiddlewareInsightService;
 import com.ms.middleware.autonomy.insight.MiddlewareMetricsSnapshot;
 import com.ms.middleware.autonomy.run.AutonomyRun;
@@ -63,6 +64,28 @@ public class DefaultMiddlewareInsightTool implements MiddlewareInsightTool {
         return insightService.getTrace(messageId)
                 .map(this::formatTrace)
                 .orElse("未找到 messageId: " + messageId);
+    }
+
+    @Override
+    public String listRecentFailedTraces(int limit) {
+        int safeLimit = limit > 0 ? limit : 10;
+        var traces = insightService.listFailedTraces(safeLimit);
+        if (traces.isEmpty()) {
+            return "当前没有记录到消费失败的消息（内存 Trace，重启后清空）。";
+        }
+        StringBuilder sb = new StringBuilder("最近消费失败消息（最多 " + traces.size() + " 条）：\n");
+        for (FailedMessageTraceView trace : traces) {
+            sb.append("- messageId=").append(trace.getMessageId());
+            if (trace.getQueue() != null) {
+                sb.append(" queue=").append(trace.getQueue());
+            }
+            if (trace.getErrorMessage() != null) {
+                sb.append(" error=").append(trace.getErrorMessage());
+            }
+            sb.append("\n");
+        }
+        sb.append("可复制 messageId，在对话输入：trace <messageId>");
+        return sb.toString();
     }
 
     @Override

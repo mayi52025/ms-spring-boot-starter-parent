@@ -33,6 +33,11 @@
     .recovery-evidence .rule { color: var(--muted); font-size: 0.75rem; margin-top: 6px; }
     .recovery-metric { display: flex; gap: 8px; margin-top: 4px; font-family: ui-monospace, monospace; font-size: 0.8rem; }
     .recovery-metric .label { color: var(--muted); min-width: 120px; }
+    .failed-traces { background: #1a2438; border-left: 3px solid #6366f1; border-radius: 8px; padding: 10px; margin: 12px 0; font-size: 0.85rem; }
+    .failed-trace-item { padding: 8px 0; border-bottom: 1px solid #2a3548; font-family: ui-monospace, monospace; font-size: 0.78rem; }
+    .failed-trace-item:last-child { border-bottom: none; }
+    .btn-copy, .btn-trace { padding: 3px 8px; font-size: 0.72rem; border-radius: 5px; margin-right: 6px; background: #334155; color: #e7ecf3; border: none; cursor: pointer; }
+    .btn-trace { background: var(--accent); }
     .rec { background: #1e2a3d; border-left: 3px solid var(--warn); padding: 8px; margin: 8px 0; border-radius: 4px; font-size: 0.85rem; }
     .rec.accepted { border-left-color: var(--ok); opacity: 0.85; }
     .rec.rejected { border-left-color: #64748b; opacity: 0.7; }
@@ -72,6 +77,7 @@
   <section class="panel">
     <h2>自治时间线</h2>
     <div id="timeline">选择左侧事件或等待新事件…</div>
+    <div id="failedTraces"></div>
     <div id="recommendations"></div>
   </section>
   <section class="panel">
@@ -96,6 +102,7 @@
       '<div class="healthy-banner"><strong>系统正常</strong> · 中间件运行正常，暂无活跃故障</div>' +
       '<p style="color:var(--muted)">可在右侧「历史记录」查看已恢复的故障事件。</p>';
     document.getElementById('recommendations').innerHTML = '';
+    document.getElementById('failedTraces').innerHTML = '';
     selectedRunId = null;
     viewingHistory = false;
     document.querySelectorAll('.issue-card').forEach(c => c.classList.remove('active'));
@@ -245,6 +252,50 @@
     await selectRun(runId, viewingHistory);
   }
 
+  async function loadFailedTraces(limit = 10) {
+    try {
+      const res = await fetch(api + '/traces/failed?limit=' + limit);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.traces || [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function renderFailedTraces(traces, show) {
+    const el = document.getElementById('failedTraces');
+    if (!show || !traces.length) {
+      el.innerHTML = '';
+      return;
+    }
+    let html = '<div class="failed-traces"><h2 style="margin:0 0 8px">最近失败消息</h2>';
+    html += '<p class="section-hint" style="margin:0 0 8px">无需翻日志，可复制 messageId 或在对话输入 trace &lt;id&gt;</p>';
+    html += traces.map(t => `
+      <div class="failed-trace-item">
+        <div><strong>${t.messageId}</strong>${t.queue ? ' · ' + t.queue : ''}</div>
+        <div style="color:var(--muted);margin-top:4px">${t.errorMessage || '—'}</div>
+        <div style="margin-top:6px">
+          <button type="button" class="btn-copy" data-id="${t.messageId}">复制 ID</button>
+          <button type="button" class="btn-trace" data-id="${t.messageId}">查 Trace</button>
+        </div>
+      </div>`).join('');
+    html += '</div>';
+    el.innerHTML = html;
+    el.querySelectorAll('.btn-copy').forEach(btn => {
+      btn.onclick = () => navigator.clipboard.writeText(btn.dataset.id).catch(() => alert(btn.dataset.id));
+    });
+    el.querySelectorAll('.btn-trace').forEach(btn => {
+      btn.onclick = () => queryTraceInChat(btn.dataset.id);
+    });
+  }
+
+  async function queryTraceInChat(messageId) {
+    const input = document.getElementById('chatInput');
+    input.value = 'trace ' + messageId;
+    await sendChat();
+  }
+
   function renderRecommendations(run) {
     const rec = document.getElementById('recommendations');
     const recs = run.plan && run.plan.recommendations ? run.plan.recommendations : [];
@@ -331,6 +382,13 @@
     if (!res.ok) return;
     const run = await res.json();
     renderTimeline(run);
+    const isWartime = run.status === 'EXECUTING' || run.status === 'PLANNED' || run.status === 'DETECTED';
+    if (isWartime) {
+      const traces = await loadFailedTraces(10);
+      renderFailedTraces(traces, true);
+    } else {
+      renderFailedTraces([], false);
+    }
     renderRecommendations(run);
   }
 

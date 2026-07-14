@@ -65,6 +65,14 @@ public class DefaultMiddlewareInsightService implements MiddlewareInsightService
     }
 
     @Override
+    public List<FailedMessageTraceView> listFailedTraces(int limit) {
+        int safeLimit = limit > 0 ? Math.min(limit, 100) : 20;
+        return MessageTraceManager.getInstance().listFailedTraces(safeLimit).stream()
+                .map(this::toFailedView)
+                .toList();
+    }
+
+    @Override
     public MiddlewareMetricsSnapshot getMetrics() {
         MiddlewareMetricsSnapshot snapshot = new MiddlewareMetricsSnapshot();
         snapshot.setCacheHitRate(metrics.getCacheHitRate());
@@ -97,5 +105,15 @@ public class DefaultMiddlewareInsightService implements MiddlewareInsightService
         }
         return run.getIssues().stream()
                 .anyMatch(issue -> issue.toUpperCase(Locale.ROOT).contains(normalized));
+    }
+
+    private FailedMessageTraceView toFailedView(MessageTrace trace) {
+        FailedMessageTraceView view = new FailedMessageTraceView();
+        view.setMessageId(trace.getMessageId());
+        view.setQueue(trace.getQueue());
+        view.setErrorMessage(trace.getErrorMessage());
+        view.setProcessTimeMs(trace.getProcessTimeMs());
+        view.setProcessTime(trace.getProcessTime());
+        return view;
     }
 }

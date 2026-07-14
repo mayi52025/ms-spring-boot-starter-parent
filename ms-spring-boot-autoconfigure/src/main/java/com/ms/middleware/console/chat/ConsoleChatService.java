@@ -22,7 +22,7 @@ public class ConsoleChatService {
 
     /**
      * 规则模式聊天：按关键词路由到 Insight Tool。
-     * 支持：runId 详情 / 「问题」「故障」/ 「最近」「run」/ 「指标」「metric」/ messageId 追踪
+     * 支持：runId 详情 / 「问题」「故障」/ 「最近失败」/ 「最近」「run」/ 「指标」「metric」/ messageId 追踪
      */
     public ConsoleChatResponse chat(String message, String runId) {
         if (properties.getConsole().isChatEnabled()) {
@@ -41,6 +41,11 @@ public class ConsoleChatService {
             return new ConsoleChatResponse(insightTool.listActiveIssues(), false);
         }
 
+        if (normalized.contains("最近失败") || normalized.contains("失败消息")
+                || normalized.contains("failed trace") || normalized.contains("failed traces")) {
+            return new ConsoleChatResponse(insightTool.listRecentFailedTraces(10), false);
+        }
+
         if (normalized.contains("最近") || normalized.contains("run")) {
             return new ConsoleChatResponse(insightTool.describeRecentRuns(5), false);
         }
@@ -57,7 +62,7 @@ public class ConsoleChatService {
         }
 
         return new ConsoleChatResponse(
-                "我是 ms 中间件控制台助手（规则模式）。可问：「当前有什么问题」「最近 run」「指标」「trace <messageId>」「提供 runId 查详情」。",
+                "我是 ms 中间件控制台助手（规则模式）。可问：「当前有什么问题」「最近 run」「最近失败」「指标」「trace <messageId>」「提供 runId 查详情」。",
                 false);
     }
 

@@ -1,5 +1,6 @@
 package com.ms.middleware.autonomy.insight.tool;
 
+import com.ms.middleware.autonomy.insight.FailedMessageTraceView;
 import com.ms.middleware.autonomy.insight.MiddlewareInsightService;
 import com.ms.middleware.autonomy.insight.MiddlewareMetricsSnapshot;
 import com.ms.middleware.autonomy.run.AutonomyRun;
@@ -57,5 +58,21 @@ class DefaultMiddlewareInsightToolTest {
 
         DefaultMiddlewareInsightTool tool = new DefaultMiddlewareInsightTool(insightService);
         assertTrue(tool.describeRecentRuns(3).contains("abc12345"));
+    }
+
+    @Test
+    void listRecentFailedTracesFormatsMessageIds() {
+        FailedMessageTraceView view = new FailedMessageTraceView();
+        view.setMessageId("msg-trace-001");
+        view.setQueue("order-created");
+        view.setErrorMessage("intentional failure");
+        when(insightService.listFailedTraces(5)).thenReturn(List.of(view));
+
+        DefaultMiddlewareInsightTool tool = new DefaultMiddlewareInsightTool(insightService);
+        String text = tool.listRecentFailedTraces(5);
+
+        assertTrue(text.contains("msg-trace-001"));
+        assertTrue(text.contains("order-created"));
+        assertTrue(text.contains("trace <messageId>"));
     }
 }

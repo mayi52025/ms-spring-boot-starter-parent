@@ -31,6 +31,11 @@ public interface MiddlewareInsightTool {
     String searchTrace(String messageId);
 
     /**
+     * 列出最近消费失败的 messageId 摘要（文本，供规则聊天）。
+     */
+    String listRecentFailedTraces(int limit);
+
+    /**
      * 返回最近若干条自治 run 摘要。
      */
     String describeRecentRuns(int limit);

@@ -129,7 +129,22 @@ Invoke-RestMethod http://localhost:8080/ms-console/api/issues
 控制台聊天输入：
 
 - `指标` → 返回命中率、MQ 失败、MTTR、已完成自治数
-- `trace <messageId>` → 查询失败消息追踪
+- `最近失败` / `failed traces` → 列出内存中最近消费失败的 messageId
+- `trace <messageId>` → 查询单条失败消息追踪
+
+### 失败 Trace 列表（Phase 4 Step 2）
+
+战时态（`EXECUTING`）时，时间线下方自动展示 **「最近失败消息」**：
+
+- API：`GET /ms-console/api/traces/failed?limit=20`
+- 支持 **复制 messageId**、**查 Trace**（自动填入对话）
+- 数据来自 JVM 内存 `MessageTraceManager`（重启清空，与滑动窗口一致）
+
+也可 PowerShell 直接查：
+
+```powershell
+Invoke-RestMethod "http://localhost:8080/ms-console/api/traces/failed?limit=10"
+```
 
 ---
 
