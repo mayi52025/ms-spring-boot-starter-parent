@@ -319,7 +319,7 @@ demo.chaos.mq-fail.enabled: false  # 故障注入演示，生产务必 false
 
 
 
-### Phase 4 — 生产就绪：可验证结案 + 可操作排障 + 安全 + 多实例（进行中）
+### Phase 4 — 生产就绪：可验证结案 + 可操作排障 + 安全 + 多实例（✅ 已完成）
 
 **目标：** 让用户一眼看懂「问题真的好了」；排障不依赖翻日志；控制台可上线；多实例不重复 AUTO。
 
@@ -523,8 +523,8 @@ ms:
 - [x] MQ 演示：STABLE 时间线可见 `5→0` 类恢复依据
 - [x] 控制台可查最近失败 messageId，不必翻 IDEA 日志
 - [x] 配置 auth-token 后无 token 无法访问 API/SSE
-- [ ] 两实例 order-system 仅一个实例执行 AUTO（Step 5 开启时）
-- [ ] 自治相关单测全绿 + 金路径覆盖 recoveryEvidence
+- [x] 两实例 order-system 同 Redis 时 tick 互斥（`RedissonAutonomyTickLockDualInstanceIT` + 双实例 8080/8081 启分布式锁实测）
+- [x] 自治相关单测全绿 + 金路径覆盖 recoveryEvidence
 
 ---
 
