@@ -32,6 +32,12 @@ public class AutonomyRecommendation {
     private String operator;
     /** 拒绝时的原因（采纳时为 null） */
     private String rejectReason;
+    /** nacos-draft 模式：草稿 ID，默认与 recommendationId 一致 */
+    private String draftId;
+    /** nacos-draft 模式：配置 diff 摘要，供控制台展示 */
+    private String diffSummary;
+    /** nacos-draft 模式：是否已二次确认发布到生产 dataId */
+    private boolean nacosPublished;
 
     public AutonomyRecommendation() {
         assignRecommendationIdIfAbsent();
@@ -122,5 +128,29 @@ public class AutonomyRecommendation {
 
     public void setRejectReason(String rejectReason) {
         this.rejectReason = rejectReason;
+    }
+
+    public String getDraftId() {
+        return draftId;
+    }
+
+    public void setDraftId(String draftId) {
+        this.draftId = draftId;
+    }
+
+    public String getDiffSummary() {
+        return diffSummary;
+    }
+
+    public void setDiffSummary(String diffSummary) {
+        this.diffSummary = diffSummary;
+    }
+
+    public boolean isNacosPublished() {
+        return nacosPublished;
+    }
+
+    public void setNacosPublished(boolean nacosPublished) {
+        this.nacosPublished = nacosPublished;
     }
 }

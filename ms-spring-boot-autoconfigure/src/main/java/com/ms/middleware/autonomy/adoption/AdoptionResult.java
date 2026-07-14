@@ -16,6 +16,12 @@ public class AdoptionResult {
     private RecommendationStatus status;
     /** 人工采纳备选动作时返回（rank≥2 的 ADVISE 动作） */
     private Integer actionRank;
+    /** nacos-draft：草稿 ID */
+    private String draftId;
+    /** nacos-draft：diff 摘要 */
+    private String diffSummary;
+    /** nacos-draft：是否已发布生产 */
+    private Boolean nacosPublished;
 
     public static AdoptionResult ok(String runId, String recommendationId, RecommendationStatus status, String message) {
         AdoptionResult r = new AdoptionResult();
@@ -43,6 +49,31 @@ public class AdoptionResult {
         AdoptionResult r = ok(runId, recommendationId, status, message);
         r.code = status == RecommendationStatus.ACCEPTED ? "ALREADY_ACCEPTED" : "ALREADY_REJECTED";
         return r;
+    }
+
+    /** nacos-draft 二次发布成功 */
+    public static AdoptionResult publishOk(String runId, String recommendationId, String draftId,
+                                           String diffSummary, String message) {
+        AdoptionResult r = ok(runId, recommendationId, RecommendationStatus.ACCEPTED, message);
+        r.draftId = draftId;
+        r.diffSummary = diffSummary;
+        r.nacosPublished = true;
+        return r;
+    }
+
+    /** 已发布，幂等 */
+    public static AdoptionResult alreadyPublished(String runId, String recommendationId,
+                                                  String draftId, String message) {
+        AdoptionResult r = publishOk(runId, recommendationId, draftId, null, message);
+        r.code = "ALREADY_PUBLISHED";
+        return r;
+    }
+
+    public static AdoptionResult withDraft(AdoptionResult base, String draftId, String diffSummary) {
+        base.draftId = draftId;
+        base.diffSummary = diffSummary;
+        base.nacosPublished = false;
+        return base;
     }
 
     public static AdoptionResult fail(String code, String message) {
@@ -107,5 +138,29 @@ public class AdoptionResult {
 
     public void setActionRank(Integer actionRank) {
         this.actionRank = actionRank;
+    }
+
+    public String getDraftId() {
+        return draftId;
+    }
+
+    public void setDraftId(String draftId) {
+        this.draftId = draftId;
+    }
+
+    public String getDiffSummary() {
+        return diffSummary;
+    }
+
+    public void setDiffSummary(String diffSummary) {
+        this.diffSummary = diffSummary;
+    }
+
+    public Boolean getNacosPublished() {
+        return nacosPublished;
+    }
+
+    public void setNacosPublished(Boolean nacosPublished) {
+        this.nacosPublished = nacosPublished;
     }
 }

@@ -68,6 +68,10 @@
     .badge-auto { background: rgba(34,197,94,.18); color: #86efac; border: 1px solid var(--ok); }
     .badge-manual { background: rgba(245,158,11,.18); color: #fcd34d; border: 1px solid var(--warn); }
     .badge-rejected { background: rgba(100,116,139,.25); color: #cbd5e1; border: 1px solid #64748b; }
+    .badge-published { background: rgba(34,197,94,.18); color: #86efac; border: 1px solid var(--ok); }
+    .badge-draft { background: rgba(59,130,246,.15); color: #93c5fd; border: 1px solid var(--accent); }
+    .config-diff { background: #0f1419; border: 1px solid #2a3548; border-radius: 6px; padding: 8px; margin-top: 8px; font-family: ui-monospace, monospace; font-size: 0.75rem; white-space: pre-wrap; color: #86efac; }
+    .btn-publish { background: #7c3aed; color: #fff; }
     .rec-section-collapsed details { margin-top: 8px; }
     .rec-section-collapsed summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
     .auth-gate { position: fixed; inset: 0; background: rgba(15,20,25,.92); display: none; align-items: center; justify-content: center; z-index: 1000; }
@@ -121,9 +125,18 @@
   const TOKEN_KEY = 'msConsoleToken';
   let consoleToken = sessionStorage.getItem(TOKEN_KEY) || '';
   let authRequired = false;
+  let adoptionMode = 'audit-only';
   let sseSource = null;
   let selectedRunId = null;
   let viewingHistory = false;
+
+  function escapeHtml(text) {
+    if (!text) return '';
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
 
   function showAuthGate(message) {
     const gate = document.getElementById('authGate');
@@ -170,6 +183,7 @@
       if (statusRes.ok) {
         const status = await statusRes.json().catch(() => ({}));
         authRequired = !!status.authRequired;
+        adoptionMode = status.adoptionMode || 'audit-only';
       } else if (statusRes.status === 404) {
         authRequired = false;
         document.getElementById('sseStatus').textContent = '旧版 starter（无鉴权 API），请 reinstall 后重启';
@@ -245,9 +259,18 @@
     return (run.issues || []).some(i => /MQ|消息|Rabbit/i.test(i));
   }
 
+  function isNacosDraftMode() {
+    return adoptionMode === 'nacos-draft';
+  }
+
   function timelinePhaseBadge(phase) {
     if (phase === 'ACCEPTED') {
-      return '<span class="badge badge-accepted">已记录采纳（未改配置）</span>';
+      return isNacosDraftMode()
+        ? '<span class="badge badge-draft">已生成配置草稿</span>'
+        : '<span class="badge badge-accepted">已记录采纳（未改配置）</span>';
+    }
+    if (phase === 'PUBLISH') {
+      return '<span class="badge badge-published">已确认发布 Nacos</span>';
     }
     if (phase === 'AUTO') {
       return '<span class="badge badge-auto">自动执行</span>';
@@ -262,9 +285,17 @@
     return `<div class="${cls}">${timelinePhaseBadge(e.phase)} ${e.at} — ${e.message}</div>`;
   }
 
-  function recommendationStatusBadge(status) {
+  function recommendationStatusBadge(status, rec) {
     if (status === 'ACCEPTED') {
-      return '<span class="badge badge-accepted">已记录采纳（未改配置）</span>';
+      if (isNacosDraftMode() && rec && rec.nacosPublished) {
+        return '<span class="badge badge-published">已发布 Nacos 配置</span>';
+      }
+      if (isNacosDraftMode() && rec && rec.draftId) {
+        return '<span class="badge badge-draft">草稿待发布</span>';
+      }
+      return isNacosDraftMode()
+        ? '<span class="badge badge-draft">已生成草稿</span>'
+        : '<span class="badge badge-accepted">已记录采纳（未改配置）</span>';
     }
     if (status === 'REJECTED') {
       return '<span class="badge badge-rejected">已拒绝</span>';
@@ -376,6 +407,19 @@
     await selectRun(runId, true);
   }
 
+  async function publishRecommendationDraft(recommendationId, runId) {
+    const res = await apiFetch(api + '/recommendations/' + recommendationId + '/publish', {
+      method: 'POST',
+      body: JSON.stringify({ runId, operator: 'console' })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok && !data.success) {
+      alert(data.message || '发布失败 HTTP ' + res.status);
+      return;
+    }
+    await selectRun(runId, viewingHistory);
+  }
+
   async function adoptRecommendation(recommendationId, runId, accept) {
     const path = accept ? 'accept' : 'reject';
     const res = await apiFetch(api + '/recommendations/' + recommendationId + '/' + path, {
@@ -452,6 +496,7 @@
     const recs = run.plan && run.plan.recommendations ? run.plan.recommendations : [];
     const actions = run.plan && run.plan.actions ? run.plan.actions : [];
     const isWartime = run.status === 'EXECUTING' || run.status === 'PLANNED' || run.status === 'DETECTED';
+    const nacosDraft = isNacosDraftMode();
     let html = '';
 
     const primary = actions.find(a => a.rank === 1);
@@ -491,22 +536,32 @@
       const recBody = recs.map(r => {
         const st = r.status || 'PENDING';
         const cls = st === 'ACCEPTED' ? 'rec accepted' : st === 'REJECTED' ? 'rec rejected' : 'rec';
-        const badge = recommendationStatusBadge(st);
+        const badge = recommendationStatusBadge(st, r);
+        const acceptLabel = nacosDraft ? '生成配置草稿' : '记录采纳';
+        const pendingHint = nacosDraft
+          ? '<p class="section-hint" style="margin:6px 0 0">采纳将生成 Nacos 草稿与 diff，不会直接改生产配置</p>'
+          : '<p class="section-hint" style="margin:6px 0 0">采纳仅记录审计，不会自动修改 Nacos/应用配置</p>';
         const btns = st === 'PENDING' ? `
           <div class="rec-actions">
-            <button type="button" class="btn-accept" data-rec="${r.recommendationId}" data-run="${run.runId}">记录采纳</button>
+            <button type="button" class="btn-accept" data-rec="${r.recommendationId}" data-run="${run.runId}">${acceptLabel}</button>
             <button type="button" class="btn-reject" data-rec="${r.recommendationId}" data-run="${run.runId}">拒绝</button>
-          </div>
-          <p class="section-hint" style="margin:6px 0 0">采纳仅记录审计，不会自动修改 Nacos/应用配置</p>` : '';
+          </div>${pendingHint}` : '';
+        const diffBlock = (st === 'ACCEPTED' && nacosDraft && r.diffSummary && !r.nacosPublished)
+          ? `<div class="config-diff">${escapeHtml(r.diffSummary)}</div>
+             <div class="rec-actions"><button type="button" class="btn-publish" data-rec="${r.recommendationId}" data-run="${run.runId}">确认发布到 Nacos</button></div>`
+          : '';
         return `<div class="${cls}"><strong>${r.title}</strong> ${badge}<br/>${r.description}
-        ${r.suggestedConfig ? '<br/><code>' + r.suggestedConfig + '</code>' : ''}${btns}</div>`;
+        ${r.suggestedConfig ? '<br/><code>' + escapeHtml(r.suggestedConfig) + '</code>' : ''}${btns}${diffBlock}</div>`;
       }).join('');
+      const sectionHint = nacosDraft
+        ? '战后复盘：配置级建议，「生成配置草稿」后展示 diff，须二次「确认发布」'
+        : '战后复盘：配置级建议，「记录采纳」仅审计，不自动改配置';
       if (isWartime) {
         html += '<div class="rec-section-collapsed"><h2 style="margin-top:12px">优化建议</h2>';
         html += '<p class="section-hint">战时默认折叠，不阻塞止血；恢复后可展开处理</p>';
         html += `<details><summary>展开 ${recs.length} 条配置建议</summary>${recBody}</details></div>`;
       } else {
-        html += '<h2 style="margin-top:12px">优化建议</h2><p class="section-hint">战后复盘：配置级建议，「记录采纳」仅审计，不自动改配置</p>';
+        html += '<h2 style="margin-top:12px">优化建议</h2><p class="section-hint">' + sectionHint + '</p>';
         html += recBody;
       }
     }
@@ -517,6 +572,9 @@
     });
     rec.querySelectorAll('.btn-reject').forEach(btn => {
       btn.onclick = () => adoptRecommendation(btn.dataset.rec, btn.dataset.run, false);
+    });
+    rec.querySelectorAll('.btn-publish').forEach(btn => {
+      btn.onclick = () => publishRecommendationDraft(btn.dataset.rec, btn.dataset.run);
     });
     rec.querySelectorAll('.btn-adopt').forEach(btn => {
       btn.onclick = () => adoptAdvisedAction(btn.dataset.run, parseInt(btn.dataset.rank, 10));

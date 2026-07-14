@@ -42,11 +42,12 @@ public class AutonomyConsoleController {
         this.consoleAuthSupport = consoleAuthSupport;
     }
 
-    /** 鉴权状态探测（无需 token），供静态页决定是否弹出登录 */
+    /** 鉴权状态与控制台能力探测（无需 token），供静态页决定是否弹出登录 */
     @GetMapping("/auth/status")
     public Map<String, Object> authStatus() {
         Map<String, Object> body = new HashMap<>();
         body.put("authRequired", consoleAuthSupport.isAuthRequired(properties.getConsole()));
+        body.put("adoptionMode", properties.getAutonomy().getAdoption().getMode());
         return body;
     }
 

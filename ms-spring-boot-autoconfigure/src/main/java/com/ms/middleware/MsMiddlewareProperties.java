@@ -1106,6 +1106,8 @@ public class MsMiddlewareProperties {
         private MqActuatorProperties mq = new MqActuatorProperties();
         /** 编排器：多实例 tick 分布式锁等 */
         private OrchestratorProperties orchestrator = new OrchestratorProperties();
+        /** 配置推荐采纳：audit-only 或 nacos-draft */
+        private AdoptionProperties adoption = new AdoptionProperties();
 
         public boolean isEnabled() {
             return enabled;
@@ -1201,6 +1203,67 @@ public class MsMiddlewareProperties {
 
         public void setOrchestrator(OrchestratorProperties orchestrator) {
             this.orchestrator = orchestrator;
+        }
+
+        public AdoptionProperties getAdoption() {
+            return adoption;
+        }
+
+        public void setAdoption(AdoptionProperties adoption) {
+            this.adoption = adoption;
+        }
+    }
+
+    /**
+     * 配置推荐采纳模式与 Nacos 草稿参数。
+     *
+     * <p>{@code mode=audit-only}（默认）仅写账本审计；
+     * {@code nacos-draft} 采纳时生成 draft dataId，须控制台二次「确认发布」才写入生产。</p>
+     */
+    public static class AdoptionProperties {
+        /** audit-only | nacos-draft */
+        private String mode = "audit-only";
+        /** Nacos draft / 生产配置的 group */
+        private String draftGroup = "DEFAULT_GROUP";
+        /** draft dataId 后缀，完整为 {@code {appName}{suffix}-{recommendationId}.yaml} */
+        private String draftDataIdSuffix = "-autonomy-draft";
+        /** 生产 dataId 后缀，完整为 {@code {appName}{suffix}}，默认 .yaml */
+        private String productionDataIdSuffix = ".yaml";
+
+        public boolean isNacosDraftMode() {
+            return "nacos-draft".equalsIgnoreCase(mode);
+        }
+
+        public String getMode() {
+            return mode;
+        }
+
+        public void setMode(String mode) {
+            this.mode = mode;
+        }
+
+        public String getDraftGroup() {
+            return draftGroup;
+        }
+
+        public void setDraftGroup(String draftGroup) {
+            this.draftGroup = draftGroup;
+        }
+
+        public String getDraftDataIdSuffix() {
+            return draftDataIdSuffix;
+        }
+
+        public void setDraftDataIdSuffix(String draftDataIdSuffix) {
+            this.draftDataIdSuffix = draftDataIdSuffix;
+        }
+
+        public String getProductionDataIdSuffix() {
+            return productionDataIdSuffix;
+        }
+
+        public void setProductionDataIdSuffix(String productionDataIdSuffix) {
+            this.productionDataIdSuffix = productionDataIdSuffix;
         }
     }
 

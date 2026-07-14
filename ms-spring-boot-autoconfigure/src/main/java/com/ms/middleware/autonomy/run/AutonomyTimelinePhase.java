@@ -15,6 +15,7 @@ package com.ms.middleware.autonomy.run;
  *   <li>{@link #ADVISE} — 风险或置信度不足，仅展示建议等人确认</li>
  *   <li>{@link #RECOMMEND} — 配置级优化推荐（控制台推荐区）</li>
  *   <li>{@link #ACCEPTED} — 运维采纳某条推荐（采纳 API 写入）</li>
+ *   <li>{@link #PUBLISH} — nacos-draft 模式下二次确认发布生产配置</li>
  *   <li>{@link #STABLE} — 主 incident 恢复，记录 MTTR，本次自治结束</li>
  * </ul>
  *
@@ -34,6 +35,8 @@ public enum AutonomyTimelinePhase {
     RECOMMEND,
     /** 人工采纳推荐 */
     ACCEPTED,
+    /** 确认发布 Nacos 草稿到生产 */
+    PUBLISH,
     /** 故障恢复，结案 */
     STABLE;
 

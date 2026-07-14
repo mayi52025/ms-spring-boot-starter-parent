@@ -336,7 +336,7 @@ demo.chaos.mq-fail.enabled: false  # 故障注入演示，生产务必 false
 | Step 4 | 采纳语义澄清 + chat 配置重命名 | ✅ 已完成 | 0.5d |
 | Step 5 | 多实例分布式编排锁 | ✅ 已完成 | 1～1.5d |
 | Step 6 | Tenant 多应用隔离验收 | ✅ 已完成 | 0.5d |
-| Step 7 | 配置推荐 Nacos 草稿采纳（可选） | 待做 | 1～2d |
+| Step 7 | 配置推荐 Nacos 草稿采纳（可选） | ✅ 已完成 | 1～2d |
 
 **启动方式：** 你说「启动 Step N」即从该步编码；Step 0 建议必做，Step 7 可跳过。
 
@@ -471,16 +471,18 @@ demo.chaos.mq-fail.enabled: false  # 故障注入演示，生产务必 false
 
 ---
 
-#### Step 7 — 配置推荐 Nacos 草稿采纳（可选，待做）
+#### Step 7 — 配置推荐 Nacos 草稿采纳（可选，✅ 已完成）
 
 **解决什么：** Phase 3 采纳仅审计；运维希望「点采纳 → 出配置 diff → 确认后生效」。
 
 **交付：**
 
 - `HumanAdoptionService.acceptRecommendation` 可选模式：`audit-only`（默认）| `nacos-draft`
-- `NacosConfigDraftService`：生成 suggestedConfig 的 draft，不直接 publish（或 publish 到 draft dataId）
-- 时间线 `ACCEPTED` 附带 draftId / diff 摘要
-- 控制台：采纳后展示 diff + 「确认发布」二次按钮（Phase 4.5 或本步一并）
+- `NacosConfigDraftService` + `InMemoryNacosConfigDraftService` / `NacosConfigDraftServiceImpl`：draft dataId，不直接 publish 生产
+- `POST .../recommendations/{id}/publish` 二次确认发布；时间线 `ACCEPTED` + `PUBLISH`
+- `AutonomyRecommendation`：`draftId` / `diffSummary` / `nacosPublished`；控制台 diff + 「确认发布到 Nacos」
+- 单测：`HumanAdoptionServiceNacosDraftTest`、`InMemoryNacosConfigDraftServiceTest`
+- Demo：`ms.middleware.autonomy.adoption.mode=nacos-draft`（内存模拟，无需真实 Nacos）
 
 **依赖：** 业务已接 Nacos Config；demo 可 mock。
 
@@ -497,6 +499,8 @@ ms:
       orchestrator:
         distributed-lock-enabled: false   # Step 5
         tick-lock-ttl-seconds: 30
+      adoption:
+        mode: audit-only                  # Step 7：nacos-draft 时生成草稿 + 二次发布
     console:
       auth-token: ""                      # Step 3，非空则启用鉴权
       llm-enabled: false                  # Step 4 重命名（兼容 chat-enabled）
@@ -512,7 +516,7 @@ ms:
 | ACCEPTED 误解 | Step 4 语义 UI |
 | 多实例重复 AUTO | Step 5 分布式锁 |
 | tenant 未验收 | Step 6 |
-| 采纳不改 Nacos | Step 7（可选） |
+| 采纳不改 Nacos | Step 7（nacos-draft 可选二次发布） |
 
 #### Phase 4 完成标准（Definition of Done）
 

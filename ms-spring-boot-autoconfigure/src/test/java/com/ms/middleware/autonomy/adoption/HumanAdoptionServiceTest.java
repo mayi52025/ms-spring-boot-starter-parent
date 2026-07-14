@@ -3,6 +3,7 @@ package com.ms.middleware.autonomy.adoption;
 import com.ms.middleware.autonomy.AutonomyActionType;
 import com.ms.middleware.autonomy.AutonomyPolicyDecision;
 import com.ms.middleware.autonomy.AutonomyRisk;
+import com.ms.middleware.autonomy.adoption.nacos.NacosConfigDraftService;
 import com.ms.middleware.autonomy.act.AutonomyActuator;
 import com.ms.middleware.autonomy.plan.AutonomyPlan;
 import com.ms.middleware.autonomy.plan.AutonomyRecommendation;
@@ -55,7 +56,7 @@ class HumanAdoptionServiceTest {
         ApplicationEventPublisher publisher = events::add;
         AutonomyTenantProvider tenantProvider = () -> TENANT;
         ledger = new InMemoryAutonomyLedger(publisher, tenantProvider, 20);
-        service = new HumanAdoptionService(ledger, actuator, autonomyMetrics);
+        service = new HumanAdoptionService(ledger, actuator, autonomyMetrics, NacosConfigDraftService.noop());
     }
 
     /** 首次采纳推荐应更新状态并写入带 recommendationId 的 ACCEPTED 时间线 */

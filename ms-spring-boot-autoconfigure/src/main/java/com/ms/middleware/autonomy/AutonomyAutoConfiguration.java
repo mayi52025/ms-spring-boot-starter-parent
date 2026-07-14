@@ -30,9 +30,13 @@ import com.ms.middleware.metrics.MsMetrics;
 import com.ms.middleware.mq.MsMessageQueue;
 import com.ms.middleware.mq.trace.MessageTraceManager;
 import com.ms.middleware.rate.RateLimiter;
-import com.ms.middleware.autonomy.run.AutonomyLedger;
+import com.ms.middleware.autonomy.adoption.HumanAdoptionService;
+import com.ms.middleware.autonomy.adoption.nacos.InMemoryNacosConfigDraftService;
+import com.ms.middleware.autonomy.adoption.nacos.NacosConfigDraftService;
+import com.ms.middleware.autonomy.adoption.nacos.NacosConfigDraftServiceImpl;
+import com.ms.middleware.config.ConfigCenterAutoConfiguration;
 import org.springframework.beans.factory.ObjectProvider;
-import com.ms.middleware.redis.RedissonConnectionManager;
+import com.ms.middleware.autonomy.run.AutonomyLedger;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
@@ -48,6 +52,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import com.ms.middleware.redis.RedissonConnectionManager;
 
 /**
  * 自治模块 Spring Boot 自动配置。
@@ -223,11 +228,32 @@ public class AutonomyAutoConfiguration {
         return new AutonomyScheduler(orchestrator);
     }
 
+    /**
+     * Nacos 草稿采纳服务：nacos-draft 模式下按环境选择真实 Nacos 或内存模拟。
+     */
     @Bean
-    public com.ms.middleware.autonomy.adoption.HumanAdoptionService humanAdoptionService(
+    @ConditionalOnMissingBean(NacosConfigDraftService.class)
+    public NacosConfigDraftService nacosConfigDraftService(MsMiddlewareProperties properties,
+                                                           ObjectProvider<ConfigCenterAutoConfiguration.ConfigCenterClient> configClientProvider,
+                                                           Environment environment) {
+        if (!properties.getAutonomy().getAdoption().isNacosDraftMode()) {
+            return NacosConfigDraftService.noop();
+        }
+        ConfigCenterAutoConfiguration.ConfigCenterClient client = configClientProvider.getIfAvailable();
+        if (client != null && properties.getConfig().isEnabled()) {
+            log.info("配置推荐 nacos-draft 模式：使用真实 Nacos ConfigCenterClient");
+            return new NacosConfigDraftServiceImpl(client, properties, environment);
+        }
+        log.info("配置推荐 nacos-draft 模式：使用内存模拟（Demo 或未启用 ms.middleware.config）");
+        return new InMemoryNacosConfigDraftService(properties);
+    }
+
+    @Bean
+    public HumanAdoptionService humanAdoptionService(
             AutonomyLedger ledger,
             AutonomyActuator actuator,
-            AutonomyMetrics autonomyMetrics) {
-        return new com.ms.middleware.autonomy.adoption.HumanAdoptionService(ledger, actuator, autonomyMetrics);
+            AutonomyMetrics autonomyMetrics,
+            NacosConfigDraftService nacosConfigDraftService) {
+        return new HumanAdoptionService(ledger, actuator, autonomyMetrics, nacosConfigDraftService);
     }
 }

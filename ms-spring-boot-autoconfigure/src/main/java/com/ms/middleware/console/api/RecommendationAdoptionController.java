@@ -63,6 +63,17 @@ public class RecommendationAdoptionController {
         return toResponse(result);
     }
 
+    /**
+     * nacos-draft 模式：二次确认发布 Nacos 草稿到生产 dataId。
+     */
+    @PostMapping("/recommendations/{recommendationId}/publish")
+    public ResponseEntity<AdoptionResult> publishRecommendationDraft(
+            @PathVariable String recommendationId,
+            @RequestBody(required = false) AdoptionRequest request) {
+        AdoptionResult result = adoptionService.publishRecommendationDraft(recommendationId, request);
+        return toResponse(result);
+    }
+
     private ResponseEntity<AdoptionResult> toResponse(AdoptionResult result) {
         if (result.isSuccess()) {
             return ResponseEntity.ok(result);
