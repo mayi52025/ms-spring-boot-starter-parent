@@ -34,5 +34,11 @@ public interface AutonomyLedger {
      */
     void appendTimeline(AutonomyRun run, String phase, String message, String recommendationId);
 
+    /**
+     * 追加带审计信息的时间线（采纳/发布 API 使用）。
+     */
+    void appendTimeline(AutonomyRun run, String phase, String message, String recommendationId,
+                        String operator, String clientIp);
+
     void update(AutonomyRun run);
 }

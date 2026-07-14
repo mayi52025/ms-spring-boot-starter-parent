@@ -27,6 +27,10 @@ public class TimelineEvent {
      * 当 phase 为 ACCEPTED 时，关联被采纳的 {@link com.ms.middleware.autonomy.plan.AutonomyRecommendation#getRecommendationId()}。
      */
     private String recommendationId;
+    /** 人工操作人（采纳/发布 API 写入，供审计） */
+    private String operator;
+    /** 请求来源 IP（控制台 API 写入，供审计） */
+    private String clientIp;
 
     public TimelineEvent() {
     }
@@ -83,5 +87,21 @@ public class TimelineEvent {
 
     public void setRecommendationId(String recommendationId) {
         this.recommendationId = recommendationId;
+    }
+
+    public String getOperator() {
+        return operator;
+    }
+
+    public void setOperator(String operator) {
+        this.operator = operator;
+    }
+
+    public String getClientIp() {
+        return clientIp;
+    }
+
+    public void setClientIp(String clientIp) {
+        this.clientIp = clientIp;
     }
 }

@@ -84,6 +84,27 @@ public class AutonomyMetrics {
                 .increment();
     }
 
+    /** Redis 账本反序列化失败或 stub 降级时调用 */
+    public void recordLedgerDeserializeError(String tenant) {
+        meterRegistry.counter("ms.autonomy.ledger.deserialize.errors.total",
+                        "tenant", safeTenant(tenant))
+                .increment();
+    }
+
+    /** 当前实例获得 tick 分布式锁并执行 doTick */
+    public void recordTickLeader(String tenant) {
+        meterRegistry.counter("ms.autonomy.tick.leader.total",
+                        "tenant", safeTenant(tenant))
+                .increment();
+    }
+
+    /** 未获 tick 锁跳过本轮 */
+    public void recordTickLockSkipped(String tenant) {
+        meterRegistry.counter("ms.autonomy.tick.lock.skipped.total",
+                        "tenant", safeTenant(tenant))
+                .increment();
+    }
+
     /**
      * PLAN 完成后记录 rank#1 证据强度，供 SLO 与门控效果观测。
      */

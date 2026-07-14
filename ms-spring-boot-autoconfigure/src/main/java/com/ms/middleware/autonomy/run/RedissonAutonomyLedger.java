@@ -46,6 +46,7 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
     private final String indexPrefix;
     private final int maxRuns;
     private final Duration ttl;
+    private final com.ms.middleware.autonomy.metrics.AutonomyMetrics autonomyMetrics;
 
     public RedissonAutonomyLedger(RedissonConnectionManager connectionManager,
                                   ObjectMapper objectMapper,
@@ -54,6 +55,17 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
                                   String keyPrefix,
                                   int maxRuns,
                                   long ttlHours) {
+        this(connectionManager, objectMapper, eventPublisher, tenantProvider, keyPrefix, maxRuns, ttlHours, null);
+    }
+
+    public RedissonAutonomyLedger(RedissonConnectionManager connectionManager,
+                                  ObjectMapper objectMapper,
+                                  ApplicationEventPublisher eventPublisher,
+                                  AutonomyTenantProvider tenantProvider,
+                                  String keyPrefix,
+                                  int maxRuns,
+                                  long ttlHours,
+                                  com.ms.middleware.autonomy.metrics.AutonomyMetrics autonomyMetrics) {
         super(eventPublisher, tenantProvider);
         this.redissonClientRef = connectionManager.getClientRef();
         connectionManager.addAfterRecoverCallback(this::flushLocalFallbackToRedis);
@@ -62,6 +74,7 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
         this.indexPrefix = this.keyPrefix + "index:";
         this.maxRuns = maxRuns;
         this.ttl = Duration.ofHours(Math.max(1, ttlHours));
+        this.autonomyMetrics = autonomyMetrics;
     }
 
     /** Redis 恢复后将降级期间写入内存的 run 回填到 Redis */
@@ -156,6 +169,13 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
     }
 
     @Override
+    public void appendTimeline(AutonomyRun run, String phase, String message, String recommendationId,
+                               String operator, String clientIp) {
+        publishTimeline(run, phase, message, recommendationId, operator, clientIp);
+        saveRun(run);
+    }
+
+    @Override
     public void update(AutonomyRun run) {
         ensureTenant(run);
         saveRun(run);
@@ -163,6 +183,10 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
 
     private void saveRun(AutonomyRun run) {
         ensureTenant(run);
+        // 降级 stub 不写回 Redis，避免覆盖仍可修复的原始 JSON
+        if (run.isLedgerCorrupted()) {
+            return;
+        }
         cacheLocally(run);
         try {
             RedissonClient client = currentClient();
@@ -227,9 +251,19 @@ public class RedissonAutonomyLedger extends AbstractAutonomyLedger {
                 return null;
             }
             RBucket<String> bucket = client.getBucket(runKey(tenant, runId));
-            return serde.fromJson(bucket.get());
+            return serde.fromJson(bucket.get())
+                    .map(run -> {
+                        if (run.isLedgerCorrupted() && autonomyMetrics != null) {
+                            autonomyMetrics.recordLedgerDeserializeError(tenant);
+                        }
+                        return run;
+                    })
+                    .orElse(null);
         } catch (Exception e) {
             logger.warn("Failed to load autonomy run {} for tenant {}", runId, tenant, e);
+            if (autonomyMetrics != null) {
+                autonomyMetrics.recordLedgerDeserializeError(tenant);
+            }
             return null;
         }
     }

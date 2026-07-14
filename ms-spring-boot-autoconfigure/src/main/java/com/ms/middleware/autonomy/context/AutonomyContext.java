@@ -1,5 +1,8 @@
 package com.ms.middleware.autonomy.context;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -10,6 +13,7 @@ import java.util.List;
  * <p>由 {@link AutonomyContextBuilder} 每次 tick 重新构建，不缓存。
  * 决策引擎、STABLE 判定、控制台展示都依赖本对象，避免各处阈值不一致。</p>
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class AutonomyContext {
 
     /** 快照采集时刻 */
@@ -97,14 +101,18 @@ public class AutonomyContext {
     /**
      * 是否达到 MQ 消费失败预警线。
      * 与 issues 里「MQ 消费失败累计偏高」、规则引擎 {@code MQ_DEGRADED}、STABLE 判定使用同一公式。
+     * 仅计算字段，不参与 JSON 持久化（旧账本可能含 mqDegraded 字段，由 ignoreUnknown 忽略）。
      */
+    @JsonIgnore
     public boolean isMqDegraded() {
         return mqFailedCount >= mqFailedWarnThreshold;
     }
 
     /**
      * 是否达到缓存命中率预警线。
+     * 仅计算字段，不参与 JSON 持久化。
      */
+    @JsonIgnore
     public boolean isCacheDegraded() {
         return cacheHitRate < cacheHitRateWarnThreshold;
     }

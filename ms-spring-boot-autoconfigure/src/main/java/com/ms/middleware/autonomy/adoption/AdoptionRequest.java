@@ -18,6 +18,8 @@ public class AdoptionRequest {
     private String operator;
     /** 可选备注 */
     private String comment;
+    /** 请求来源 IP，由控制台 API 从 HttpServletRequest 注入，写入时间线审计 */
+    private String clientIp;
 
     public String getRunId() {
         return runId;
@@ -41,5 +43,13 @@ public class AdoptionRequest {
 
     public void setComment(String comment) {
         this.comment = comment;
+    }
+
+    public String getClientIp() {
+        return clientIp;
+    }
+
+    public void setClientIp(String clientIp) {
+        this.clientIp = clientIp;
     }
 }

@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 /**
  * 人机协同采纳 API：配置推荐与备选 ADVISE 动作的审计与执行。
  *
@@ -35,8 +37,10 @@ public class RecommendationAdoptionController {
     @PostMapping("/recommendations/{recommendationId}/accept")
     public ResponseEntity<AdoptionResult> acceptRecommendation(
             @PathVariable String recommendationId,
-            @RequestBody(required = false) AdoptionRequest request) {
-        AdoptionResult result = adoptionService.acceptRecommendation(recommendationId, request);
+            @RequestBody(required = false) AdoptionRequest request,
+            HttpServletRequest httpRequest) {
+        AdoptionResult result = adoptionService.acceptRecommendation(
+                recommendationId, enrichRequest(request, httpRequest));
         return toResponse(result);
     }
 
@@ -69,9 +73,28 @@ public class RecommendationAdoptionController {
     @PostMapping("/recommendations/{recommendationId}/publish")
     public ResponseEntity<AdoptionResult> publishRecommendationDraft(
             @PathVariable String recommendationId,
-            @RequestBody(required = false) AdoptionRequest request) {
-        AdoptionResult result = adoptionService.publishRecommendationDraft(recommendationId, request);
+            @RequestBody(required = false) AdoptionRequest request,
+            HttpServletRequest httpRequest) {
+        AdoptionResult result = adoptionService.publishRecommendationDraft(
+                recommendationId, enrichRequest(request, httpRequest));
         return toResponse(result);
+    }
+
+    private static AdoptionRequest enrichRequest(AdoptionRequest request, HttpServletRequest httpRequest) {
+        AdoptionRequest effective = request != null ? request : new AdoptionRequest();
+        if (httpRequest != null && (effective.getClientIp() == null || effective.getClientIp().isBlank())) {
+            effective.setClientIp(resolveClientIp(httpRequest));
+        }
+        return effective;
+    }
+
+    /** 优先 X-Forwarded-For（反代后），否则 remoteAddr */
+    private static String resolveClientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 
     private ResponseEntity<AdoptionResult> toResponse(AdoptionResult result) {

@@ -518,6 +518,23 @@ ms:
 | tenant 未验收 | Step 6 |
 | 采纳不改 Nacos | Step 7（nacos-draft 可选二次发布） |
 
+#### Phase 4.5 — 生产加固（✅ 已完成）
+
+**解决什么：** 双实例实测暴露 Redis 旧账本 JSON 反序列化失败；采纳审计缺 IP；tick 锁缺可观测指标。
+
+**交付：**
+
+| 项 | 内容 |
+|----|------|
+| 账本兼容 | `AutonomyRun.schemaVersion`；`AutonomyContext` 计算字段 `@JsonIgnore` + `ignoreUnknown` |
+| 容错读 | `AutonomyRunSerde` 旧 JSON / 损坏 JSON → stub 降级，不拖垮 `/issues` |
+| 指标 | `ms.autonomy.ledger.deserialize.errors.total`、`ms.autonomy.tick.leader/skipped.total` |
+| 审计 | `TimelineEvent.operator/clientIp`；采纳/发布 API 自动注入客户端 IP |
+
+**单测：** `AutonomyRunSerdeTest`（含 legacy `mqDegraded` JSON）
+
+**刻意不做：** Trace 持久化、OAuth（留 Phase 5 或后续）
+
 #### Phase 4 完成标准（Definition of Done）
 
 - [x] MQ 演示：STABLE 时间线可见 `5→0` 类恢复依据

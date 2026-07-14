@@ -94,7 +94,7 @@ public class HumanAdoptionService {
         rec.setRejectReason(null);
 
         String message = buildRecommendationMessage("采纳推荐", rec, request, draft);
-        ledger.appendTimeline(run, AutonomyTimelinePhase.ACCEPTED.code(), message, recommendationId);
+        appendAuditedTimeline(run, AutonomyTimelinePhase.ACCEPTED.code(), message, recommendationId, request);
         ledger.update(run);
 
         autonomyMetrics.recordRecommendationAccepted(run.getTenant(), incidentTypeOf(run));
@@ -150,7 +150,8 @@ public class HumanAdoptionService {
         if (request != null && request.getComment() != null && !request.getComment().isBlank()) {
             message += " — " + request.getComment();
         }
-        ledger.appendTimeline(run, AutonomyTimelinePhase.PUBLISH.code(), message, recommendationId);
+        ledger.appendTimeline(run, AutonomyTimelinePhase.PUBLISH.code(), message, recommendationId,
+                resolveOperator(request), resolveClientIp(request));
         ledger.update(run);
 
         logger.info("Nacos draft published run={} id={} productionDataId={}",
@@ -342,6 +343,19 @@ public class HumanAdoptionService {
             return request.getOperator();
         }
         return "console";
+    }
+
+    private static String resolveClientIp(AdoptionRequest request) {
+        if (request != null && request.getClientIp() != null && !request.getClientIp().isBlank()) {
+            return request.getClientIp();
+        }
+        return null;
+    }
+
+    private void appendAuditedTimeline(AutonomyRun run, String phase, String message,
+                                       String recommendationId, AdoptionRequest request) {
+        ledger.appendTimeline(run, phase, message, recommendationId,
+                resolveOperator(request), resolveClientIp(request));
     }
 
     private String incidentTypeOf(AutonomyRun run) {

@@ -1,6 +1,7 @@
 package com.ms.middleware.autonomy.run;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ms.middleware.autonomy.AutonomyRunStatus;
@@ -21,7 +22,16 @@ import java.util.OptionalLong;
  * <p>生命周期：DETECTED → PLANNED → EXECUTING → STABLE（或 ESCALATED / CLOSED）。
  * 时间线 {@link #timeline} 与 SSE 推送一一对应，phase 见 {@link AutonomyTimelinePhase}。</p>
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class AutonomyRun {
+
+    /** 账本 JSON schema 版本，便于后续字段演进 */
+    private int schemaVersion = AutonomyRunSerde.CURRENT_SCHEMA_VERSION;
+    /**
+     * 反序列化降级标记：true 表示 Redis 中 JSON 不完整，仅展示 stub 摘要。
+     * 不写回 Redis（NON_DEFAULT）。
+     */
+    private boolean ledgerCorrupted;
 
     private String runId;
     /** 租户标识，默认 spring.application.name，多实例部署时区分 run */
@@ -44,6 +54,23 @@ public class AutonomyRun {
 
     public void setRunId(String runId) {
         this.runId = runId;
+    }
+
+    public int getSchemaVersion() {
+        return schemaVersion;
+    }
+
+    public void setSchemaVersion(int schemaVersion) {
+        this.schemaVersion = schemaVersion;
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    public boolean isLedgerCorrupted() {
+        return ledgerCorrupted;
+    }
+
+    public void setLedgerCorrupted(boolean ledgerCorrupted) {
+        this.ledgerCorrupted = ledgerCorrupted;
     }
 
     public String getTenant() {

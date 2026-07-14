@@ -35,10 +35,18 @@ public class RedissonAutonomyTickLock implements AutonomyTickLock {
     private final AtomicReference<RedissonClient> redissonClientRef;
     /** 锁租约秒数，应 ≥ 单次 tick 最坏耗时（配置项 tick-lock-ttl-seconds） */
     private final long tickLockTtlSeconds;
+    private final com.ms.middleware.autonomy.metrics.AutonomyMetrics autonomyMetrics;
 
     public RedissonAutonomyTickLock(RedissonConnectionManager connectionManager, long tickLockTtlSeconds) {
+        this(connectionManager, tickLockTtlSeconds, null);
+    }
+
+    public RedissonAutonomyTickLock(RedissonConnectionManager connectionManager,
+                                    long tickLockTtlSeconds,
+                                    com.ms.middleware.autonomy.metrics.AutonomyMetrics autonomyMetrics) {
         this.redissonClientRef = connectionManager.getClientRef();
         this.tickLockTtlSeconds = Math.max(1, tickLockTtlSeconds);
+        this.autonomyMetrics = autonomyMetrics;
     }
 
     @Override
@@ -57,7 +65,13 @@ public class RedissonAutonomyTickLock implements AutonomyTickLock {
             acquired = lock.tryLock(0, tickLockTtlSeconds, TimeUnit.SECONDS);
             if (!acquired) {
                 logger.debug("未获得 tick 分布式锁，跳过本轮 tenant={} key={}", tenant, lockKey);
+                if (autonomyMetrics != null) {
+                    autonomyMetrics.recordTickLockSkipped(tenant);
+                }
                 return;
+            }
+            if (autonomyMetrics != null) {
+                autonomyMetrics.recordTickLeader(tenant);
             }
             action.run();
         } catch (InterruptedException e) {

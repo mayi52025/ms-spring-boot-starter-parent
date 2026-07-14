@@ -157,7 +157,8 @@ public class AutonomyAutoConfiguration {
                                                   ObjectMapper objectMapper,
                                                   ApplicationEventPublisher eventPublisher,
                                                   AutonomyTenantProvider tenantProvider,
-                                                  MsMiddlewareProperties properties) {
+                                                  MsMiddlewareProperties properties,
+                                                  AutonomyMetrics autonomyMetrics) {
         MsMiddlewareProperties.LedgerProperties ledger = properties.getAutonomy().getLedger();
         return new RedissonAutonomyLedger(
                 connectionManager,
@@ -166,7 +167,8 @@ public class AutonomyAutoConfiguration {
                 tenantProvider,
                 ledger.getKeyPrefix(),
                 ledger.getMaxRuns(),
-                ledger.getTtlHours());
+                ledger.getTtlHours(),
+                autonomyMetrics);
     }
 
     @Bean
@@ -195,7 +197,8 @@ public class AutonomyAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(AutonomyTickLock.class)
     public AutonomyTickLock autonomyTickLock(MsMiddlewareProperties properties,
-                                             ObjectProvider<RedissonConnectionManager> connectionManagerProvider) {
+                                             ObjectProvider<RedissonConnectionManager> connectionManagerProvider,
+                                             AutonomyMetrics autonomyMetrics) {
         MsMiddlewareProperties.OrchestratorProperties orchestrator = properties.getAutonomy().getOrchestrator();
         if (!orchestrator.isDistributedLockEnabled()) {
             return AutonomyTickLock.noop();
@@ -206,7 +209,7 @@ public class AutonomyAutoConfiguration {
             return AutonomyTickLock.noop();
         }
         log.info("自治 tick 分布式锁已启用，ttl={}s", orchestrator.getTickLockTtlSeconds());
-        return new RedissonAutonomyTickLock(connectionManager, orchestrator.getTickLockTtlSeconds());
+        return new RedissonAutonomyTickLock(connectionManager, orchestrator.getTickLockTtlSeconds(), autonomyMetrics);
     }
 
     @Bean
