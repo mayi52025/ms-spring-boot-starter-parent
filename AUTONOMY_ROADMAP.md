@@ -334,7 +334,7 @@ demo.chaos.mq-fail.enabled: false  # 故障注入演示，生产务必 false
 | Step 2 | 失败 Trace 列表 API + 控制台 | ✅ 已完成 | 1d |
 | Step 3 | 控制台鉴权（auth-token） | ✅ 已完成 | 1d |
 | Step 4 | 采纳语义澄清 + chat 配置重命名 | ✅ 已完成 | 0.5d |
-| Step 5 | 多实例分布式编排锁 | 待做 | 1～1.5d |
+| Step 5 | 多实例分布式编排锁 | ✅ 已完成 | 1～1.5d |
 | Step 6 | Tenant 多应用隔离验收 | 待做 | 0.5d |
 | Step 7 | 配置推荐 Nacos 草稿采纳（可选） | 待做 | 1～2d |
 
@@ -438,20 +438,20 @@ demo.chaos.mq-fail.enabled: false  # 故障注入演示，生产务必 false
 
 ---
 
-#### Step 5 — 多实例分布式编排锁（待做）
+#### Step 5 — 多实例分布式编排锁（✅ 已完成）
 
 **解决什么：** 多 pod 同时 tick 可能重复 AUTO、争抢 activeRun。
 
 **交付：**
 
-- `AutonomyOrchestrator.tick` 入口：`Redisson` 分布式锁 `ms:autonomy:tick:{tenant}`（可配置 TTL）
+- `AutonomyOrchestrator.tick` 入口：`RedissonAutonomyTickLock`，key `ms:autonomy:tick:{tenant}`（可配置 TTL）
 - 配置 `ms.middleware.autonomy.orchestrator.distributed-lock-enabled`（默认 false，单机无感）
 - 锁失败跳过本轮（不抛错，debug 日志）
 - 与现有 JVM 内 `activeRunId` 共存：锁保 cluster，activeRunId 保 thread
 
-**单测：** Redisson mock 或 `RedissonAutonomyLedgerTest` 同风格嵌入式测试。
+**单测：** `RedissonAutonomyTickLockTest`、`AutonomyOrchestratorDistributedLockTest`。
 
-**依赖：** Redisson 已存在（Phase 2）。
+**设计说明（中文）：** [`doc/autonomy/分布式Tick锁设计说明.md`](../doc/autonomy/分布式Tick锁设计说明.md)
 
 ---
 

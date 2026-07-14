@@ -1099,6 +1099,8 @@ public class MsMiddlewareProperties {
         private LedgerProperties ledger = new LedgerProperties();
         /** MQ 自治执行器参数（限流、延迟重试） */
         private MqActuatorProperties mq = new MqActuatorProperties();
+        /** 编排器：多实例 tick 分布式锁等 */
+        private OrchestratorProperties orchestrator = new OrchestratorProperties();
 
         public boolean isEnabled() {
             return enabled;
@@ -1178,6 +1180,49 @@ public class MsMiddlewareProperties {
 
         public void setMq(MqActuatorProperties mq) {
             this.mq = mq;
+        }
+
+        public OrchestratorProperties getOrchestrator() {
+            return orchestrator;
+        }
+
+        public void setOrchestrator(OrchestratorProperties orchestrator) {
+            this.orchestrator = orchestrator;
+        }
+    }
+
+    /**
+     * 自治编排器配置：多实例 tick 互斥等。
+     *
+     * <p>多 Pod 部署 order-system 时，将 {@link #distributedLockEnabled} 设为 true，
+     * 并确保 {@code ledger.type=redisson}，账本与锁共用 Redis。</p>
+     */
+    public static class OrchestratorProperties {
+        /**
+         * 是否启用 tick 分布式锁。
+         * false（默认）：本地/Demo 无感；true：同一 tenant 仅一个实例执行 tick。
+         */
+        private boolean distributedLockEnabled = false;
+        /**
+         * 锁租约（秒）。应大于单次 tick 最坏耗时；leader 正常结束时在 finally 主动 unlock。
+         * leader 宕机时依赖租约过期，其它实例可在下一轮接管。
+         */
+        private long tickLockTtlSeconds = 30;
+
+        public boolean isDistributedLockEnabled() {
+            return distributedLockEnabled;
+        }
+
+        public void setDistributedLockEnabled(boolean distributedLockEnabled) {
+            this.distributedLockEnabled = distributedLockEnabled;
+        }
+
+        public long getTickLockTtlSeconds() {
+            return tickLockTtlSeconds;
+        }
+
+        public void setTickLockTtlSeconds(long tickLockTtlSeconds) {
+            this.tickLockTtlSeconds = tickLockTtlSeconds;
         }
     }
 

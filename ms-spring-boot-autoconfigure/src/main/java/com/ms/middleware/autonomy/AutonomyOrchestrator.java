@@ -12,6 +12,7 @@ import com.ms.middleware.autonomy.plan.PlannedAction;
 import com.ms.middleware.autonomy.policy.AutonomyPolicy;
 import com.ms.middleware.autonomy.run.AutonomyLedger;
 import com.ms.middleware.autonomy.run.AutonomyRun;
+import com.ms.middleware.autonomy.orchestrator.AutonomyTickLock;
 import com.ms.middleware.autonomy.metrics.AutonomyMetrics;
 import com.ms.middleware.autonomy.tenant.AutonomyTenantProvider;
 import com.ms.middleware.metrics.MsMetrics;
@@ -30,6 +31,7 @@ import java.util.UUID;
  *   <li>同一故障周期内复用同一个 run（{@link #activeRunId}），避免每次扫描都新建记录</li>
  *   <li>指标恢复正常时写入 STABLE 并计算 MTTR，然后清空 activeRunId</li>
  *   <li>高风险动作只写 ADVISE 时间线，不调用 Actuator（见 {@link AutonomyPolicy}）</li>
+ *   <li>多实例时由 {@link AutonomyTickLock} 保证集群内仅一个 JVM 执行 {@link #tick()}（Step 5）</li>
  * </ul>
  */
 public class AutonomyOrchestrator {
@@ -44,8 +46,10 @@ public class AutonomyOrchestrator {
     private final AutonomyTenantProvider tenantProvider;
     private final AutonomyMetrics autonomyMetrics;
     private final MsMetrics msMetrics;
+    /** 集群 tick 互斥；单机为 noop，多实例为 Redisson 实现 */
+    private final AutonomyTickLock tickLock;
 
-    /** 当前 JVM 内正在处理的故障 run；稳定后置 null */
+    /** 当前 JVM 内正在处理的故障 run；稳定后置 null（只管本进程，不管多 Pod） */
     private volatile String activeRunId;
 
     public AutonomyOrchestrator(AutonomyContextBuilder contextBuilder,
@@ -56,6 +60,19 @@ public class AutonomyOrchestrator {
                                 AutonomyTenantProvider tenantProvider,
                                 AutonomyMetrics autonomyMetrics,
                                 MsMetrics msMetrics) {
+        this(contextBuilder, decisionEngine, policy, actuator, ledger, tenantProvider,
+                autonomyMetrics, msMetrics, AutonomyTickLock.noop());
+    }
+
+    public AutonomyOrchestrator(AutonomyContextBuilder contextBuilder,
+                                AutonomyDecisionEngine decisionEngine,
+                                AutonomyPolicy policy,
+                                AutonomyActuator actuator,
+                                AutonomyLedger ledger,
+                                AutonomyTenantProvider tenantProvider,
+                                AutonomyMetrics autonomyMetrics,
+                                MsMetrics msMetrics,
+                                AutonomyTickLock tickLock) {
         this.contextBuilder = contextBuilder;
         this.decisionEngine = decisionEngine;
         this.policy = policy;
@@ -64,13 +81,20 @@ public class AutonomyOrchestrator {
         this.tenantProvider = tenantProvider;
         this.autonomyMetrics = autonomyMetrics;
         this.msMetrics = msMetrics;
+        this.tickLock = tickLock != null ? tickLock : AutonomyTickLock.noop();
     }
 
     /**
-     * 单次自治扫描，由 {@link AutonomyScheduler} 定时调用。
-     * 无故障时只做稳定判定；有故障时走完整 plan → policy → act 流程。
+     * 单次自治扫描入口，由 {@link AutonomyScheduler} 定时调用。
+     * <p>先经 {@link AutonomyTickLock} 抢集群锁，获锁后才进入 {@link #doTick()}；
+     * 未获锁则本轮什么都不做（follower 实例）。</p>
      */
     public void tick() {
+        tickLock.runIfLeader(tenantProvider.getTenant(), this::doTick);
+    }
+
+    /** tick 实际业务：检测 → 计划 → 门控 → 执行 → STABLE 判定（原 tick 方法体） */
+    private void doTick() {
         AutonomyContext context = contextBuilder.build();
 
         reconcileStaleActiveRuns(context);

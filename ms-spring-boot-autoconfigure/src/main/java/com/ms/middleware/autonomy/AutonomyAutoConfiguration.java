@@ -19,7 +19,8 @@ import com.ms.middleware.autonomy.plan.AutonomyRuleEngine;
 import com.ms.middleware.autonomy.plan.IncidentActionCatalog;
 import com.ms.middleware.autonomy.policy.AutonomyPolicy;
 import com.ms.middleware.autonomy.rule.AutonomyRulesProperties;
-import com.ms.middleware.autonomy.run.AutonomyLedger;
+import com.ms.middleware.autonomy.orchestrator.AutonomyTickLock;
+import com.ms.middleware.autonomy.orchestrator.RedissonAutonomyTickLock;
 import com.ms.middleware.autonomy.run.InMemoryAutonomyLedger;
 import com.ms.middleware.autonomy.run.RedissonAutonomyLedger;
 import com.ms.middleware.autonomy.tenant.AutonomyTenantProvider;
@@ -29,10 +30,13 @@ import com.ms.middleware.metrics.MsMetrics;
 import com.ms.middleware.mq.MsMessageQueue;
 import com.ms.middleware.mq.trace.MessageTraceManager;
 import com.ms.middleware.rate.RateLimiter;
-import io.micrometer.core.instrument.MeterRegistry;
-import com.ms.middleware.redis.RedissonConnectionManager;
-import org.redisson.api.RedissonClient;
+import com.ms.middleware.autonomy.run.AutonomyLedger;
 import org.springframework.beans.factory.ObjectProvider;
+import com.ms.middleware.redis.RedissonConnectionManager;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.redisson.api.RedissonClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -57,6 +61,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @AutoConfigureAfter(MsMiddlewareAutoConfiguration.class)
 @ConditionalOnProperty(prefix = "ms.middleware.autonomy", name = "enabled", havingValue = "true")
 public class AutonomyAutoConfiguration {
+
+    private static final Logger log = LoggerFactory.getLogger(AutonomyAutoConfiguration.class);
 
     @Bean
     @ConditionalOnMissingBean(AutonomyTenantProvider.class)
@@ -172,6 +178,31 @@ public class AutonomyAutoConfiguration {
         return new DefaultMiddlewareInsightTool(insightService);
     }
 
+    /**
+     * 根据配置选择 tick 锁实现：
+     * <ul>
+     *   <li>{@code distributed-lock-enabled=false}（默认）→ noop，单机零开销</li>
+     *   <li>true + Redisson 可用 → {@link RedissonAutonomyTickLock}</li>
+     *   <li>true 但无 Redisson → 打 WARN 并降级 noop，避免启动失败</li>
+     * </ul>
+     */
+    @Bean
+    @ConditionalOnMissingBean(AutonomyTickLock.class)
+    public AutonomyTickLock autonomyTickLock(MsMiddlewareProperties properties,
+                                             ObjectProvider<RedissonConnectionManager> connectionManagerProvider) {
+        MsMiddlewareProperties.OrchestratorProperties orchestrator = properties.getAutonomy().getOrchestrator();
+        if (!orchestrator.isDistributedLockEnabled()) {
+            return AutonomyTickLock.noop();
+        }
+        RedissonConnectionManager connectionManager = connectionManagerProvider.getIfAvailable();
+        if (connectionManager == null) {
+            log.warn("ms.middleware.autonomy.orchestrator.distributed-lock-enabled=true 但未找到 Redisson，tick 锁降级为 noop");
+            return AutonomyTickLock.noop();
+        }
+        log.info("自治 tick 分布式锁已启用，ttl={}s", orchestrator.getTickLockTtlSeconds());
+        return new RedissonAutonomyTickLock(connectionManager, orchestrator.getTickLockTtlSeconds());
+    }
+
     @Bean
     public AutonomyOrchestrator autonomyOrchestrator(AutonomyContextBuilder contextBuilder,
                                                      AutonomyDecisionEngine decisionEngine,
@@ -180,9 +211,10 @@ public class AutonomyAutoConfiguration {
                                                      AutonomyLedger ledger,
                                                      AutonomyTenantProvider tenantProvider,
                                                      AutonomyMetrics autonomyMetrics,
-                                                     MsMetrics msMetrics) {
+                                                     MsMetrics msMetrics,
+                                                     AutonomyTickLock tickLock) {
         return new AutonomyOrchestrator(contextBuilder, decisionEngine, policy, actuator, ledger,
-                tenantProvider, autonomyMetrics, msMetrics);
+                tenantProvider, autonomyMetrics, msMetrics, tickLock);
     }
 
     @Bean

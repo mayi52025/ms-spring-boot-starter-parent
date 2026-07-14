@@ -82,6 +82,9 @@ ms:
         max-runs: 200
         key-prefix: ms:autonomy:run
         ttl-hours: 168
+      orchestrator:
+        distributed-lock-enabled: false   # 多实例部署时改为 true
+        tick-lock-ttl-seconds: 30
       # Step 5：自治规则外置（可选，未配置则用内置默认）
       # 完整示例见 classpath:ms-middleware-autonomy-rules.example.yml
       # rules:
