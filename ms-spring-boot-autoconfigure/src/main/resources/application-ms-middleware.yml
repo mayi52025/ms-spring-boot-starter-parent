@@ -83,8 +83,9 @@ ms:
         key-prefix: ms:autonomy:run
         ttl-hours: 168
       orchestrator:
-        distributed-lock-enabled: false   # 多实例部署时改为 true
+        distributed-lock-enabled: false
         tick-lock-ttl-seconds: 30
+      # tenant-id: ""   # 可选，覆盖 spring.application.name 作为账本/tick 锁隔离键
       # Step 5：自治规则外置（可选，未配置则用内置默认）
       # 完整示例见 classpath:ms-middleware-autonomy-rules.example.yml
       # rules:

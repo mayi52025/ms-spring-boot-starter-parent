@@ -1096,6 +1096,11 @@ public class MsMiddlewareProperties {
         private long mqFailedWarnThreshold = 10;
         /** MQ 失败滑动窗口（分钟），自治检测只看窗口内失败次数，默认 5 分钟 */
         private long mqFailureWindowMinutes = 5;
+        /**
+         * 可选：显式指定 tenant，覆盖 {@code spring.application.name}。
+         * 同一应用多环境共用 Redis 且需逻辑隔离时可配置；默认留空。
+         */
+        private String tenantId = "";
         private LedgerProperties ledger = new LedgerProperties();
         /** MQ 自治执行器参数（限流、延迟重试） */
         private MqActuatorProperties mq = new MqActuatorProperties();
@@ -1164,6 +1169,14 @@ public class MsMiddlewareProperties {
 
         public void setMqFailureWindowMinutes(long mqFailureWindowMinutes) {
             this.mqFailureWindowMinutes = mqFailureWindowMinutes;
+        }
+
+        public String getTenantId() {
+            return tenantId;
+        }
+
+        public void setTenantId(String tenantId) {
+            this.tenantId = tenantId;
         }
 
         public LedgerProperties getLedger() {

@@ -47,6 +47,7 @@ class RedissonAutonomyLedgerTest {
         when(redissonClient.getScoredSortedSet(anyString())).thenAnswer(inv -> mockIndex(inv.getArgument(0)));
 
         AutonomyTenantProvider tenantProvider = () -> TENANT;
+        // 单测使用 Mockito 假 RedissonClient，不会真连 Redis；地址仅占位，与 192.168.100.102 无关
         Config config = new Config();
         config.useSingleServer().setAddress("redis://127.0.0.1:6379");
         RedissonConnectionManager connectionManager =
@@ -93,6 +94,41 @@ class RedissonAutonomyLedgerTest {
 
         assertEquals(1, ledger.listActive().size());
         assertEquals("active", ledger.listActive().get(0).getRunId());
+    }
+
+    /** Redisson 账本：不同 tenant 使用不同 Redis index key，列表互不可见 */
+    @Test
+    void crossTenantIsolation() {
+        AtomicReference<String> tenantRef = new AtomicReference<>(TENANT);
+        RedissonAutonomyLedger scopedLedger = createLedger(tenantRef::get);
+
+        tenantRef.set("order-system");
+        scopedLedger.startRun(newRun("run-a"));
+
+        tenantRef.set("payment-service");
+        scopedLedger.startRun(newRun("run-b"));
+        assertEquals(1, scopedLedger.listRecent(10).size());
+        assertTrue(scopedLedger.get("run-b").isPresent());
+        assertTrue(scopedLedger.get("run-a").isEmpty());
+    }
+
+    private RedissonAutonomyLedger createLedger(AutonomyTenantProvider tenantProvider) {
+        RedissonClient redissonClient = Mockito.mock(RedissonClient.class);
+        when(redissonClient.getBucket(anyString())).thenAnswer(inv -> mockBucket(inv.getArgument(0)));
+        when(redissonClient.getScoredSortedSet(anyString())).thenAnswer(inv -> mockIndex(inv.getArgument(0)));
+        // 占位 Config，不发起真实连接
+        Config config = new Config();
+        config.useSingleServer().setAddress("redis://127.0.0.1:6379");
+        RedissonConnectionManager connectionManager =
+                new RedissonConnectionManager(new AtomicReference<>(redissonClient), config);
+        return new RedissonAutonomyLedger(
+                connectionManager,
+                new ObjectMapper().findAndRegisterModules(),
+                publishedEvents::add,
+                tenantProvider,
+                "ms:autonomy:run",
+                10,
+                24);
     }
 
     @SuppressWarnings("unchecked")

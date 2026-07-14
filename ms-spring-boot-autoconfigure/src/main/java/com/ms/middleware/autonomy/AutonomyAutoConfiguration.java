@@ -168,8 +168,9 @@ public class AutonomyAutoConfiguration {
     @ConditionalOnMissingBean(MiddlewareInsightService.class)
     public MiddlewareInsightService middlewareInsightService(AutonomyLedger ledger,
                                                              MsMetrics metrics,
-                                                             AutonomyMetrics autonomyMetrics) {
-        return new DefaultMiddlewareInsightService(ledger, metrics, autonomyMetrics);
+                                                             AutonomyMetrics autonomyMetrics,
+                                                             AutonomyTenantProvider tenantProvider) {
+        return new DefaultMiddlewareInsightService(ledger, metrics, autonomyMetrics, tenantProvider);
     }
 
     @Bean

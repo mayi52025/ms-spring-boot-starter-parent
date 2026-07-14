@@ -335,7 +335,7 @@ demo.chaos.mq-fail.enabled: false  # 故障注入演示，生产务必 false
 | Step 3 | 控制台鉴权（auth-token） | ✅ 已完成 | 1d |
 | Step 4 | 采纳语义澄清 + chat 配置重命名 | ✅ 已完成 | 0.5d |
 | Step 5 | 多实例分布式编排锁 | ✅ 已完成 | 1～1.5d |
-| Step 6 | Tenant 多应用隔离验收 | 待做 | 0.5d |
+| Step 6 | Tenant 多应用隔离验收 | ✅ 已完成 | 0.5d |
 | Step 7 | 配置推荐 Nacos 草稿采纳（可选） | 待做 | 1～2d |
 
 **启动方式：** 你说「启动 Step N」即从该步编码；Step 0 建议必做，Step 7 可跳过。
@@ -455,16 +455,17 @@ demo.chaos.mq-fail.enabled: false  # 故障注入演示，生产务必 false
 
 ---
 
-#### Step 6 — Tenant 多应用隔离验收（待做）
+#### Step 6 — Tenant 多应用隔离验收（✅ 已完成）
 
 **解决什么：** Phase 1 预留 tenant，但未在多应用场景端到端验收。
 
 **交付：**
 
-- 确认 `AutonomyLedger` list/get 全链路 tenant 隔离（memory + redisson）
-- `Middleware-demo`：可选第二应用或文档说明同 Redis 账本 key 前缀 + 不同 `spring.application.name`
-- Insight API / 控制台 issues 仅当前 tenant
-- 文档 + 单测：`InMemoryAutonomyLedgerTest` 增 cross-tenant 用例
+- `AbstractAutonomyLedger.ensureTenant` 写入时强制绑定当前 tenant，防止 key 串写
+- `AutonomyLedger` memory + redisson：`list/get` 按 tenant 隔离（单测 cross-tenant 验收）
+- `DefaultMiddlewareInsightService` 列表/查询二次过滤，控制台 issues/history 仅当前 tenant
+- 可选配置 `ms.middleware.autonomy.tenant-id` 覆盖 `spring.application.name`
+- 单测：`InMemoryAutonomyLedgerTest`、`RedissonAutonomyLedgerTest`、`DefaultMiddlewareInsightServiceTenantTest`
 
 **刻意不做：** 跨 tenant 运维大盘（留 Grafana label）。
 

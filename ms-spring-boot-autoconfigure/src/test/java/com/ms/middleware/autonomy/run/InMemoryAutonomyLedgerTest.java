@@ -8,6 +8,7 @@ import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -63,6 +64,38 @@ class InMemoryAutonomyLedgerTest {
         assertEquals(before + 1, publishedEvents.size());
         assertEquals(2, run.getTimeline().size());
         assertEquals("PLAN", run.getTimeline().get(1).getPhase());
+    }
+
+    /** 同一 JVM 内存账本：切换 tenant 后互不可见 */
+    @Test
+    void crossTenantIsolation() {
+        AtomicReference<String> tenantRef = new AtomicReference<>(TENANT);
+        ApplicationEventPublisher publisher = publishedEvents::add;
+        InMemoryAutonomyLedger scopedLedger =
+                new InMemoryAutonomyLedger(publisher, tenantRef::get, 10);
+
+        tenantRef.set("order-system");
+        scopedLedger.startRun(newRun("run-a"));
+
+        tenantRef.set("payment-service");
+        scopedLedger.startRun(newRun("run-b"));
+        assertEquals(1, scopedLedger.listRecent(10).size());
+        assertTrue(scopedLedger.get("run-b").isPresent());
+        assertTrue(scopedLedger.get("run-a").isEmpty());
+
+        tenantRef.set("order-system");
+        assertTrue(scopedLedger.get("run-a").isPresent());
+        assertTrue(scopedLedger.get("run-b").isEmpty());
+    }
+
+    /** 写入时强制覆盖 run 上的 tenant 字段，防止 key 污染 */
+    @Test
+    void startRunBindsCurrentTenantEvenIfRunCarriesForeignTenant() {
+        AutonomyRun run = newRun("run-foreign");
+        run.setTenant("other-app");
+        ledger.startRun(run);
+        assertEquals(TENANT, run.getTenant());
+        assertTrue(ledger.get("run-foreign").isPresent());
     }
 
     private static AutonomyRun newRun(String runId) {

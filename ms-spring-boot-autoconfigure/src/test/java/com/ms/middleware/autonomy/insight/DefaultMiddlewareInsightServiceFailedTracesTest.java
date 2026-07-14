@@ -39,7 +39,7 @@ class DefaultMiddlewareInsightServiceFailedTracesTest {
         InMemoryAutonomyLedger ledger = new InMemoryAutonomyLedger(publisher, tenantProvider, 20);
         MsMetrics metrics = new MsMetrics(new SimpleMeterRegistry());
         AutonomyMetrics autonomyMetrics = new AutonomyMetrics(new SimpleMeterRegistry());
-        service = new DefaultMiddlewareInsightService(ledger, metrics, autonomyMetrics);
+        service = new DefaultMiddlewareInsightService(ledger, metrics, autonomyMetrics, tenantProvider);
     }
 
     @AfterEach

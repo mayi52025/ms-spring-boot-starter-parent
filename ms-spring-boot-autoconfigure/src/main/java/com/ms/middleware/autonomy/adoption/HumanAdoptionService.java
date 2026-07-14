@@ -187,10 +187,12 @@ public class HumanAdoptionService {
 
     private Optional<ResolvedTarget> resolveRecommendation(String recommendationId, AdoptionRequest request) {
         if (request != null && request.getRunId() != null && !request.getRunId().isBlank()) {
+            // ledger.get 已按当前 tenant 隔离，无法跨应用采纳
             return ledger.get(request.getRunId())
                     .flatMap(run -> findRecommendation(run, recommendationId)
                             .map(rec -> new ResolvedTarget(run, rec)));
         }
+        // listRecent 仅返回当前 tenant 的 run
         for (AutonomyRun run : ledger.listRecent(200)) {
             Optional<AutonomyRecommendation> rec = findRecommendation(run, recommendationId);
             if (rec.isPresent()) {
