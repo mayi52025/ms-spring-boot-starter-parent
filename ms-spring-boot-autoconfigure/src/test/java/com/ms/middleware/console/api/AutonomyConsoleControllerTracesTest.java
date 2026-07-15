@@ -61,13 +61,19 @@ class AutonomyConsoleControllerTracesTest {
     @Test
     void authStatusEndpointReportsRequiredFlag() throws Exception {
         MsMiddlewareProperties.ConsoleProperties console = new MsMiddlewareProperties.ConsoleProperties();
+        MsMiddlewareProperties.AutonomyProperties autonomy = new MsMiddlewareProperties.AutonomyProperties();
+        MsMiddlewareProperties.AdoptionProperties adoption = new MsMiddlewareProperties.AdoptionProperties();
+        adoption.setMode("audit-only");
+        autonomy.setAdoption(adoption);
         when(properties.getConsole()).thenReturn(console);
+        when(properties.getAutonomy()).thenReturn(autonomy);
         when(consoleAuthSupport.isAuthRequired(console)).thenReturn(true);
 
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
 
         mockMvc.perform(get("/ms-console/api/auth/status"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.authRequired").value(true));
+                .andExpect(jsonPath("$.authRequired").value(true))
+                .andExpect(jsonPath("$.adoptionMode").value("audit-only"));
     }
 }

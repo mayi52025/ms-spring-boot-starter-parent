@@ -1,4 +1,5 @@
 import type { AdoptionMode, AutonomyRecommendation, AutonomyRun, PlannedAction } from '../api/types'
+import type { ReactNode } from 'react'
 import { useConsole } from '../context/ConsoleContext'
 import { computeMttr, isMqRun, isNacosDraftMode, isWartime } from '../utils/runHelpers'
 import { TimelineView } from './TimelineView'
@@ -53,7 +54,7 @@ function PrimaryAction({ action }: { action: PlannedAction }) {
   const executed = action.executionStatus === 'SUCCESS' || action.policyDecision === 'AUTO'
   const bannerCls = executed ? 'action-primary' : 'action-primary pending'
 
-  let statusText: React.ReactNode
+  let statusText: ReactNode
   if (action.executionStatus === 'SUCCESS') {
     statusText = (
       <>
