@@ -1493,6 +1493,8 @@ public class MsMiddlewareProperties {
         private String model = "deepseek-chat";
         private double temperature = 0.2;
         private int timeoutSeconds = 60;
+        /** Tool Grounding 模式：relaxed（默认）或 strict（运维类问题强制预调 Insight Tool） */
+        private String groundingMode = "relaxed";
 
         public String getBaseUrl() {
             return baseUrl;
@@ -1532,6 +1534,14 @@ public class MsMiddlewareProperties {
 
         public void setTimeoutSeconds(int timeoutSeconds) {
             this.timeoutSeconds = timeoutSeconds;
+        }
+
+        public String getGroundingMode() {
+            return groundingMode;
+        }
+
+        public void setGroundingMode(String groundingMode) {
+            this.groundingMode = groundingMode;
         }
 
         /** 解析有效 API Key：配置非空优先，否则 {@code MS_LLM_API_KEY}。 */

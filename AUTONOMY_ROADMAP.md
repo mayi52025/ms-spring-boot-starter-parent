@@ -576,7 +576,7 @@ ms:
 |----|------|------|------|
 | **5.0** | React 控制台替换静态页 ✅ | issues / 时间线 / 采纳 / SSE；token 登录；支持局域网 IP 访问 | `ms-console-ui`（Vite+React）；`npm run build` → `static/ms-console` |
 | **5.1** | LLM 接入（OpenAI 兼容）✅ | `llm-enabled=true` 走 LangChain4j + Insight Tool；false 仍规则 | DeepSeek + `MS_LLM_API_KEY` |
-| **5.2** | Tool Grounding | LLM 只调 Insight（run / issues / Trace / metrics）；禁写配置 | 单测：mock LLM 校验 tool 调用 |
+| **5.2** | Tool Grounding ✅ | LLM 只调 Insight（run / issues / Trace / metrics）；禁写配置 | 单测：mock LLM 校验 tool 调用 |
 | **5.3** | 短上下文 | 会话绑 `runId`；战时注入失败 Trace 摘要 | — |
 | **5.4** | 轻量 RAG | 历史 run / `doc/autonomy` → embedding → **pgvector** 检索 | Docker Postgres+pgvector；embedding API 或本地 embed |
 | **5.5** | MCP 只读（加分） | 暴露同一批 Tool，Cursor/外部可调 | 可选；时间不够可只写「契约预留」 |

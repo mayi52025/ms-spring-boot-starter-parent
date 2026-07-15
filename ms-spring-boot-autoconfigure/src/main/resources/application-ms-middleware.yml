@@ -111,6 +111,7 @@ ms:
         model: deepseek-chat
         temperature: 0.2
         timeout-seconds: 60
+        grounding-mode: relaxed   # strict = 运维类问题强制预调 Insight Tool
     # Redis配置
     redis:
       # 主机

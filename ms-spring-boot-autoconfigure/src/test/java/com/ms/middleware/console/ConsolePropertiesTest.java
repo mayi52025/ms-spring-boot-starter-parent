@@ -38,6 +38,16 @@ class ConsolePropertiesTest {
         assertFalse(console.isLlmEnabled());
     }
 
+    @Test
+    void groundingModeBindsUnderLlm() {
+        MockEnvironment env = new MockEnvironment()
+                .withProperty("ms.middleware.console.llm.grounding-mode", "strict");
+        MsMiddlewareProperties props = Binder.get(env)
+                .bind("ms.middleware", MsMiddlewareProperties.class)
+                .get();
+        assertTrue("strict".equalsIgnoreCase(props.getConsole().getLlm().getGroundingMode()));
+    }
+
     private MsMiddlewareProperties.ConsoleProperties bind(MockEnvironment env) {
         return Binder.get(env)
                 .bind("ms.middleware.console", MsMiddlewareProperties.ConsoleProperties.class)

@@ -96,6 +96,8 @@ export interface FailedTracesResponse {
 export interface ChatResponse {
   reply?: string
   message?: string
+  toolsUsed?: string[]
+  grounded?: boolean
 }
 
 export interface MetricsSnapshot {

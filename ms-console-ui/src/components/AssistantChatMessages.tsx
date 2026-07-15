@@ -22,7 +22,7 @@ export function AssistantChatMessages({ className = '' }: { className?: string }
   return (
     <div className={`chat-log chat-log-resizable ${className}`.trim()}>
       {chatLines.map((line, idx) => (
-        <ChatMessage key={idx} role={line.role} text={line.text} />
+        <ChatMessage key={idx} role={line.role} text={line.text} toolsUsed={line.toolsUsed} />
       ))}
       <div ref={bottomRef} />
     </div>

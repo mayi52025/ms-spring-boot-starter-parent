@@ -30,6 +30,7 @@ type SseStatus = 'connecting' | 'connected' | 'error'
 interface ChatLine {
   role: 'user' | 'assistant'
   text: string
+  toolsUsed?: string[]
 }
 
 export interface ConsoleContextValue {
@@ -344,7 +345,10 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
       try {
         const data = await sendChat(token, msg, selectedRunIdRef.current)
         const reply = data.reply || data.message || '（无回复内容）'
-        setChatLines((prev) => [...prev, { role: 'assistant', text: reply }])
+        setChatLines((prev) => [
+          ...prev,
+          { role: 'assistant', text: reply, toolsUsed: data.toolsUsed?.length ? data.toolsUsed : undefined },
+        ])
       } catch (err) {
         const text =
           err instanceof UnauthorizedError

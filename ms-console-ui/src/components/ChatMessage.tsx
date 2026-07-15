@@ -1,6 +1,14 @@
 import { formatChatText } from '../utils/chatFormat'
 
-export function ChatMessage({ role, text }: { role: 'user' | 'assistant'; text: string }) {
+export function ChatMessage({
+  role,
+  text,
+  toolsUsed,
+}: {
+  role: 'user' | 'assistant'
+  text: string
+  toolsUsed?: string[]
+}) {
   const isTechnical =
     role === 'assistant' &&
     (text.length > 80 || /[=:|#*`]/.test(text) || text.includes('\n'))
@@ -16,6 +24,9 @@ export function ChatMessage({ role, text }: { role: 'user' | 'assistant'; text: 
       ) : (
         <p className="chat-text">{formatChatText(text)}</p>
       )}
+      {role === 'assistant' && toolsUsed && toolsUsed.length > 0 ? (
+        <p className="chat-tools-used">数据来源：{toolsUsed.join('、')}</p>
+      ) : null}
     </div>
   )
 }

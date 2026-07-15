@@ -2,6 +2,11 @@ package com.ms.middleware.console.agent;
 
 import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.autonomy.insight.tool.MiddlewareInsightTool;
+import com.ms.middleware.console.agent.grounding.GroundingPolicy;
+import com.ms.middleware.console.agent.grounding.GroundingValidator;
+import com.ms.middleware.console.agent.grounding.InsightToolGateway;
+import com.ms.middleware.console.agent.grounding.StrictGroundingExecutor;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -16,6 +21,22 @@ class ConsoleLlmChatServiceTest {
 
     @Mock
     private MiddlewareInsightTool insightTool;
+
+    private ConsoleLlmChatService service;
+
+    @BeforeEach
+    void setUp() {
+        MsMiddlewareProperties properties = new MsMiddlewareProperties();
+        InsightToolGateway gateway = new InsightToolGateway(insightTool);
+        GroundingPolicy policy = new GroundingPolicy();
+        service = new ConsoleLlmChatService(
+                properties,
+                new MiddlewareInsightLangChainTools(gateway),
+                policy,
+                gateway,
+                new StrictGroundingExecutor(policy),
+                new GroundingValidator());
+    }
 
     @Test
     void normalizeBaseUrlAppendsV1() {
@@ -33,19 +54,24 @@ class ConsoleLlmChatServiceTest {
 
     @Test
     void isConfiguredFalseWithoutKey() {
-        MsMiddlewareProperties properties = new MsMiddlewareProperties();
-        properties.getConsole().setLlmEnabled(true);
-        properties.getConsole().getLlm().setApiKey("");
-        ConsoleLlmChatService service = new ConsoleLlmChatService(properties, new MiddlewareInsightLangChainTools(insightTool));
+        ConsoleLlmChatResult result = service.chat("hello", null);
         assertFalse(service.isConfigured());
-        assertTrue(service.chat("hello", null).contains("API Key"));
+        assertTrue(result.reply().contains("API Key"));
     }
 
     @Test
     void isConfiguredTrueWithKey() {
         MsMiddlewareProperties properties = new MsMiddlewareProperties();
         properties.getConsole().getLlm().setApiKey("sk-test");
-        ConsoleLlmChatService service = new ConsoleLlmChatService(properties, new MiddlewareInsightLangChainTools(insightTool));
-        assertTrue(service.isConfigured());
+        InsightToolGateway gateway = new InsightToolGateway(insightTool);
+        GroundingPolicy policy = new GroundingPolicy();
+        ConsoleLlmChatService configured = new ConsoleLlmChatService(
+                properties,
+                new MiddlewareInsightLangChainTools(gateway),
+                policy,
+                gateway,
+                new StrictGroundingExecutor(policy),
+                new GroundingValidator());
+        assertTrue(configured.isConfigured());
     }
 }
