@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>MS 智能中间件控制台</title>
+  <style>
+    :root { --bg: #0f1419; --panel: #1a2332; --text: #e7ecf3; --muted: #8b9cb3; --accent: #3b82f6; --ok: #22c55e; --warn: #f59e0b; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
+    header { padding: 12px 20px; background: var(--panel); border-bottom: 1px solid #2a3548; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { font-size: 1.1rem; margin: 0; font-weight: 600; }
+    main { display: grid; grid-template-columns: 280px 1fr 320px; gap: 0; min-height: 0; }
+    .panel { border-right: 1px solid #2a3548; padding: 12px; overflow: auto; }
+    .panel:last-child { border-right: none; border-left: 1px solid #2a3548; }
+    h2 { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin: 0 0 10px; }
+    .issue-card { background: #243044; border-radius: 8px; padding: 10px; margin-bottom: 8px; cursor: pointer; border: 1px solid transparent; }
+    .issue-card:hover, .issue-card.active { border-color: var(--accent); }
+    .issue-card .id { font-size: 0.75rem; color: var(--muted); }
+    #timeline { font-family: ui-monospace, monospace; font-size: 0.8rem; line-height: 1.6; }
+    .tl-item { padding: 6px 0; border-bottom: 1px solid #2a3548; }
+    .tl-phase { color: var(--accent); }
+    .tl-stable { border-left: 3px solid var(--ok); padding-left: 8px; background: rgba(34,197,94,.08); }
+    .tl-stable .tl-phase { color: var(--ok); }
+    .tl-auto { border-left: 3px solid var(--ok); padding-left: 8px; background: rgba(34,197,94,.06); }
+    .tl-auto .tl-phase { color: var(--ok); }
+    .action-primary { background: rgba(34,197,94,.12); border: 1px solid var(--ok); border-radius: 8px; padding: 12px; margin: 12px 0; font-size: 0.9rem; }
+    .action-primary.pending { background: rgba(245,158,11,.1); border-color: var(--warn); }
+    .section-hint { font-size: 0.75rem; color: var(--muted); margin: -6px 0 10px; font-weight: normal; text-transform: none; letter-spacing: 0; }
+    .mttr-banner { background: rgba(34,197,94,.15); border: 1px solid var(--ok); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.9rem; }
+    .mttr-banner strong { color: var(--ok); }
+    .recovery-evidence { background: #1a2a22; border: 1px solid rgba(34,197,94,.35); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.85rem; }
+    .recovery-evidence .rule { color: var(--muted); font-size: 0.75rem; margin-top: 6px; }
+    .recovery-metric { display: flex; gap: 8px; margin-top: 4px; font-family: ui-monospace, monospace; font-size: 0.8rem; }
+    .recovery-metric .label { color: var(--muted); min-width: 120px; }
+    .failed-traces { background: #1a2438; border-left: 3px solid #6366f1; border-radius: 8px; padding: 10px; margin: 12px 0; font-size: 0.85rem; }
+    .failed-trace-item { padding: 8px 0; border-bottom: 1px solid #2a3548; font-family: ui-monospace, monospace; font-size: 0.78rem; }
+    .failed-trace-item:last-child { border-bottom: none; }
+    .btn-copy, .btn-trace { padding: 3px 8px; font-size: 0.72rem; border-radius: 5px; margin-right: 6px; background: #334155; color: #e7ecf3; border: none; cursor: pointer; }
+    .btn-trace { background: var(--accent); }
+    .rec { background: #1e2a3d; border-left: 3px solid var(--warn); padding: 8px; margin: 8px 0; border-radius: 4px; font-size: 0.85rem; }
+    .rec.accepted { border-left-color: var(--ok); opacity: 0.85; }
+    .rec.rejected { border-left-color: #64748b; opacity: 0.7; }
+    .rec-actions { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .rec-actions button { padding: 4px 10px; font-size: 0.75rem; border-radius: 6px; }
+    .btn-accept { background: var(--ok); }
+    .btn-reject { background: #64748b; }
+    .btn-adopt { background: var(--warn); color: #111; }
+    .advise { background: #1a2438; border-left: 3px solid #6366f1; padding: 8px; margin: 8px 0; border-radius: 4px; font-size: 0.85rem; }
+    .tl-accepted { border-left: 3px solid #a78bfa; padding-left: 8px; }
+    .tl-accepted .tl-phase { color: #a78bfa; }
+    footer { border-top: 1px solid #2a3548; padding: 10px; display: flex; gap: 8px; background: var(--panel); }
+    input, button { font: inherit; }
+    #chatInput { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid #2a3548; background: #0f1419; color: var(--text); }
+    button { padding: 10px 16px; border: none; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
+    #chatLog { max-height: 120px; overflow: auto; font-size: 0.85rem; margin-bottom: 8px; }
+    .status { font-size: 0.8rem; color: var(--muted); }
+    .status.ok { color: var(--ok); }
+    #authLoginBtn { font-size: 0.8rem; color: var(--text); background: #2a3548; border: 1px solid #3d4f66; border-radius: 6px; padding: 6px 10px; cursor: pointer; margin-left: 8px; }
+    #authLoginBtn:hover { background: #354560; }
+    .issue-card.history { opacity: 0.85; border-left: 3px solid var(--ok); }
+    .healthy-banner { background: rgba(34,197,94,.12); border: 1px solid var(--ok); border-radius: 8px; padding: 12px; margin-bottom: 12px; color: var(--ok); font-size: 0.9rem; }
+    .war-banner { background: rgba(245,158,11,.15); border: 1px solid var(--warn); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.9rem; }
+    .war-banner strong { color: var(--warn); }
+    .executing-hint { background: rgba(59,130,246,.12); border: 1px solid var(--accent); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.82rem; color: var(--muted); }
+    .badge { display: inline-block; font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; margin-right: 6px; font-family: system-ui, sans-serif; font-weight: 600; vertical-align: middle; }
+    .badge-accepted { background: rgba(167,139,250,.2); color: #c4b5fd; border: 1px solid #7c3aed; }
+    .badge-auto { background: rgba(34,197,94,.18); color: #86efac; border: 1px solid var(--ok); }
+    .badge-manual { background: rgba(245,158,11,.18); color: #fcd34d; border: 1px solid var(--warn); }
+    .badge-rejected { background: rgba(100,116,139,.25); color: #cbd5e1; border: 1px solid #64748b; }
+    .badge-published { background: rgba(34,197,94,.18); color: #86efac; border: 1px solid var(--ok); }
+    .badge-draft { background: rgba(59,130,246,.15); color: #93c5fd; border: 1px solid var(--accent); }
+    .config-diff { background: #0f1419; border: 1px solid #2a3548; border-radius: 6px; padding: 8px; margin-top: 8px; font-family: ui-monospace, monospace; font-size: 0.75rem; white-space: pre-wrap; color: #86efac; }
+    .btn-publish { background: #7c3aed; color: #fff; }
+    .rec-section-collapsed details { margin-top: 8px; }
+    .rec-section-collapsed summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+    .auth-gate { position: fixed; inset: 0; background: rgba(15,20,25,.92); display: none; align-items: center; justify-content: center; z-index: 1000; }
+    .auth-gate.show { display: flex; }
+    .auth-card { background: var(--panel); border: 1px solid #2a3548; border-radius: 12px; padding: 24px; width: min(420px, 90vw); }
+    .auth-card h2 { margin: 0 0 8px; font-size: 1rem; color: var(--text); text-transform: none; letter-spacing: 0; }
+    .auth-card p { margin: 0 0 16px; color: var(--muted); font-size: 0.85rem; }
+    #tokenInput { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #2a3548; background: #0f1419; color: var(--text); margin-bottom: 12px; }
+    #tokenSubmit { width: 100%; }
+  </style>
+</head>
+<body>
+<div id="authGate" class="auth-gate">
+  <div class="auth-card">
+    <h2>控制台鉴权</h2>
+    <p>请输入运维 token（对应配置 ms.middleware.console.auth-token）</p>
+    <input id="tokenInput" type="password" placeholder="X-MS-Console-Token"/>
+    <button type="button" id="tokenSubmit">进入控制台</button>
+  </div>
+</div>
+<header>
+  <h1>MS 智能中间件控制台</h1>
+  <span class="status" id="sseStatus">SSE 连接中…</span>
+  <button type="button" id="authLoginBtn" title="输入 ms.middleware.console.auth-token">Token 登录</button>
+</header>
+<main>
+  <section class="panel">
+    <h2>当前问题</h2>
+    <div id="issues">加载中…</div>
+  </section>
+  <section class="panel">
+    <h2>自治时间线</h2>
+    <div id="timeline">选择左侧事件或等待新事件…</div>
+    <div id="failedTraces"></div>
+    <div id="recommendations"></div>
+  </section>
+  <section class="panel">
+    <h2>历史记录</h2>
+    <div id="history">加载中…</div>
+    <h2 style="margin-top:16px">对话</h2>
+    <div id="chatLog"></div>
+  </section>
+</main>
+<footer>
+  <input id="chatInput" type="text" placeholder="问：当前有什么问题？最近 run？"/>
+  <button type="button" id="sendBtn">发送</button>
+</footer>
+<script>
+  const base = window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') || '/ms-console';
+  const api = base + '/api';
+  const TOKEN_KEY = 'msConsoleToken';
+  let consoleToken = sessionStorage.getItem(TOKEN_KEY) || '';
+  let authRequired = false;
+  let adoptionMode = 'audit-only';
+  let sseSource = null;
+  let selectedRunId = null;
+  let viewingHistory = false;
+
+  function escapeHtml(text) {
+    if (!text) return '';
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function showAuthGate(message) {
+    const gate = document.getElementById('authGate');
+    gate.classList.add('show');
+    if (message) {
+      gate.querySelector('p').textContent = message;
+    }
+  }
+
+  function hideAuthGate() {
+    document.getElementById('authGate').classList.remove('show');
+  }
+
+  async function apiFetch(url, options = {}) {
+    const headers = Object.assign({}, options.headers || {});
+    if (consoleToken) {
+      headers['X-MS-Console-Token'] = consoleToken;
+    }
+    if (options.body && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    const res = await fetch(url, Object.assign({}, options, { headers }));
+    if (res.status === 401) {
+      authRequired = true;
+      sessionStorage.removeItem(TOKEN_KEY);
+      consoleToken = '';
+      showAuthGate('需要控制台 token（请在上方弹窗输入，不是底部「对话」框）。Demo 默认：demo-secret');
+      throw new Error('Unauthorized');
+    }
+    return res;
+  }
+
+  function streamUrl() {
+    let url = api + '/stream';
+    if (consoleToken) {
+      url += '?token=' + encodeURIComponent(consoleToken);
+    }
+    return url;
+  }
+
+  async function bootstrap() {
+    try {
+      const statusRes = await fetch(api + '/auth/status');
+      if (statusRes.ok) {
+        const status = await statusRes.json().catch(() => ({}));
+        authRequired = !!status.authRequired;
+        adoptionMode = status.adoptionMode || 'audit-only';
+      } else if (statusRes.status === 404) {
+        authRequired = false;
+        document.getElementById('sseStatus').textContent = '旧版 starter（无鉴权 API），请 reinstall 后重启';
+        document.getElementById('sseStatus').style.color = '#f59e0b';
+      } else {
+        throw new Error('HTTP ' + statusRes.status);
+      }
+      if (authRequired && !consoleToken) {
+        showAuthGate('请输入运维 token（Demo 默认 demo-secret）');
+        return;
+      }
+      hideAuthGate();
+      startConsole();
+    } catch (err) {
+      document.getElementById('issues').innerHTML =
+        `<p style="color:#f59e0b">无法连接控制台 API：${err.message}</p>`;
+    }
+  }
+
+  function startConsole() {
+    loadIssues();
+    loadHistory();
+    connectSse();
+    if (!window.consolePollStarted) {
+      window.consolePollStarted = true;
+      setInterval(() => { loadIssues(); loadHistory(); }, 10000);
+    }
+  }
+
+  document.getElementById('tokenSubmit').onclick = () => {
+    const val = document.getElementById('tokenInput').value.trim();
+    if (!val) return;
+    consoleToken = val;
+    sessionStorage.setItem(TOKEN_KEY, val);
+    hideAuthGate();
+    if (sseSource) {
+      sseSource.close();
+      sseSource = null;
+    }
+    startConsole();
+  };
+  document.getElementById('authLoginBtn').onclick = () => {
+    document.getElementById('tokenInput').value = consoleToken;
+    showAuthGate('请输入或更新控制台 token（不是底部「对话」）');
+  };
+  document.getElementById('tokenInput').onkeydown = e => {
+    if (e.key === 'Enter') document.getElementById('tokenSubmit').click();
+  };
+
+  function showHealthyView() {
+    document.getElementById('timeline').innerHTML =
+      '<div class="healthy-banner"><strong>系统正常</strong> · 中间件运行正常，暂无活跃故障</div>' +
+      '<p style="color:var(--muted)">可在右侧「历史记录」查看已恢复的故障事件。</p>';
+    document.getElementById('recommendations').innerHTML = '';
+    document.getElementById('failedTraces').innerHTML = '';
+    selectedRunId = null;
+    viewingHistory = false;
+    document.querySelectorAll('.issue-card').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.history-card').forEach(c => c.classList.remove('active'));
+  }
+
+  function computeMttr(run) {
+    if (!run || !run.startedAt || !run.stabilizedAt) return null;
+    const start = new Date(run.startedAt).getTime();
+    const end = new Date(run.stabilizedAt).getTime();
+    if (isNaN(start) || isNaN(end)) return null;
+    return Math.max(0, Math.floor((end - start) / 1000));
+  }
+
+  function isMqRun(run) {
+    const incidentType = run.plan && run.plan.incidentType;
+    if (incidentType === 'MQ_DEGRADED') return true;
+    return (run.issues || []).some(i => /MQ|消息|Rabbit/i.test(i));
+  }
+
+  function isNacosDraftMode() {
+    return adoptionMode === 'nacos-draft';
+  }
+
+  function timelinePhaseBadge(phase) {
+    if (phase === 'ACCEPTED') {
+      return isNacosDraftMode()
+        ? '<span class="badge badge-draft">已生成配置草稿</span>'
+        : '<span class="badge badge-accepted">已记录采纳（未改配置）</span>';
+    }
+    if (phase === 'PUBLISH') {
+      return '<span class="badge badge-published">已确认发布 Nacos</span>';
+    }
+    if (phase === 'AUTO') {
+      return '<span class="badge badge-auto">自动执行</span>';
+    }
+    return `<span class="tl-phase">[${phase}]</span>`;
+  }
+
+  function formatTimelineLine(e) {
+    const cls = e.phase === 'STABLE' ? 'tl-item tl-stable'
+      : e.phase === 'AUTO' ? 'tl-item tl-auto'
+      : e.phase === 'ACCEPTED' ? 'tl-item tl-accepted' : 'tl-item';
+    return `<div class="${cls}">${timelinePhaseBadge(e.phase)} ${e.at} — ${e.message}</div>`;
+  }
+
+  function recommendationStatusBadge(status, rec) {
+    if (status === 'ACCEPTED') {
+      if (isNacosDraftMode() && rec && rec.nacosPublished) {
+        return '<span class="badge badge-published">已发布 Nacos 配置</span>';
+      }
+      if (isNacosDraftMode() && rec && rec.draftId) {
+        return '<span class="badge badge-draft">草稿待发布</span>';
+      }
+      return isNacosDraftMode()
+        ? '<span class="badge badge-draft">已生成草稿</span>'
+        : '<span class="badge badge-accepted">已记录采纳（未改配置）</span>';
+    }
+    if (status === 'REJECTED') {
+      return '<span class="badge badge-rejected">已拒绝</span>';
+    }
+    return '';
+  }
+
+  function renderRecoveryEvidence(run) {
+    const ev = run.recoveryEvidence;
+    if (!ev) return '';
+    let html = `<div class="recovery-evidence"><strong>恢复依据</strong> · ${ev.summary || '—'}`;
+    if (ev.metrics && ev.metrics.length) {
+      html += ev.metrics.map(m => `
+        <div class="recovery-metric">
+          <span class="label">${m.label || m.key}</span>
+          <span>${m.beforeValue} → ${m.afterValue}${m.threshold ? ' （判定 ' + m.threshold + '）' : ''}</span>
+        </div>`).join('');
+    }
+    if (ev.resolutionRule) {
+      html += `<div class="rule">判定条件：${ev.resolutionRule}</div>`;
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderTimeline(run) {
+    const tl = document.getElementById('timeline');
+    const mttr = computeMttr(run);
+    const isWartime = run.status === 'EXECUTING' || run.status === 'PLANNED' || run.status === 'DETECTED';
+    let html = '';
+    if (isWartime) {
+      html += `<div class="war-banner"><strong>战时态</strong> · 自治处置进行中 · run ${run.runId} · ${run.status}</div>`;
+      if (isMqRun(run)) {
+        html += '<div class="executing-hint"><strong>提示</strong> · 限流/自愈已启用，根因未消除时可能无法 STABLE（需停止故障注入或等待滑动窗口清零）</div>';
+      }
+    }
+    if (run.status === 'STABLE' && mttr != null) {
+      html += `<div class="mttr-banner"><strong>战后态 · 已恢复</strong> · MTTR = <strong>${mttr}s</strong> · run ${run.runId}</div>`;
+      html += renderRecoveryEvidence(run);
+    }
+    html += (run.timeline || []).map(formatTimelineLine).join('') || '无时间线';
+    tl.innerHTML = html;
+  }
+
+  async function loadIssues() {
+    const el = document.getElementById('issues');
+    try {
+      const res = await apiFetch(api + '/issues');
+      if (!res.ok) {
+        el.innerHTML = `<p style="color:#f59e0b">加载失败 HTTP ${res.status}，请确认已重启 order-system 并 reinstall starter</p>`;
+        return;
+      }
+      const data = await res.json();
+      if (!data.runs || data.runs.length === 0) {
+        el.innerHTML = '<div class="healthy-banner"><strong>系统正常</strong> · 暂无活跃故障</div>';
+        showHealthyView();
+        loadHistory();
+        return;
+      }
+      viewingHistory = false;
+      el.innerHTML = data.runs.map(r => `
+      <div class="issue-card" data-run="${r.runId}">
+        <div class="id">run ${r.runId} · ${r.status}</div>
+        <div>${(r.issues || []).join('；') || '—'}</div>
+      </div>`).join('');
+      el.querySelectorAll('.issue-card').forEach(card => {
+        card.onclick = () => selectRun(card.dataset.run);
+      });
+    } catch (err) {
+      el.innerHTML = `<p style="color:#f59e0b">加载异常：${err.message}</p>`;
+    }
+  }
+
+  async function loadHistory() {
+    const el = document.getElementById('history');
+    try {
+      const res = await apiFetch(api + '/history');
+      if (!res.ok) {
+        el.innerHTML = `<p style="color:#f59e0b">加载失败 HTTP ${res.status}</p>`;
+        return;
+      }
+      const data = await res.json();
+      if (!data.runs || data.runs.length === 0) {
+        el.innerHTML = '<p style="color:var(--muted)">暂无历史记录</p>';
+        return;
+      }
+      el.innerHTML = data.runs.map(r => {
+        const mttr = r.mttrSeconds != null ? r.mttrSeconds : computeMttr(r);
+        const mttrLabel = mttr != null ? ` · MTTR ${mttr}s` : '';
+        return `
+      <div class="issue-card history history-card" data-run="${r.runId}">
+        <div class="id">run ${r.runId} · ${r.status}${mttrLabel}</div>
+        <div>${(r.issues || []).join('；') || '—'}</div>
+      </div>`;
+      }).join('');
+      el.querySelectorAll('.history-card').forEach(card => {
+        card.onclick = () => selectHistoryRun(card.dataset.run);
+      });
+    } catch (err) {
+      el.innerHTML = `<p style="color:#f59e0b">加载异常：${err.message}</p>`;
+    }
+  }
+
+  async function selectHistoryRun(runId) {
+    viewingHistory = true;
+    selectedRunId = runId;
+    document.querySelectorAll('.history-card').forEach(c => c.classList.toggle('active', c.dataset.run === runId));
+    document.querySelectorAll('.issue-card:not(.history-card)').forEach(c => c.classList.remove('active'));
+    await selectRun(runId, true);
+  }
+
+  async function publishRecommendationDraft(recommendationId, runId) {
+    const res = await apiFetch(api + '/recommendations/' + recommendationId + '/publish', {
+      method: 'POST',
+      body: JSON.stringify({ runId, operator: 'console' })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok && !data.success) {
+      alert(data.message || '发布失败 HTTP ' + res.status);
+      return;
+    }
+    await selectRun(runId, viewingHistory);
+  }
+
+  async function adoptRecommendation(recommendationId, runId, accept) {
+    const path = accept ? 'accept' : 'reject';
+    const res = await apiFetch(api + '/recommendations/' + recommendationId + '/' + path, {
+      method: 'POST',
+      body: JSON.stringify({ runId, operator: 'console' })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok && !data.success) {
+      alert(data.message || '操作失败 HTTP ' + res.status);
+      return;
+    }
+    await selectRun(runId, viewingHistory);
+  }
+
+  async function adoptAdvisedAction(runId, rank) {
+    const res = await apiFetch(api + '/runs/' + runId + '/actions/' + rank + '/accept', {
+      method: 'POST',
+      body: JSON.stringify({ operator: 'console' })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok && !data.success) {
+      alert(data.message || '执行失败 HTTP ' + res.status);
+      return;
+    }
+    await selectRun(runId, viewingHistory);
+  }
+
+  async function loadFailedTraces(limit = 10) {
+    try {
+      const res = await apiFetch(api + '/traces/failed?limit=' + limit);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.traces || [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function renderFailedTraces(traces, show) {
+    const el = document.getElementById('failedTraces');
+    if (!show || !traces.length) {
+      el.innerHTML = '';
+      return;
+    }
+    let html = '<div class="failed-traces"><h2 style="margin:0 0 8px">最近失败消息</h2>';
+    html += '<p class="section-hint" style="margin:0 0 8px">无需翻日志，可复制 messageId 或在对话输入 trace &lt;id&gt;</p>';
+    html += traces.map(t => `
+      <div class="failed-trace-item">
+        <div><strong>${t.messageId}</strong>${t.queue ? ' · ' + t.queue : ''}</div>
+        <div style="color:var(--muted);margin-top:4px">${t.errorMessage || '—'}</div>
+        <div style="margin-top:6px">
+          <button type="button" class="btn-copy" data-id="${t.messageId}">复制 ID</button>
+          <button type="button" class="btn-trace" data-id="${t.messageId}">查 Trace</button>
+        </div>
+      </div>`).join('');
+    html += '</div>';
+    el.innerHTML = html;
+    el.querySelectorAll('.btn-copy').forEach(btn => {
+      btn.onclick = () => navigator.clipboard.writeText(btn.dataset.id).catch(() => alert(btn.dataset.id));
+    });
+    el.querySelectorAll('.btn-trace').forEach(btn => {
+      btn.onclick = () => queryTraceInChat(btn.dataset.id);
+    });
+  }
+
+  async function queryTraceInChat(messageId) {
+    const input = document.getElementById('chatInput');
+    input.value = 'trace ' + messageId;
+    await sendChat();
+  }
+
+  function renderRecommendations(run) {
+    const rec = document.getElementById('recommendations');
+    const recs = run.plan && run.plan.recommendations ? run.plan.recommendations : [];
+    const actions = run.plan && run.plan.actions ? run.plan.actions : [];
+    const isWartime = run.status === 'EXECUTING' || run.status === 'PLANNED' || run.status === 'DETECTED';
+    const nacosDraft = isNacosDraftMode();
+    let html = '';
+
+    const primary = actions.find(a => a.rank === 1);
+    if (primary) {
+      const executed = primary.executionStatus === 'SUCCESS' || primary.policyDecision === 'AUTO';
+      const bannerCls = executed ? 'action-primary' : 'action-primary pending';
+      let statusText = '';
+      if (primary.executionStatus === 'SUCCESS') {
+        statusText = '<span class="badge badge-auto">自动执行</span> <span style="color:var(--ok)">✓ 已完成</span>';
+        if (primary.executionDetail) {
+          statusText += ' — ' + primary.executionDetail;
+        }
+      } else if (primary.policyDecision === 'AUTO') {
+        statusText = '<span class="badge badge-auto">自动执行</span> <span style="color:var(--ok)">已调度</span>';
+      } else {
+        statusText = '<span style="color:var(--warn)">未自动执行（证据或风险未达门槛，需人工确认）</span>';
+      }
+      html += `<h2>自治处置</h2><p class="section-hint">系统首选动作，LOW 风险止血优先自动执行</p>`;
+      html += `<div class="${bannerCls}"><strong>#1 ${primary.actionType}</strong><br/>${primary.reason || ''}<br/>
+        <span style="color:var(--muted);font-size:0.8rem">证据 ${(primary.confidence||0).toFixed(2)} · ${statusText}</span></div>`;
+    }
+
+    const alternates = actions.filter(a => a.rank > 1);
+    if (alternates.length) {
+      html += '<h2 style="margin-top:12px">备选方案</h2><p class="section-hint">非首选动作，默认不自动执行，可人工采纳</p>';
+      html += alternates.map(a => {
+        const adopted = a.humanAccepted;
+        const btns = !adopted ? `<div class="rec-actions">
+            <button type="button" class="btn-adopt" data-run="${run.runId}" data-rank="${a.rank}">人工采纳并执行</button>
+          </div>` : '<div style="margin-top:4px"><span class="badge badge-manual">人工触发</span> <span style="color:var(--ok);font-size:0.75rem">已执行</span></div>';
+        return `<div class="advise"><strong>#${a.rank} ${a.actionType}</strong> — ${a.reason || ''}<br/>
+          <span style="color:var(--muted);font-size:0.75rem">证据 ${(a.confidence||0).toFixed(2)} · 风险较高或顺位靠后</span>${btns}</div>`;
+      }).join('');
+    }
+
+    if (recs.length) {
+      const recBody = recs.map(r => {
+        const st = r.status || 'PENDING';
+        const cls = st === 'ACCEPTED' ? 'rec accepted' : st === 'REJECTED' ? 'rec rejected' : 'rec';
+        const badge = recommendationStatusBadge(st, r);
+        const acceptLabel = nacosDraft ? '生成配置草稿' : '记录采纳';
+        const pendingHint = nacosDraft
+          ? '<p class="section-hint" style="margin:6px 0 0">采纳将生成 Nacos 草稿与 diff，不会直接改生产配置</p>'
+          : '<p class="section-hint" style="margin:6px 0 0">采纳仅记录审计，不会自动修改 Nacos/应用配置</p>';
+        const btns = st === 'PENDING' ? `
+          <div class="rec-actions">
+            <button type="button" class="btn-accept" data-rec="${r.recommendationId}" data-run="${run.runId}">${acceptLabel}</button>
+            <button type="button" class="btn-reject" data-rec="${r.recommendationId}" data-run="${run.runId}">拒绝</button>
+          </div>${pendingHint}` : '';
+        const diffBlock = (st === 'ACCEPTED' && nacosDraft && r.diffSummary && !r.nacosPublished)
+          ? `<div class="config-diff">${escapeHtml(r.diffSummary)}</div>
+             <div class="rec-actions"><button type="button" class="btn-publish" data-rec="${r.recommendationId}" data-run="${run.runId}">确认发布到 Nacos</button></div>`
+          : '';
+        return `<div class="${cls}"><strong>${r.title}</strong> ${badge}<br/>${r.description}
+        ${r.suggestedConfig ? '<br/><code>' + escapeHtml(r.suggestedConfig) + '</code>' : ''}${btns}${diffBlock}</div>`;
+      }).join('');
+      const sectionHint = nacosDraft
+        ? '战后复盘：配置级建议，「生成配置草稿」后展示 diff，须二次「确认发布」'
+        : '战后复盘：配置级建议，「记录采纳」仅审计，不自动改配置';
+      if (isWartime) {
+        html += '<div class="rec-section-collapsed"><h2 style="margin-top:12px">优化建议</h2>';
+        html += '<p class="section-hint">战时默认折叠，不阻塞止血；恢复后可展开处理</p>';
+        html += `<details><summary>展开 ${recs.length} 条配置建议</summary>${recBody}</details></div>`;
+      } else {
+        html += '<h2 style="margin-top:12px">优化建议</h2><p class="section-hint">' + sectionHint + '</p>';
+        html += recBody;
+      }
+    }
+
+    rec.innerHTML = html;
+    rec.querySelectorAll('.btn-accept').forEach(btn => {
+      btn.onclick = () => adoptRecommendation(btn.dataset.rec, btn.dataset.run, true);
+    });
+    rec.querySelectorAll('.btn-reject').forEach(btn => {
+      btn.onclick = () => adoptRecommendation(btn.dataset.rec, btn.dataset.run, false);
+    });
+    rec.querySelectorAll('.btn-publish').forEach(btn => {
+      btn.onclick = () => publishRecommendationDraft(btn.dataset.rec, btn.dataset.run);
+    });
+    rec.querySelectorAll('.btn-adopt').forEach(btn => {
+      btn.onclick = () => adoptAdvisedAction(btn.dataset.run, parseInt(btn.dataset.rank, 10));
+    });
+  }
+
+  async function selectRun(runId, fromHistory = false) {
+    selectedRunId = runId;
+    viewingHistory = fromHistory;
+    if (!fromHistory) {
+      document.querySelectorAll('.issue-card:not(.history-card)').forEach(c => c.classList.toggle('active', c.dataset.run === runId));
+      document.querySelectorAll('.history-card').forEach(c => c.classList.remove('active'));
+    }
+    const res = await apiFetch(api + '/runs/' + runId);
+    if (!res.ok) return;
+    const run = await res.json();
+    renderTimeline(run);
+    const isWartime = run.status === 'EXECUTING' || run.status === 'PLANNED' || run.status === 'DETECTED';
+    if (isWartime) {
+      const traces = await loadFailedTraces(10);
+      renderFailedTraces(traces, true);
+    } else {
+      renderFailedTraces([], false);
+    }
+    renderRecommendations(run);
+  }
+
+  function connectSse() {
+    if (sseSource) {
+      sseSource.close();
+    }
+    const es = new EventSource(streamUrl());
+    sseSource = es;
+    es.addEventListener('connected', () => {
+      document.getElementById('sseStatus').textContent = 'SSE 已连接';
+      document.getElementById('sseStatus').classList.add('ok');
+    });
+    es.addEventListener('timeline', ev => {
+      try {
+        const e = JSON.parse(ev.data);
+        const line = document.createElement('div');
+        line.className = e.phase === 'STABLE' ? 'tl-item tl-stable'
+          : e.phase === 'AUTO' ? 'tl-item tl-auto'
+          : e.phase === 'ACCEPTED' ? 'tl-item tl-accepted' : 'tl-item';
+        line.innerHTML = `${timelinePhaseBadge(e.phase)} ${e.at} — ${e.message}`;
+        document.getElementById('timeline').prepend(line);
+        if (e.phase === 'STABLE') {
+          loadIssues();
+          loadHistory();
+          if (e.runId) selectHistoryRun(e.runId);
+        } else {
+          loadIssues();
+          if (e.runId && !viewingHistory) selectRun(e.runId);
+        }
+      } catch (_) {}
+    });
+    es.onerror = () => {
+      document.getElementById('sseStatus').textContent = 'SSE 断开，3s 后刷新页面';
+    };
+  }
+
+  async function sendChat() {
+    const input = document.getElementById('chatInput');
+    const msg = input.value.trim();
+    if (!msg) return;
+    const log = document.getElementById('chatLog');
+    log.innerHTML += `<div><b>你：</b>${msg}</div>`;
+    try {
+      const res = await apiFetch(api + '/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: msg, runId: selectedRunId })
+      });
+      const data = await res.json().catch(() => ({}));
+      const reply = data.reply || data.message || (res.ok ? '（无回复内容）' : `请求失败 HTTP ${res.status}`);
+      log.innerHTML += `<div><b>助手：</b>${reply}</div>`;
+    } catch (err) {
+      log.innerHTML += `<div><b>助手：</b>请求异常：${err.message}</div>`;
+    }
+    input.value = '';
+    log.scrollTop = log.scrollHeight;
+  }
+
+  document.getElementById('sendBtn').onclick = sendChat;
+  document.getElementById('chatInput').onkeydown = e => { if (e.key === 'Enter') sendChat(); };
+  bootstrap();
+</script>
+</body>
+</html>

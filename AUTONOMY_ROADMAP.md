@@ -545,23 +545,88 @@ ms:
 
 ---
 
+## 完整品定位（作品集）
 
+**嵌入式中间件运维套件：** 进程内自治止血 + 账本证据 + 人机采纳 + React 控制台（IP 登录）+ 接地运维 Agent（Tool + RAG）。  
+**目标：** 做完并验证、写入简历；不追求长期运营企业平台。  
+**原则：** 自治环与 LLM 解耦；Agent 只读 Tool，写配置不绕过采纳/PUBLISH。
 
-- [ ] optional LangChain4j 依赖
+### 定稿技术栈
 
-- [ ] Tool 基于 `MiddlewareInsightService`
+| 层 | 选型 | 不做 |
+|----|------|------|
+| 内核 | 已有 starter / 自治 / Redis 账本 / Rabbit | — |
+| 控制台 | **React + Vite**，构建进 jar，`http://IP:port/ms-console` | 不再以静态 HTML 为主界面 |
+| 鉴权 | `auth-token`（登录页） | 暂不上 OAuth |
+| LLM | **OpenAI 兼容**（`base-url` + 可选 `api-key`）；可选 Ollama | 不绑死厂商；C 盘满可不装 Ollama |
+| Agent | **LangChain4j · 单 Agent + 多 Tool** | Google ADK 多 Agent、A2A 实现 |
+| Tool | 现有 `MiddlewareInsightTool` | LLM 不可直调采纳/发布 |
+| RAG | **Embedding + PostgreSQL + pgvector** | Milvus、RagFlow 不进主仓 |
+| 扩展（加分） | **MCP Server 只读** | 长期记忆、多 Agent 编排 |
 
-- [ ] `llm-enabled=true` 时走 LLM（兼容旧 `chat-enabled`）
+---
 
+### Phase 5 — 运维 Agent + React 控制台（作品集主阶段）
 
+**目标：** 补齐「驾驶舱 + 认知层」，与流行 Agent 叙事对齐，且不削弱自治内核。
 
-### Phase 6 — middleware-demo 演示（2 天）
+#### 建议顺序（按周弹性，简历向最短路径）
 
+| 步 | 内容 | 交付 | 准备 |
+|----|------|------|------|
+| **5.0** | React 控制台替换静态页 ✅ | issues / 时间线 / 采纳 / SSE；token 登录；支持局域网 IP 访问 | `ms-console-ui`（Vite+React）；`npm run build` → `static/ms-console` |
+| **5.1** | LLM 接入（OpenAI 兼容） | `llm-enabled=true` 走 LangChain4j；false 仍规则 Tool | 云 API Key（推荐）；Ollama 可选（模型放非 C 盘） |
+| **5.2** | Tool Grounding | LLM 只调 Insight（run / issues / Trace / metrics）；禁写配置 | 单测：mock LLM 校验 tool 调用 |
+| **5.3** | 短上下文 | 会话绑 `runId`；战时注入失败 Trace 摘要 | — |
+| **5.4** | 轻量 RAG | 历史 run / `doc/autonomy` → embedding → **pgvector** 检索 | Docker Postgres+pgvector；embedding API 或本地 embed |
+| **5.5** | MCP 只读（加分） | 暴露同一批 Tool，Cursor/外部可调 | 可选；时间不够可只写「契约预留」 |
 
+#### Phase 5 DoD（做完即可停、写简历）
 
-- [ ] order-system 开 autonomy + console
+- [x] React 控制台可经 IP + token 打开，功能不低于现静态页（源码 `ms-console-ui`，构建产物已进 jar）
+- [ ] `llm-enabled=true` 时自然语言可问：当前问题 / 指定 run / 失败 Trace / 为何 STABLE（有 Tool 证据）
+- [ ] 至少一次 RAG 问答命中历史或文档摘要
+- [ ] README：启动步骤、配置样例、演示脚本；可选 Ollama 说明
+- [ ] （加分）MCP 只读可调通一个 Tool
 
-- [ ] README：停 Redis → 看窗口时间线
+#### 刻意不做
+
+- Google ADK / A2A / Milvus / RagFlow  
+- LLM 自动 AUTO 或自动 publish Nacos  
+- 跨应用统一运维大盘（仍「一应用一控制台」）
+
+---
+
+### Phase 6 — 演示收口与作品集包装（约 2～3 天）
+
+**目标：** 可录屏、可给面试官复现，不是新功能大爆发。
+
+| 项 | 内容 |
+|----|------|
+| Demo 剧本 | MQ 故障 → AUTO → STABLE 证据 → React 对话提问 →（可选）RAG 历史 |
+| order-system | 默认配置对齐完整品；Compose 可选：Redis/Rabbit/Postgres |
+| README / 架构图 | 完整品定位 + 技术栈 + 与「纯 Agent 课设」差异 |
+| 录屏 | 5～8 分钟（简历附件） |
+| 单测回归 | `autonomy.**` + Agent/Tool 烟雾测试 |
+
+**Phase 6 DoD**
+
+- [ ] 按 README 可从零起演示一遍  
+- [ ] 简历项目描述与仓库一致（已完成 vs 可选加分写清）
+
+---
+
+### 开干前你需要准备的
+
+| 类型 | 建议 |
+|------|------|
+| 必备 | JDK、Maven、Node 18+、现有 Redis/Rabbit（或 102 虚机） |
+| 强烈建议 | 一个 OpenAI 兼容 API Key（豆包/通义/DeepSeek 等） |
+| RAG | Docker 可跑 Postgres+pgvector（演示完可停） |
+| 可选 | Ollama 装到 **D/E 盘** + `OLLAMA_MODELS`；C 盘满先跳过 |
+| 不要先准备 | ADK、Milvus、RagFlow、企业 SSO |
+
+---
 
 
 
@@ -587,11 +652,9 @@ com.ms.middleware.autonomy/
 
 com.ms.middleware.redis/        # RedissonConnectionManager、RedissonProbes（统一恢复）
 
-com.ms.middleware.console/      # AI 控制台 API + UI 静态资源
-
+com.ms.middleware.console/      # 控制台 API；React 构建产物静态托管
+com.ms.middleware.console.agent/ # Phase 5：LangChain4j / Tool / RAG（待建）
 ```
-
-
 
 `ai/HotKey*` 仍为统计信号，与 `autonomy` 并列，不合并包名。
 
