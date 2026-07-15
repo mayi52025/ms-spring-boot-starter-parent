@@ -112,6 +112,14 @@ ms:
         temperature: 0.2
         timeout-seconds: 60
         grounding-mode: relaxed   # strict = 运维类问题强制预调 Insight Tool
+      context:
+        enabled: true
+        max-chars: 2048
+        dialog-user-messages: 2
+        timeline-event-limit: 5
+        wartime-trace-limit: 5
+        run-context-cache-seconds: 30
+        auto-bind-single-active-run: true
     # Redis配置
     redis:
       # 主机

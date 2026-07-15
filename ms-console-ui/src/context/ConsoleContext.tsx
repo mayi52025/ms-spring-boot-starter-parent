@@ -16,6 +16,7 @@ import {
   fetchIssues,
   fetchMetrics,
   fetchRun,
+  getOrCreateChatSessionId,
   getStoredToken,
   publishRecommendationDraft,
   sendChat,
@@ -31,6 +32,7 @@ interface ChatLine {
   role: 'user' | 'assistant'
   text: string
   toolsUsed?: string[]
+  contextHints?: string[]
 }
 
 export interface ConsoleContextValue {
@@ -98,6 +100,8 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
   const sseRef = useRef<EventSource | null>(null)
   const viewingHistoryRef = useRef(viewingHistory)
   const selectedRunIdRef = useRef(selectedRunId)
+  const chatSessionIdRef = useRef(getOrCreateChatSessionId())
+  const previousRunIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     viewingHistoryRef.current = viewingHistory
@@ -162,6 +166,10 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
   const loadRunDetails = useCallback(
     async (runId: string, fromHistory: boolean) => {
       try {
+        if (previousRunIdRef.current !== runId) {
+          setChatLines([])
+          previousRunIdRef.current = runId
+        }
         const run = await fetchRun(token, runId)
         setCurrentRun(run)
         setLiveTimeline(run.timeline || [])
@@ -204,6 +212,8 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
     setCurrentRun(null)
     setFailedTraces([])
     setLiveTimeline([])
+    setChatLines([])
+    previousRunIdRef.current = null
   }, [])
 
   const login = useCallback(
@@ -343,11 +353,16 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
       if (!msg) return
       setChatLines((prev) => [...prev, { role: 'user', text: msg }])
       try {
-        const data = await sendChat(token, msg, selectedRunIdRef.current)
+        const data = await sendChat(token, msg, selectedRunIdRef.current, chatSessionIdRef.current)
         const reply = data.reply || data.message || '（无回复内容）'
         setChatLines((prev) => [
           ...prev,
-          { role: 'assistant', text: reply, toolsUsed: data.toolsUsed?.length ? data.toolsUsed : undefined },
+          {
+            role: 'assistant',
+            text: reply,
+            toolsUsed: data.toolsUsed?.length ? data.toolsUsed : undefined,
+            contextHints: data.contextHints?.length ? data.contextHints : undefined,
+          },
         ])
       } catch (err) {
         const text =

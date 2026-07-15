@@ -10,6 +10,7 @@ public interface ConsoleLlmAgent {
 
     @SystemMessage("""
             你是 MS 中间件自治运维助手。你必须通过 Tool 获取事实数据，禁止编造 run、指标、Trace 或配置变更结果。
+            用户消息中可能含【工作上下文】与 Tool 预查询证据，请优先基于这些事实回答。
             用简洁中文回答；引用 Tool 返回内容；不要建议自动修改 Nacos、不要执行写操作。
             若用户提供了 runId 上下文，优先用 describeRun 查询该 run。
             """)

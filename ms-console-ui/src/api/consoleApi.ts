@@ -10,6 +10,7 @@ import type {
 } from './types'
 
 const TOKEN_KEY = 'msConsoleToken'
+const SESSION_KEY = 'msConsoleChatSessionId'
 
 function resolveBasePath(): string {
   const path = window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '')
@@ -22,6 +23,16 @@ export function getApiBase(): string {
 
 export function getStoredToken(): string {
   return sessionStorage.getItem(TOKEN_KEY) || ''
+}
+
+/** 5.3 会话标识：刷新页面仍保留，换 run 时由后端分桶 */
+export function getOrCreateChatSessionId(): string {
+  let id = sessionStorage.getItem(SESSION_KEY)
+  if (!id) {
+    id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `sess-${Date.now()}`
+    sessionStorage.setItem(SESSION_KEY, id)
+  }
+  return id
 }
 
 export function setStoredToken(token: string): void {
@@ -107,10 +118,15 @@ export async function fetchFailedTraces(token: string, limit = 10): Promise<Fail
   return res.json() as Promise<FailedTracesResponse>
 }
 
-export async function sendChat(token: string, message: string, runId: string | null): Promise<ChatResponse> {
+export async function sendChat(
+  token: string,
+  message: string,
+  runId: string | null,
+  sessionId: string,
+): Promise<ChatResponse> {
   const res = await apiFetch(`${getApiBase()}/chat`, token, {
     method: 'POST',
-    body: JSON.stringify({ message, runId }),
+    body: JSON.stringify({ message, runId, sessionId }),
   })
   return res.json() as Promise<ChatResponse>
 }

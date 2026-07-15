@@ -2,15 +2,25 @@ package com.ms.middleware.console.agent;
 
 import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.autonomy.insight.tool.MiddlewareInsightTool;
+import com.ms.middleware.console.agent.context.ConsoleChatContextOrchestrator;
+import com.ms.middleware.console.agent.context.ConversationStateStore;
+import com.ms.middleware.console.agent.context.ContextAssembler;
+import com.ms.middleware.console.agent.context.AgentOrchestrationPolicy;
+import com.ms.middleware.console.agent.context.RunContextCache;
+import com.ms.middleware.console.agent.context.RunSnapshotBuilder;
+import com.ms.middleware.console.agent.context.TestRetrievalContextProviders;
 import com.ms.middleware.console.agent.grounding.GroundingPolicy;
 import com.ms.middleware.console.agent.grounding.GroundingValidator;
 import com.ms.middleware.console.agent.grounding.InsightToolGateway;
 import com.ms.middleware.console.agent.grounding.StrictGroundingExecutor;
+import com.ms.middleware.autonomy.insight.MiddlewareInsightService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -21,6 +31,10 @@ class ConsoleLlmChatServiceTest {
 
     @Mock
     private MiddlewareInsightTool insightTool;
+    @Mock
+    private MiddlewareInsightService insightService;
+    @Mock
+    private RunSnapshotBuilder snapshotBuilder;
 
     private ConsoleLlmChatService service;
 
@@ -29,13 +43,24 @@ class ConsoleLlmChatServiceTest {
         MsMiddlewareProperties properties = new MsMiddlewareProperties();
         InsightToolGateway gateway = new InsightToolGateway(insightTool);
         GroundingPolicy policy = new GroundingPolicy();
+        ContextAssembler assembler = new ContextAssembler(
+                insightService,
+                snapshotBuilder,
+                new RunContextCache(),
+                TestRetrievalContextProviders.empty());
+        ConsoleChatContextOrchestrator orchestrator = new ConsoleChatContextOrchestrator(
+                properties,
+                insightService,
+                new AgentOrchestrationPolicy(policy, insightService),
+                new ConversationStateStore(),
+                assembler);
         service = new ConsoleLlmChatService(
                 properties,
                 new MiddlewareInsightLangChainTools(gateway),
-                policy,
                 gateway,
                 new StrictGroundingExecutor(policy),
-                new GroundingValidator());
+                new GroundingValidator(),
+                orchestrator);
     }
 
     @Test
@@ -54,7 +79,7 @@ class ConsoleLlmChatServiceTest {
 
     @Test
     void isConfiguredFalseWithoutKey() {
-        ConsoleLlmChatResult result = service.chat("hello", null);
+        ConsoleLlmChatResult result = service.chat("hello", null, "sess");
         assertFalse(service.isConfigured());
         assertTrue(result.reply().contains("API Key"));
     }
@@ -65,13 +90,23 @@ class ConsoleLlmChatServiceTest {
         properties.getConsole().getLlm().setApiKey("sk-test");
         InsightToolGateway gateway = new InsightToolGateway(insightTool);
         GroundingPolicy policy = new GroundingPolicy();
+        ContextAssembler assembler = new ContextAssembler(
+                insightService,
+                snapshotBuilder,
+                new RunContextCache(),
+                TestRetrievalContextProviders.empty());
         ConsoleLlmChatService configured = new ConsoleLlmChatService(
                 properties,
                 new MiddlewareInsightLangChainTools(gateway),
-                policy,
                 gateway,
                 new StrictGroundingExecutor(policy),
-                new GroundingValidator());
+                new GroundingValidator(),
+                new ConsoleChatContextOrchestrator(
+                        properties,
+                        insightService,
+                        new AgentOrchestrationPolicy(policy, insightService),
+                        new ConversationStateStore(),
+                        assembler));
         assertTrue(configured.isConfigured());
     }
 }

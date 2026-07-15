@@ -1,9 +1,8 @@
 package com.ms.middleware.console.agent;
 
 import com.ms.middleware.MsMiddlewareProperties;
+import com.ms.middleware.console.agent.context.ConsoleChatContextOrchestrator;
 import com.ms.middleware.console.agent.grounding.GroundingMode;
-import com.ms.middleware.console.agent.grounding.GroundingPolicy;
-import com.ms.middleware.console.agent.grounding.GroundingResolution;
 import com.ms.middleware.console.agent.grounding.GroundingValidator;
 import com.ms.middleware.console.agent.grounding.InsightToolGateway;
 import com.ms.middleware.console.agent.grounding.StrictGroundingExecutor;
@@ -19,7 +18,7 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * LLM 对话服务：{@code llm-enabled=true} 时由 {@link com.ms.middleware.console.chat.ConsoleChatService} 委托。
+ * LLM 对话服务：5.2 Grounding + 5.3 工作上下文编排。
  */
 @Service
 @ConditionalOnProperty(prefix = "ms.middleware.console", name = "llm-enabled", havingValue = "true")
@@ -29,31 +28,31 @@ public class ConsoleLlmChatService {
 
     private final MsMiddlewareProperties properties;
     private final MiddlewareInsightLangChainTools insightTools;
-    private final GroundingPolicy groundingPolicy;
     private final InsightToolGateway insightToolGateway;
     private final StrictGroundingExecutor strictGroundingExecutor;
     private final GroundingValidator groundingValidator;
+    private final ConsoleChatContextOrchestrator contextOrchestrator;
     private volatile ConsoleLlmAgent agent;
 
     public ConsoleLlmChatService(MsMiddlewareProperties properties,
                                  MiddlewareInsightLangChainTools insightTools,
-                                 GroundingPolicy groundingPolicy,
                                  InsightToolGateway insightToolGateway,
                                  StrictGroundingExecutor strictGroundingExecutor,
-                                 GroundingValidator groundingValidator) {
+                                 GroundingValidator groundingValidator,
+                                 ConsoleChatContextOrchestrator contextOrchestrator) {
         this.properties = properties;
         this.insightTools = insightTools;
-        this.groundingPolicy = groundingPolicy;
         this.insightToolGateway = insightToolGateway;
         this.strictGroundingExecutor = strictGroundingExecutor;
         this.groundingValidator = groundingValidator;
+        this.contextOrchestrator = contextOrchestrator;
     }
 
     public boolean isConfigured() {
         return !resolveApiKey().isBlank();
     }
 
-    public ConsoleLlmChatResult chat(String message, String runId) {
+    public ConsoleLlmChatResult chat(String message, String runId, String sessionId) {
         if (message == null || message.isBlank()) {
             return ConsoleLlmChatResult.of("请输入问题。", List.of(), true);
         }
@@ -65,42 +64,57 @@ public class ConsoleLlmChatService {
         }
 
         GroundingMode mode = resolveGroundingMode();
-        GroundingResolution resolution = groundingPolicy.resolve(message, runId);
+        ConsoleChatContextOrchestrator.PreparedChatContext preparedContext =
+                contextOrchestrator.prepare(message, runId, sessionId, mode);
 
         try (InsightToolGateway.AuditScope ignored = insightToolGateway.openAudit()) {
-            StrictGroundingExecutor.PreparedContext prepared =
-                    strictGroundingExecutor.prepare(message, runId, mode, insightToolGateway);
+            StrictGroundingExecutor.PreparedContext groundingPrepared = strictGroundingExecutor.prepareWithComposedMessage(
+                    preparedContext.messageForGrounding(),
+                    preparedContext.grounding(),
+                    mode,
+                    insightToolGateway);
             try {
                 ConsoleLlmAgent llmAgent = getOrCreateAgent();
-                String llmReply = llmAgent.chat(prepared.userMessage());
+                String llmReply = llmAgent.chat(groundingPrepared.userMessage());
                 List<String> toolsUsed = insightToolGateway.currentToolNames();
                 GroundingValidator.ValidationResult validation = groundingValidator.validate(
                         llmReply,
                         toolsUsed,
-                        resolution,
+                        preparedContext.grounding(),
                         mode,
-                        prepared.prefetchedEvidence());
+                        groundingPrepared.prefetchedEvidence());
+                contextOrchestrator.recordTurn(preparedContext, message, toolsUsed);
+
+                List<String> contextHints = preparedContext.assembledContext().contextHints();
+                String boundRunId = preparedContext.effectiveRunId();
+
                 if (!validation.grounded()) {
-                    return ConsoleLlmChatResult.of(validation.fallbackReply(), toolsUsed, false);
+                    return ConsoleLlmChatResult.of(
+                            validation.fallbackReply(), toolsUsed, false, contextHints, boundRunId);
                 }
-                boolean grounded = !resolution.opsQuestion() || !toolsUsed.isEmpty();
-                return ConsoleLlmChatResult.of(llmReply, toolsUsed, grounded);
+                boolean grounded = !preparedContext.grounding().opsQuestion() || !toolsUsed.isEmpty();
+                return ConsoleLlmChatResult.of(llmReply, toolsUsed, grounded, contextHints, boundRunId);
             } catch (Exception e) {
                 log.warn("LLM chat failed: {}", e.getMessage());
+                List<String> toolsUsed = insightToolGateway.currentToolNames();
+                contextOrchestrator.recordTurn(preparedContext, message, toolsUsed);
                 if (mode == GroundingMode.STRICT
-                        && resolution.opsQuestion()
-                        && prepared.prefetchedEvidence() != null
-                        && !prepared.prefetchedEvidence().isBlank()) {
-                    List<String> toolsUsed = insightToolGateway.currentToolNames();
+                        && preparedContext.grounding().opsQuestion()
+                        && groundingPrepared.prefetchedEvidence() != null
+                        && !groundingPrepared.prefetchedEvidence().isBlank()) {
                     return ConsoleLlmChatResult.of(
-                            "（Grounding）LLM 不可用，以下为 Insight Tool 数据：\n\n" + prepared.prefetchedEvidence(),
+                            "（Grounding）LLM 不可用，以下为 Insight Tool 数据：\n\n" + groundingPrepared.prefetchedEvidence(),
                             toolsUsed,
-                            true);
+                            true,
+                            preparedContext.assembledContext().contextHints(),
+                            preparedContext.effectiveRunId());
                 }
                 return ConsoleLlmChatResult.of(
                         "LLM 请求失败：" + e.getMessage() + "。可暂时关闭 llm-enabled 使用规则模式。",
-                        insightToolGateway.currentToolNames(),
-                        false);
+                        toolsUsed,
+                        false,
+                        preparedContext.assembledContext().contextHints(),
+                        preparedContext.effectiveRunId());
             }
         }
     }

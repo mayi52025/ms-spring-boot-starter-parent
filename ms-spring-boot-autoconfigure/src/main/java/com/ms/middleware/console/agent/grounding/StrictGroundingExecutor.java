@@ -17,6 +17,27 @@ public class StrictGroundingExecutor {
     public record PreparedContext(String userMessage, String prefetchedEvidence) {
     }
 
+    /**
+     * 基于已编排的用户消息（含 5.3 工作上下文）追加 Tool 证据。
+     */
+    public PreparedContext prepareWithComposedMessage(
+            String composedUserMessage,
+            GroundingResolution resolution,
+            GroundingMode mode,
+            InsightToolGateway gateway) {
+
+        if (mode != GroundingMode.STRICT || !resolution.opsQuestion()) {
+            return new PreparedContext(composedUserMessage, "");
+        }
+
+        String evidence = gateway.executeRequiredTools(resolution);
+        String augmented = composedUserMessage
+                + "\n\n【系统已通过 Insight Tool 预查询，请基于以下事实回答，禁止编造】\n"
+                + evidence;
+        return new PreparedContext(augmented, evidence);
+    }
+
+    /** 兼容无 5.3 编排时的直接调用 */
     public PreparedContext prepare(
             String message,
             String runId,
@@ -24,15 +45,8 @@ public class StrictGroundingExecutor {
             InsightToolGateway gateway) {
 
         GroundingResolution resolution = policy.resolve(message, runId);
-        if (mode != GroundingMode.STRICT || !resolution.opsQuestion()) {
-            return new PreparedContext(buildBaseUserMessage(message, runId), "");
-        }
-
-        String evidence = gateway.executeRequiredTools(resolution);
-        String augmented = buildBaseUserMessage(message, runId)
-                + "\n\n【系统已通过 Insight Tool 预查询，请基于以下事实回答，禁止编造】\n"
-                + evidence;
-        return new PreparedContext(augmented, evidence);
+        String composed = buildBaseUserMessage(message, runId);
+        return prepareWithComposedMessage(composed, resolution, mode, gateway);
     }
 
     public static String buildBaseUserMessage(String message, String runId) {

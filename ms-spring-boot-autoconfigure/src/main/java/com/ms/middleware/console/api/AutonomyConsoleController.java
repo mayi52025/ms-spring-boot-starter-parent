@@ -110,6 +110,6 @@ public class AutonomyConsoleController {
 
     @PostMapping("/chat")
     public ConsoleChatResponse chat(@RequestBody ConsoleChatRequest request) {
-        return chatService.chat(request.getMessage(), request.getRunId());
+        return chatService.chat(request.getMessage(), request.getRunId(), request.getSessionId());
     }
 }

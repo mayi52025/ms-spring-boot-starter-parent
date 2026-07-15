@@ -98,6 +98,8 @@ export interface ChatResponse {
   message?: string
   toolsUsed?: string[]
   grounded?: boolean
+  contextHints?: string[]
+  boundRunId?: string | null
 }
 
 export interface MetricsSnapshot {

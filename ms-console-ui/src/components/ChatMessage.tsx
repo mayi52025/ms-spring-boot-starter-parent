@@ -4,10 +4,12 @@ export function ChatMessage({
   role,
   text,
   toolsUsed,
+  contextHints,
 }: {
   role: 'user' | 'assistant'
   text: string
   toolsUsed?: string[]
+  contextHints?: string[]
 }) {
   const isTechnical =
     role === 'assistant' &&
@@ -24,6 +26,9 @@ export function ChatMessage({
       ) : (
         <p className="chat-text">{formatChatText(text)}</p>
       )}
+      {role === 'assistant' && contextHints && contextHints.length > 0 ? (
+        <p className="chat-tools-used">上下文：{contextHints.join('、')}</p>
+      ) : null}
       {role === 'assistant' && toolsUsed && toolsUsed.length > 0 ? (
         <p className="chat-tools-used">数据来源：{toolsUsed.join('、')}</p>
       ) : null}

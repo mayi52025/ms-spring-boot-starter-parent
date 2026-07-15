@@ -1416,6 +1416,9 @@ public class MsMiddlewareProperties {
         /** LLM 连接参数（OpenAI 兼容，默认 DeepSeek） */
         @NestedConfigurationProperty
         private LlmProperties llm = new LlmProperties();
+        /** Phase 5.3 工作上下文（run 快照 + 压缩对话态 + 检索降级） */
+        @NestedConfigurationProperty
+        private ContextProperties context = new ContextProperties();
 
         public boolean isEnabled() {
             return enabled;
@@ -1480,6 +1483,91 @@ public class MsMiddlewareProperties {
 
         public void setLlm(LlmProperties llm) {
             this.llm = llm;
+        }
+
+        public ContextProperties getContext() {
+            return context;
+        }
+
+        public void setContext(ContextProperties context) {
+            this.context = context;
+        }
+    }
+
+    /**
+     * Phase 5.3 控制台工作上下文配置。
+     */
+    public static class ContextProperties {
+
+        /** 是否启用工作上下文装配 */
+        private boolean enabled = true;
+        /** 工作上下文总字符预算 */
+        private int maxChars = 2048;
+        /** 保留最近几条用户原话（非完整 assistant 回复） */
+        private int dialogUserMessages = 2;
+        /** run 时间线尾部最多几条 */
+        private int timelineEventLimit = 5;
+        /** 战时诊断类意图注入失败 Trace 条数上限 */
+        private int wartimeTraceLimit = 5;
+        /** run 快照缓存秒数 */
+        private int runContextCacheSeconds = 30;
+        /** 仅 1 个活跃故障时自动绑定 runId */
+        private boolean autoBindSingleActiveRun = true;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getMaxChars() {
+            return maxChars;
+        }
+
+        public void setMaxChars(int maxChars) {
+            this.maxChars = maxChars;
+        }
+
+        public int getDialogUserMessages() {
+            return dialogUserMessages;
+        }
+
+        public void setDialogUserMessages(int dialogUserMessages) {
+            this.dialogUserMessages = dialogUserMessages;
+        }
+
+        public int getTimelineEventLimit() {
+            return timelineEventLimit;
+        }
+
+        public void setTimelineEventLimit(int timelineEventLimit) {
+            this.timelineEventLimit = timelineEventLimit;
+        }
+
+        public int getWartimeTraceLimit() {
+            return wartimeTraceLimit;
+        }
+
+        public void setWartimeTraceLimit(int wartimeTraceLimit) {
+            this.wartimeTraceLimit = wartimeTraceLimit;
+        }
+
+        public int getRunContextCacheSeconds() {
+            return runContextCacheSeconds;
+        }
+
+        public void setRunContextCacheSeconds(int runContextCacheSeconds) {
+            this.runContextCacheSeconds = runContextCacheSeconds;
+        }
+
+        public boolean isAutoBindSingleActiveRun() {
+            return autoBindSingleActiveRun;
+        }
+
+        public void setAutoBindSingleActiveRun(boolean autoBindSingleActiveRun) {
+            this.autoBindSingleActiveRun = autoBindSingleActiveRun;
         }
     }
 
