@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useConsole } from '../context/ConsoleContext'
+import { useConsole } from '../hooks/useConsole'
 
 export function AuthGate() {
   const { showAuthGate, authMessage, login, token } = useConsole()

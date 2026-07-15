@@ -1,7 +1,6 @@
 import {
   createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -33,9 +32,10 @@ interface ChatLine {
   text: string
 }
 
-interface ConsoleContextValue {
+export interface ConsoleContextValue {
   authRequired: boolean
   adoptionMode: AdoptionMode
+  llmEnabled: boolean
   token: string
   showAuthGate: boolean
   authMessage: string
@@ -52,6 +52,9 @@ interface ConsoleContextValue {
   bootstrapError: string | null
   metrics: MetricsSnapshot | null
   chatLines: ChatLine[]
+  assistantOverlayOpen: boolean
+  openAssistantOverlay: () => void
+  closeAssistantOverlay: () => void
   login: (token: string) => void
   openAuthGate: (message?: string) => void
   selectRun: (runId: string, fromHistory?: boolean) => Promise<void>
@@ -66,11 +69,12 @@ interface ConsoleContextValue {
   refreshLists: () => Promise<void>
 }
 
-const ConsoleContext = createContext<ConsoleContextValue | null>(null)
+export const ConsoleContext = createContext<ConsoleContextValue | null>(null)
 
 export function ConsoleProvider({ children }: { children: ReactNode }) {
   const [authRequired, setAuthRequired] = useState(false)
   const [adoptionMode, setAdoptionMode] = useState<AdoptionMode>('audit-only')
+  const [llmEnabled, setLlmEnabled] = useState(false)
   const [token, setToken] = useState(getStoredToken)
   const [showAuthGate, setShowAuthGate] = useState(false)
   const [authMessage, setAuthMessage] = useState('请输入运维 token（Demo 默认 demo-secret）')
@@ -87,6 +91,7 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
   const [bootstrapError, setBootstrapError] = useState<string | null>(null)
   const [metrics, setMetrics] = useState<MetricsSnapshot | null>(null)
   const [chatLines, setChatLines] = useState<ChatLine[]>([])
+  const [assistantOverlayOpen, setAssistantOverlayOpen] = useState(false)
   const [ready, setReady] = useState(false)
 
   const sseRef = useRef<EventSource | null>(null)
@@ -261,6 +266,7 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
         if (cancelled) return
         setAuthRequired(status.authRequired)
         setAdoptionMode(status.adoptionMode)
+        setLlmEnabled(!!status.llmEnabled)
         if (status.authRequired && !token) {
           openAuthGate('请输入运维 token（Demo 默认 demo-secret）')
           return
@@ -362,10 +368,19 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
     setChatLines([])
   }, [])
 
+  const openAssistantOverlay = useCallback(() => {
+    setAssistantOverlayOpen(true)
+  }, [])
+
+  const closeAssistantOverlay = useCallback(() => {
+    setAssistantOverlayOpen(false)
+  }, [])
+
   const value = useMemo<ConsoleContextValue>(
     () => ({
       authRequired,
       adoptionMode,
+      llmEnabled,
       token,
       showAuthGate,
       authMessage,
@@ -382,6 +397,9 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
       bootstrapError,
       metrics,
       chatLines,
+      assistantOverlayOpen,
+      openAssistantOverlay,
+      closeAssistantOverlay,
       login,
       openAuthGate,
       selectRun,
@@ -398,6 +416,7 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
     [
       authRequired,
       adoptionMode,
+      llmEnabled,
       token,
       showAuthGate,
       authMessage,
@@ -414,6 +433,9 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
       bootstrapError,
       metrics,
       chatLines,
+      assistantOverlayOpen,
+      openAssistantOverlay,
+      closeAssistantOverlay,
       login,
       openAuthGate,
       selectRun,
@@ -430,12 +452,4 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
   )
 
   return <ConsoleContext.Provider value={value}>{children}</ConsoleContext.Provider>
-}
-
-export function useConsole(): ConsoleContextValue {
-  const ctx = useContext(ConsoleContext)
-  if (!ctx) {
-    throw new Error('useConsole must be used within ConsoleProvider')
-  }
-  return ctx
 }

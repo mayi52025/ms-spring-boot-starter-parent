@@ -48,6 +48,7 @@ public class AutonomyConsoleController {
         Map<String, Object> body = new HashMap<>();
         body.put("authRequired", consoleAuthSupport.isAuthRequired(properties.getConsole()));
         body.put("adoptionMode", properties.getAutonomy().getAdoption().getMode());
+        body.put("llmEnabled", properties.getConsole().isLlmEnabled());
         return body;
     }
 

@@ -575,7 +575,7 @@ ms:
 | 步 | 内容 | 交付 | 准备 |
 |----|------|------|------|
 | **5.0** | React 控制台替换静态页 ✅ | issues / 时间线 / 采纳 / SSE；token 登录；支持局域网 IP 访问 | `ms-console-ui`（Vite+React）；`npm run build` → `static/ms-console` |
-| **5.1** | LLM 接入（OpenAI 兼容） | `llm-enabled=true` 走 LangChain4j；false 仍规则 Tool | 云 API Key（推荐）；Ollama 可选（模型放非 C 盘） |
+| **5.1** | LLM 接入（OpenAI 兼容）✅ | `llm-enabled=true` 走 LangChain4j + Insight Tool；false 仍规则 | DeepSeek + `MS_LLM_API_KEY` |
 | **5.2** | Tool Grounding | LLM 只调 Insight（run / issues / Trace / metrics）；禁写配置 | 单测：mock LLM 校验 tool 调用 |
 | **5.3** | 短上下文 | 会话绑 `runId`；战时注入失败 Trace 摘要 | — |
 | **5.4** | 轻量 RAG | 历史 run / `doc/autonomy` → embedding → **pgvector** 检索 | Docker Postgres+pgvector；embedding API 或本地 embed |
@@ -584,7 +584,7 @@ ms:
 #### Phase 5 DoD（做完即可停、写简历）
 
 - [x] React 控制台可经 IP + token 打开，功能不低于现静态页（源码 `ms-console-ui`，构建产物已进 jar）
-- [ ] `llm-enabled=true` 时自然语言可问：当前问题 / 指定 run / 失败 Trace / 为何 STABLE（有 Tool 证据）
+- [x] `llm-enabled=true` 时自然语言可问：当前问题 / 指定 run / 失败 Trace / 为何 STABLE（有 Tool 证据）
 - [ ] 至少一次 RAG 问答命中历史或文档摘要
 - [ ] README：启动步骤、配置样例、演示脚本；可选 Ollama 说明
 - [ ] （加分）MCP 只读可调通一个 Tool

@@ -71,6 +71,7 @@ export async function fetchAuthStatus(): Promise<AuthStatus> {
   return {
     authRequired: !!data.authRequired,
     adoptionMode: data.adoptionMode || 'audit-only',
+    llmEnabled: !!data.llmEnabled,
   }
 }
 

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useConsole } from '../context/ConsoleContext'
+import { useConsole } from '../hooks/useConsole'
 import { IconAlert, IconShield } from './icons'
 import { PanelHeader } from './PanelHeader'
 

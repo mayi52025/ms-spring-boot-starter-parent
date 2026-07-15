@@ -1,4 +1,4 @@
-import { useConsole } from '../context/ConsoleContext'
+import { useConsole } from '../hooks/useConsole'
 import { isNacosDraftMode } from '../utils/runHelpers'
 import { IconPulse, IconSpark } from './icons'
 

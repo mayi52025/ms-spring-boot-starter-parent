@@ -1,4 +1,4 @@
-import { useConsole } from '../context/ConsoleContext'
+import { useConsole } from '../hooks/useConsole'
 import { computeMttr } from '../utils/runHelpers'
 import {
   IconConfig,

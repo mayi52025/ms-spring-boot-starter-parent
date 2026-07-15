@@ -1,6 +1,6 @@
 import type { AdoptionMode, AutonomyRecommendation, AutonomyRun, PlannedAction } from '../api/types'
 import type { ReactNode } from 'react'
-import { useConsole } from '../context/ConsoleContext'
+import { useConsole } from '../hooks/useConsole'
 import { computeMttr, isMqRun, isNacosDraftMode, isWartime } from '../utils/runHelpers'
 import { TimelineView } from './TimelineView'
 import { PanelHeader } from './PanelHeader'

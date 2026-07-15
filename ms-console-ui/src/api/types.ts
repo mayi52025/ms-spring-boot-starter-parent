@@ -3,6 +3,7 @@ export type AdoptionMode = 'audit-only' | 'nacos-draft'
 export interface AuthStatus {
   authRequired: boolean
   adoptionMode: AdoptionMode
+  llmEnabled?: boolean
 }
 
 export interface TimelineEvent {

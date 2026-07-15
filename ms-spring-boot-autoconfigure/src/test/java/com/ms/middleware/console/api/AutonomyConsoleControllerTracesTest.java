@@ -74,6 +74,7 @@ class AutonomyConsoleControllerTracesTest {
         mockMvc.perform(get("/ms-console/api/auth/status"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.authRequired").value(true))
-                .andExpect(jsonPath("$.adoptionMode").value("audit-only"));
+                .andExpect(jsonPath("$.adoptionMode").value("audit-only"))
+                .andExpect(jsonPath("$.llmEnabled").value(false));
     }
 }

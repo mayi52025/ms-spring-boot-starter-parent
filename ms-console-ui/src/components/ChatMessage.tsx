@@ -1,9 +1,9 @@
-export function formatChatText(text: string): string {
-  return text.trim()
-}
+import { formatChatText } from '../utils/chatFormat'
 
 export function ChatMessage({ role, text }: { role: 'user' | 'assistant'; text: string }) {
-  const isTechnical = role === 'assistant' && /[=:]/.test(text) && text.length > 40
+  const isTechnical =
+    role === 'assistant' &&
+    (text.length > 80 || /[=:|#*`]/.test(text) || text.includes('\n'))
 
   return (
     <div className={`chat-bubble ${role}`}>

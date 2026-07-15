@@ -3,6 +3,7 @@ package com.ms.middleware;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
 /**
  * 中间件配置属性
@@ -1412,6 +1413,9 @@ public class MsMiddlewareProperties {
          * 本地 Demo 留空即可。
          */
         private String authToken = "";
+        /** LLM 连接参数（OpenAI 兼容，默认 DeepSeek） */
+        @NestedConfigurationProperty
+        private LlmProperties llm = new LlmProperties();
 
         public boolean isEnabled() {
             return enabled;
@@ -1468,6 +1472,75 @@ public class MsMiddlewareProperties {
 
         public void setAuthToken(String authToken) {
             this.authToken = authToken;
+        }
+
+        public LlmProperties getLlm() {
+            return llm;
+        }
+
+        public void setLlm(LlmProperties llm) {
+            this.llm = llm;
+        }
+    }
+
+    /**
+     * 控制台 LLM（OpenAI 兼容 API）。API Key 优先读配置，否则读环境变量 {@code MS_LLM_API_KEY}。
+     */
+    public static class LlmProperties {
+
+        private String baseUrl = "https://api.deepseek.com";
+        private String apiKey = "";
+        private String model = "deepseek-chat";
+        private double temperature = 0.2;
+        private int timeoutSeconds = 60;
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+
+        public void setBaseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
+        public String getApiKey() {
+            return apiKey;
+        }
+
+        public void setApiKey(String apiKey) {
+            this.apiKey = apiKey;
+        }
+
+        public String getModel() {
+            return model;
+        }
+
+        public void setModel(String model) {
+            this.model = model;
+        }
+
+        public double getTemperature() {
+            return temperature;
+        }
+
+        public void setTemperature(double temperature) {
+            this.temperature = temperature;
+        }
+
+        public int getTimeoutSeconds() {
+            return timeoutSeconds;
+        }
+
+        public void setTimeoutSeconds(int timeoutSeconds) {
+            this.timeoutSeconds = timeoutSeconds;
+        }
+
+        /** 解析有效 API Key：配置非空优先，否则 {@code MS_LLM_API_KEY}。 */
+        public String resolveApiKey() {
+            if (apiKey != null && !apiKey.isBlank()) {
+                return apiKey.trim();
+            }
+            String env = System.getenv("MS_LLM_API_KEY");
+            return env != null ? env.trim() : "";
         }
     }
 }
