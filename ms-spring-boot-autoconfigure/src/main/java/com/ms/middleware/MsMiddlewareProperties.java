@@ -1511,7 +1511,7 @@ public class MsMiddlewareProperties {
         private int wartimeTraceLimit = 5;
         /** run 快照缓存秒数 */
         private int runContextCacheSeconds = 30;
-        /** 仅 1 个活跃故障时自动绑定 runId */
+        /** 仅 1 个活跃故障时：仅「跟进/诊断」类意图才自动绑定 runId（主页问指标/问题列表不绑） */
         private boolean autoBindSingleActiveRun = true;
 
         public boolean isEnabled() {

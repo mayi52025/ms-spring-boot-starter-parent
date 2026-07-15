@@ -1,5 +1,5 @@
 import type { AdoptionMode, AutonomyRecommendation, AutonomyRun, PlannedAction } from '../api/types'
-import type { ReactNode } from 'react'
+import type { JSX } from 'react'
 import { useConsole } from '../hooks/useConsole'
 import { computeMttr, isMqRun, isNacosDraftMode, isWartime } from '../utils/runHelpers'
 import { TimelineView } from './TimelineView'
@@ -54,7 +54,7 @@ function PrimaryAction({ action }: { action: PlannedAction }) {
   const executed = action.executionStatus === 'SUCCESS' || action.policyDecision === 'AUTO'
   const bannerCls = executed ? 'action-primary' : 'action-primary pending'
 
-  let statusText: ReactNode
+  let statusText: JSX.Element | string
   if (action.executionStatus === 'SUCCESS') {
     statusText = (
       <>
@@ -280,9 +280,11 @@ function FailedTracesPanel() {
 }
 
 export function TimelinePanel() {
-  const { activeRuns, currentRun, liveTimeline, adoptionMode } = useConsole()
+  const { currentRun, liveTimeline, adoptionMode, viewingHistory, navFocus, showHealthyView } =
+    useConsole()
 
-  if (!activeRuns.length && !currentRun) {
+  // 明确导航：只有 mode=home 才显示健康主页（不会因加载延迟闪回）
+  if (navFocus.mode === 'home') {
     return (
       <section className="panel panel-main">
         <HealthyDashboard />
@@ -290,11 +292,21 @@ export function TimelinePanel() {
     )
   }
 
-  if (!currentRun) {
+  const focusRunId = navFocus.runId
+
+  if (!currentRun || currentRun.runId !== focusRunId) {
     return (
       <section className="panel panel-main">
-        <PanelHeader title="自治时间线" subtitle="等待选择事件" />
-        <p className="empty-state">选择左侧事件或等待新事件…</p>
+        <PanelHeader
+          title="自治时间线"
+          subtitle={`加载 #${focusRunId.slice(-8)}…`}
+          actions={
+            <button type="button" className="btn-ghost-sm" onClick={showHealthyView}>
+              回健康总览
+            </button>
+          }
+        />
+        <p className="empty-state">正在加载 run 详情，请稍候…</p>
       </section>
     )
   }
@@ -306,8 +318,13 @@ export function TimelinePanel() {
     <section className="panel panel-main">
       <PanelHeader
         title="自治时间线"
-        subtitle={`run #${currentRun.runId.slice(-8)} · ${currentRun.status}`}
+        subtitle={`run #${currentRun.runId.slice(-8)} · ${currentRun.status}${viewingHistory ? ' · 历史' : ''}`}
         count={liveTimeline.length || undefined}
+        actions={
+          <button type="button" className="btn-ghost-sm" onClick={showHealthyView}>
+            回健康总览
+          </button>
+        }
       />
       {wartime ? (
         <>

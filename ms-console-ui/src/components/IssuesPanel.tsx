@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { useConsole } from '../hooks/useConsole'
 import { IconAlert, IconShield } from './icons'
 import { PanelHeader } from './PanelHeader'
@@ -8,17 +7,14 @@ export function IssuesPanel() {
     activeRuns,
     issuesError,
     bootstrapError,
+    navFocus,
     selectedRunId,
     viewingHistory,
     selectRun,
     showHealthyView,
   } = useConsole()
 
-  useEffect(() => {
-    if (!activeRuns.length) {
-      showHealthyView()
-    }
-  }, [activeRuns.length, showHealthyView])
+  const onHealthy = navFocus.mode === 'home'
 
   if (bootstrapError) {
     return (
@@ -32,11 +28,22 @@ export function IssuesPanel() {
   return (
     <aside className="panel panel-nav">
       <PanelHeader
-        title="故障队列"
-        subtitle={activeRuns.length ? '点击切换详情' : '巡检正常'}
+        title="导航"
+        subtitle={activeRuns.length ? `${activeRuns.length} 个活跃故障` : '巡检正常'}
         count={activeRuns.length || undefined}
         icon="shield"
       />
+
+      {/* 主页面入口：可随时点回；选中态清晰 */}
+      <button
+        type="button"
+        className={`home-nav-btn ${onHealthy ? 'active' : ''}`}
+        onClick={showHealthyView}
+        title="健康总览主页面"
+      >
+        <IconShield />
+        <span>健康总览（主页）</span>
+      </button>
 
       {issuesError ? (
         <p className="error-text">{issuesError}</p>
@@ -46,7 +53,7 @@ export function IssuesPanel() {
             <IconShield />
           </div>
           <strong>零活跃故障</strong>
-          <p>自治模块 10s 周期扫描</p>
+          <p>点上方回主页，或右侧打开恢复历史（不会被自动拽回）</p>
         </div>
       ) : (
         <div className="issue-list">
@@ -55,8 +62,8 @@ export function IssuesPanel() {
               key={run.runId}
               className={`issue-card wartime ${!viewingHistory && selectedRunId === run.runId ? 'active' : ''}`}
               style={{ animationDelay: `${idx * 60}ms` }}
-              onClick={() => void selectRun(run.runId)}
-              onKeyDown={(e) => e.key === 'Enter' && void selectRun(run.runId)}
+              onClick={() => void selectRun(run.runId, false)}
+              onKeyDown={(e) => e.key === 'Enter' && void selectRun(run.runId, false)}
               role="button"
               tabIndex={0}
             >
@@ -74,7 +81,7 @@ export function IssuesPanel() {
       {activeRuns.length > 0 ? (
         <div className="nav-footnote">
           <IconAlert />
-          <span>战时态优先展示止血动作</span>
+          <span>点故障卡查看 · 点主页可随时返回</span>
         </div>
       ) : null}
     </aside>

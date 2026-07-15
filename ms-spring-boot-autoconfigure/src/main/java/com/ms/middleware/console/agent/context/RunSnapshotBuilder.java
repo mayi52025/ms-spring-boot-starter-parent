@@ -53,11 +53,10 @@ public class RunSnapshotBuilder {
         if (timeline == null || timeline.isEmpty()) {
             return List.of();
         }
-        int safe = Math.max(1, limit);
-        int from = Math.max(0, timeline.size() - safe);
-        List<String> lines = new ArrayList<>();
-        for (int i = from; i < timeline.size(); i++) {
-            TimelineEvent event = timeline.get(i);
+        // 关键事件打分压缩，再格式化为可读行（优于纯尾部截断）
+        List<TimelineEvent> selected = TimelineEventScorer.selectCritical(timeline, Math.max(1, limit));
+        List<String> lines = new ArrayList<>(selected.size());
+        for (TimelineEvent event : selected) {
             lines.add(String.format("· %s %s — %s",
                     event.getAt() != null ? event.getAt().toString() : "-",
                     event.getPhase() != null ? event.getPhase() : "?",

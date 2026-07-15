@@ -119,7 +119,7 @@ ms:
         timeline-event-limit: 5
         wartime-trace-limit: 5
         run-context-cache-seconds: 30
-        auto-bind-single-active-run: true
+        auto-bind-single-active-run: true   # 仅跟进/诊断意图才绑单活跃 run；主页全局问题不绑
     # Redis配置
     redis:
       # 主机

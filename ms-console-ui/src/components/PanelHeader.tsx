@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { JSX } from 'react'
 import { IconAlert, IconHistory, IconShield } from './icons'
 
 interface PanelHeaderProps {
@@ -7,7 +7,8 @@ interface PanelHeaderProps {
   count?: number
   collapsed?: boolean
   onToggleCollapse?: () => void
-  actions?: ReactNode
+  /** 用 JSX.Element，避免 IDE 里 JSX.Element 与 ReactNode 类型源不一致 */
+  actions?: JSX.Element | null
   icon?: 'shield' | 'history' | 'alert'
 }
 

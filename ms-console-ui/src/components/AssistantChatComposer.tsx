@@ -54,10 +54,14 @@ export function AssistantChatComposer({ className = '', autoFocus = false, onSen
       </form>
       <div className="footer-meta">
         {selectedRunId ? (
-          <span>上下文 · run #{selectedRunId.slice(-8)}</span>
+          <span>分桶展示 · run #{selectedRunId.slice(-8)}</span>
         ) : (
-          <span>未绑定 run · 将使用全局查询</span>
+          <span>分桶展示 · 健康总览主页</span>
         )}
+        <span className="footer-meta-sep">·</span>
+        <span className="footer-meta-hint" title="气泡为界面可读历史；下一轮推理依据后端 L0/L1 工作上下文与 Tool，不是整段气泡回灌">
+          展示历史 ≠ 全量推理上下文
+        </span>
       </div>
     </div>
   )
