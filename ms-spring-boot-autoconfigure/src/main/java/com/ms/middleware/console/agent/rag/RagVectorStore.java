@@ -5,11 +5,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
+import java.util.Locale;
 
 /**
- * pgvector 存储：启动时 ensureSchema；Step 2/3 再补 upsert/search。
- *
- * <p>SQL 使用普通字符串拼接，避免 IDE 对 text block 的误报。</p>
+ * pgvector 存储：建表、upsert、按 tenant 裁剪旧 RUN。
  */
 public class RagVectorStore {
 
@@ -55,6 +54,45 @@ public class RagVectorStore {
         log.info("RAG schema ready: table={} dimensions={}", TABLE, dimensions);
     }
 
+    public void upsert(String tenant,
+                       RagDocumentKind kind,
+                       String refId,
+                       int chunkNo,
+                       String content,
+                       float[] embedding) {
+        if (embedding == null || embedding.length == 0) {
+            throw new IllegalArgumentException("embedding empty");
+        }
+        String sql = "INSERT INTO " + TABLE
+                + " (tenant, kind, ref_id, chunk_no, content, embedding) "
+                + "VALUES (?, ?, ?, ?, ?, ?::vector) "
+                + "ON CONFLICT (tenant, kind, ref_id, chunk_no) DO UPDATE SET "
+                + "content = EXCLUDED.content, "
+                + "embedding = EXCLUDED.embedding, "
+                + "created_at = NOW()";
+        jdbc.update(sql,
+                nullToEmpty(tenant),
+                kind.name(),
+                nullToEmpty(refId),
+                chunkNo,
+                content == null ? "" : content,
+                toVectorLiteral(embedding));
+    }
+
+    /**
+     * 每 tenant 仅保留最近 {@code keep} 条 RUN 文档，超出删最旧。
+     */
+    public int trimOldRuns(String tenant, int keep) {
+        int safeKeep = Math.max(1, keep);
+        String sql = "DELETE FROM " + TABLE + " WHERE id IN ("
+                + "SELECT id FROM " + TABLE
+                + " WHERE tenant = ? AND kind = ? "
+                + "ORDER BY created_at DESC OFFSET ?"
+                + ")";
+        Integer deleted = jdbc.update(sql, nullToEmpty(tenant), RagDocumentKind.RUN.name(), safeKeep);
+        return deleted;
+    }
+
     /** 供单测 / 诊断：当前表是否存在 */
     public boolean tableExists() {
         Integer n = jdbc.queryForObject(
@@ -63,5 +101,22 @@ public class RagVectorStore {
                 Integer.class,
                 TABLE);
         return n != null && n > 0;
+    }
+
+    static String toVectorLiteral(float[] embedding) {
+        StringBuilder sb = new StringBuilder(embedding.length * 8);
+        sb.append('[');
+        for (int i = 0; i < embedding.length; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append(String.format(Locale.ROOT, "%.8f", embedding[i]));
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 }

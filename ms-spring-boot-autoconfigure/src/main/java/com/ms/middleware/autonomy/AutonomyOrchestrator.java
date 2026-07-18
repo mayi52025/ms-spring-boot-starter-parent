@@ -15,9 +15,11 @@ import com.ms.middleware.autonomy.run.AutonomyRun;
 import com.ms.middleware.autonomy.orchestrator.AutonomyTickLock;
 import com.ms.middleware.autonomy.metrics.AutonomyMetrics;
 import com.ms.middleware.autonomy.tenant.AutonomyTenantProvider;
+import com.ms.middleware.autonomy.run.RunStabilizedEvent;
 import com.ms.middleware.metrics.MsMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Optional;
@@ -48,6 +50,8 @@ public class AutonomyOrchestrator {
     private final MsMetrics msMetrics;
     /** 集群 tick 互斥；单机为 noop，多实例为 Redisson 实现 */
     private final AutonomyTickLock tickLock;
+    /** 可选：STABLE 后发布事件供 RAG 等旁路消费；单测可传 null */
+    private final ApplicationEventPublisher eventPublisher;
 
     /** 当前 JVM 内正在处理的故障 run；稳定后置 null（只管本进程，不管多 Pod） */
     private volatile String activeRunId;
@@ -61,7 +65,7 @@ public class AutonomyOrchestrator {
                                 AutonomyMetrics autonomyMetrics,
                                 MsMetrics msMetrics) {
         this(contextBuilder, decisionEngine, policy, actuator, ledger, tenantProvider,
-                autonomyMetrics, msMetrics, AutonomyTickLock.noop());
+                autonomyMetrics, msMetrics, AutonomyTickLock.noop(), null);
     }
 
     public AutonomyOrchestrator(AutonomyContextBuilder contextBuilder,
@@ -73,6 +77,20 @@ public class AutonomyOrchestrator {
                                 AutonomyMetrics autonomyMetrics,
                                 MsMetrics msMetrics,
                                 AutonomyTickLock tickLock) {
+        this(contextBuilder, decisionEngine, policy, actuator, ledger, tenantProvider,
+                autonomyMetrics, msMetrics, tickLock, null);
+    }
+
+    public AutonomyOrchestrator(AutonomyContextBuilder contextBuilder,
+                                AutonomyDecisionEngine decisionEngine,
+                                AutonomyPolicy policy,
+                                AutonomyActuator actuator,
+                                AutonomyLedger ledger,
+                                AutonomyTenantProvider tenantProvider,
+                                AutonomyMetrics autonomyMetrics,
+                                MsMetrics msMetrics,
+                                AutonomyTickLock tickLock,
+                                ApplicationEventPublisher eventPublisher) {
         this.contextBuilder = contextBuilder;
         this.decisionEngine = decisionEngine;
         this.policy = policy;
@@ -82,6 +100,7 @@ public class AutonomyOrchestrator {
         this.autonomyMetrics = autonomyMetrics;
         this.msMetrics = msMetrics;
         this.tickLock = tickLock != null ? tickLock : AutonomyTickLock.noop();
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -331,6 +350,9 @@ public class AutonomyOrchestrator {
         }, () -> ledger.appendTimeline(run, "STABLE",
                 RecoveryEvidenceBuilder.formatStableMessageWithoutMttr(evidence)));
         ledger.update(run);
+        if (eventPublisher != null) {
+            eventPublisher.publishEvent(new RunStabilizedEvent(this, run));
+        }
         if (run.getRunId().equals(activeRunId)) {
             activeRunId = null;
         }

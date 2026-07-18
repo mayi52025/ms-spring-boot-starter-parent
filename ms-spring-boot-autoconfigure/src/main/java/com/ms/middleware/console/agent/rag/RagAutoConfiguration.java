@@ -1,5 +1,6 @@
 package com.ms.middleware.console.agent.rag;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ms.middleware.MsMiddlewareProperties;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -12,14 +13,17 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import javax.sql.DataSource;
+import java.util.concurrent.Executor;
 
 /**
- * Phase 5.4：仅在 {@code ms.middleware.console.rag.enabled=true} 时装配专用 DataSource。
- * 不标记 {@code @Primary}，避免抢走业务库。
+ * Phase 5.4：仅在 {@code ms.middleware.console.rag.enabled=true} 时装配专用 DataSource、索引与异步监听。
  */
 @Configuration(proxyBeanMethods = false)
+@EnableAsync
 @ConditionalOnClass(name = {
         "javax.sql.DataSource",
         "com.zaxxer.hikari.HikariDataSource",
@@ -44,7 +48,6 @@ public class RagAutoConfiguration {
         config.setMaximumPoolSize(3);
         config.setMinimumIdle(0);
         config.setConnectionTimeout(5_000L);
-        // 启动时 PG 不可达不拖垮整个应用上下文；ensureSchema 在 Ready 时再试
         config.setInitializationFailTimeout(-1);
         log.info("RAG DataSource configured: url={}", rag.getJdbcUrl());
         return new HikariDataSource(config);
@@ -59,25 +62,56 @@ public class RagAutoConfiguration {
     }
 
     @Bean
-    public RagSchemaInitializer ragSchemaInitializer(RagVectorStore ragVectorStore) {
-        return new RagSchemaInitializer(ragVectorStore);
+    public EmbeddingClient ragEmbeddingClient(MsMiddlewareProperties properties, ObjectMapper objectMapper) {
+        return new OpenAiCompatibleEmbeddingClient(properties.getConsole().getRag().getEmbedding(), objectMapper);
     }
 
-    /** 应用 Ready 后建表，避免 Bean 创建阶段连库失败被 IDE/启动误判为硬错误 */
-    public static final class RagSchemaInitializer {
+    @Bean
+    public RagIndexer ragIndexer(EmbeddingClient ragEmbeddingClient,
+                                 RagVectorStore ragVectorStore,
+                                 MsMiddlewareProperties properties) {
+        return new RagIndexer(ragEmbeddingClient, ragVectorStore, properties.getConsole().getRag());
+    }
+
+    @Bean(name = "ragIndexExecutor")
+    public Executor ragIndexExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(64);
+        executor.setThreadNamePrefix("ms-rag-index-");
+        executor.initialize();
+        return executor;
+    }
+
+    @Bean
+    public RagIndexEventListener ragIndexEventListener(RagIndexer ragIndexer) {
+        return new RagIndexEventListener(ragIndexer);
+    }
+
+    @Bean
+    public RagBootstrap ragBootstrap(RagVectorStore ragVectorStore, RagIndexer ragIndexer) {
+        return new RagBootstrap(ragVectorStore, ragIndexer);
+    }
+
+    /** Ready 后建表并扫 classpath 文档 */
+    public static final class RagBootstrap {
 
         private final RagVectorStore store;
+        private final RagIndexer indexer;
 
-        public RagSchemaInitializer(RagVectorStore store) {
+        public RagBootstrap(RagVectorStore store, RagIndexer indexer) {
             this.store = store;
+            this.indexer = indexer;
         }
 
         @EventListener(ApplicationReadyEvent.class)
         public void onReady() {
             try {
                 store.ensureSchema();
+                indexer.indexClasspathDocs();
             } catch (Exception ex) {
-                log.warn("RAG ensureSchema failed (pgvector 未就绪时忽略): {}", ex.getMessage());
+                log.warn("RAG bootstrap failed (pgvector/embedding 未就绪时忽略): {}", ex.getMessage());
             }
         }
     }
