@@ -48,6 +48,27 @@ class ConsolePropertiesTest {
         assertTrue("strict".equalsIgnoreCase(props.getConsole().getLlm().getGroundingMode()));
     }
 
+    @Test
+    void ragDefaultsDisabled() {
+        MsMiddlewareProperties.ConsoleProperties console = new MsMiddlewareProperties.ConsoleProperties();
+        assertFalse(console.getRag().isEnabled());
+        assertTrue(console.getRag().getEmbedding().getDimensions() > 0);
+    }
+
+    @Test
+    void ragBindsNestedEmbedding() {
+        MockEnvironment env = new MockEnvironment()
+                .withProperty("ms.middleware.console.rag.enabled", "true")
+                .withProperty("ms.middleware.console.rag.jdbc-url", "jdbc:postgresql://192.168.100.102:5432/ms_rag")
+                .withProperty("ms.middleware.console.rag.embedding.model", "text-embedding-v3")
+                .withProperty("ms.middleware.console.rag.embedding.dimensions", "1024");
+        MsMiddlewareProperties.ConsoleProperties console = bind(env);
+        assertTrue(console.getRag().isEnabled());
+        assertTrue(console.getRag().getJdbcUrl().contains("ms_rag"));
+        assertTrue("text-embedding-v3".equals(console.getRag().getEmbedding().getModel()));
+        assertTrue(console.getRag().getEmbedding().getDimensions() == 1024);
+    }
+
     private MsMiddlewareProperties.ConsoleProperties bind(MockEnvironment env) {
         return Binder.get(env)
                 .bind("ms.middleware.console", MsMiddlewareProperties.ConsoleProperties.class)

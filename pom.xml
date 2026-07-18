@@ -32,6 +32,7 @@
         <spring-cloud.version>2022.0.0</spring-cloud.version>
         <spring-cloud-alibaba.version>2022.0.0.0-RC2</spring-cloud-alibaba.version>
         <langchain4j.version>0.36.2</langchain4j.version>
+        <frontend-maven-plugin.version>1.15.1</frontend-maven-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -76,6 +77,16 @@
     </dependencyManagement>
 
     <build>
+        <pluginManagement>
+            <plugins>
+                <!-- 供 ms-console-ui profile 使用；放进 pluginManagement 避免 IDE 在未激活 profile 时解析失败 -->
+                <plugin>
+                    <groupId>com.github.eirslett</groupId>
+                    <artifactId>frontend-maven-plugin</artifactId>
+                    <version>${frontend-maven-plugin.version}</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

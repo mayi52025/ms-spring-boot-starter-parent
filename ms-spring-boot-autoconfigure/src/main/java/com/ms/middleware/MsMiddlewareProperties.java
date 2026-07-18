@@ -1419,6 +1419,9 @@ public class MsMiddlewareProperties {
         /** Phase 5.3 工作上下文（run 快照 + 压缩对话态 + 检索降级） */
         @NestedConfigurationProperty
         private ContextProperties context = new ContextProperties();
+        /** Phase 5.4 轻量 RAG（pgvector；默认关闭） */
+        @NestedConfigurationProperty
+        private RagProperties rag = new RagProperties();
 
         public boolean isEnabled() {
             return enabled;
@@ -1491,6 +1494,164 @@ public class MsMiddlewareProperties {
 
         public void setContext(ContextProperties context) {
             this.context = context;
+        }
+
+        public RagProperties getRag() {
+            return rag;
+        }
+
+        public void setRag(RagProperties rag) {
+            this.rag = rag;
+        }
+    }
+
+    /**
+     * Phase 5.4 控制台 RAG（独立 Embedding API + 可选 Postgres/pgvector）。
+     *
+     * <p>默认关闭；开启后使用专用 DataSource，不劫持业务主库。
+     * Embedding 与 chat LLM 分离配置（DeepSeek chat 通常不提供 embeddings）。</p>
+     */
+    public static class RagProperties {
+
+        /** 是否启用向量索引与检索 */
+        private boolean enabled = false;
+        private String jdbcUrl = "jdbc:postgresql://192.168.100.102:5432/ms_rag";
+        private String username = "ms";
+        private String password = "ms";
+        /** 检索 top-K */
+        private int topK = 5;
+        /** 文档分块字符数（Step 2 使用） */
+        private int chunkSize = 800;
+        /** 每 tenant 最多保留多少条 RUN 类文档，超出删最旧 */
+        private int maxRunDocsPerTenant = 200;
+        @NestedConfigurationProperty
+        private RagEmbeddingProperties embedding = new RagEmbeddingProperties();
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getJdbcUrl() {
+            return jdbcUrl;
+        }
+
+        public void setJdbcUrl(String jdbcUrl) {
+            this.jdbcUrl = jdbcUrl;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+
+        public int getTopK() {
+            return topK;
+        }
+
+        public void setTopK(int topK) {
+            this.topK = topK;
+        }
+
+        public int getChunkSize() {
+            return chunkSize;
+        }
+
+        public void setChunkSize(int chunkSize) {
+            this.chunkSize = chunkSize;
+        }
+
+        public int getMaxRunDocsPerTenant() {
+            return maxRunDocsPerTenant;
+        }
+
+        public void setMaxRunDocsPerTenant(int maxRunDocsPerTenant) {
+            this.maxRunDocsPerTenant = maxRunDocsPerTenant;
+        }
+
+        public RagEmbeddingProperties getEmbedding() {
+            return embedding;
+        }
+
+        public void setEmbedding(RagEmbeddingProperties embedding) {
+            this.embedding = embedding;
+        }
+    }
+
+    /**
+     * RAG Embedding（OpenAI 兼容）；勿默认指向 DeepSeek chat 端点。
+     */
+    public static class RagEmbeddingProperties {
+
+        /** 通义百炼 OpenAI 兼容默认；也可用控制台提供的 Workspace 专属 Host */
+        private String baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+        private String apiKey = "";
+        private String model = "text-embedding-v3";
+        /** 向量维度；通义 v3 默认 1024；建表时写入 schema，换模型需清库重建 */
+        private int dimensions = 1024;
+        private int timeoutSeconds = 30;
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+
+        public void setBaseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
+        public String getApiKey() {
+            return apiKey;
+        }
+
+        public void setApiKey(String apiKey) {
+            this.apiKey = apiKey;
+        }
+
+        public String getModel() {
+            return model;
+        }
+
+        public void setModel(String model) {
+            this.model = model;
+        }
+
+        public int getDimensions() {
+            return dimensions;
+        }
+
+        public void setDimensions(int dimensions) {
+            this.dimensions = dimensions;
+        }
+
+        public int getTimeoutSeconds() {
+            return timeoutSeconds;
+        }
+
+        public void setTimeoutSeconds(int timeoutSeconds) {
+            this.timeoutSeconds = timeoutSeconds;
+        }
+
+        /** 配置非空优先，否则 {@code MS_RAG_EMBEDDING_API_KEY}。 */
+        public String resolveApiKey() {
+            if (apiKey != null && !apiKey.isBlank()) {
+                return apiKey.trim();
+            }
+            String env = System.getenv("MS_RAG_EMBEDDING_API_KEY");
+            return env != null ? env.trim() : "";
         }
     }
 

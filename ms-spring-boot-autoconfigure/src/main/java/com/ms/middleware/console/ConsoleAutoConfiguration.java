@@ -17,6 +17,7 @@ import org.springframework.core.Ordered;
 /**
  * 控制台模块自动配置。依赖业务应用引入 spring-boot-starter-web。
  * 开关：{@code ms.middleware.console.enabled=true}
+ * <p>Phase 5.4 RagAutoConfiguration 由本包 ComponentScan 拾取，另受 rag.enabled 约束。</p>
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
