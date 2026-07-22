@@ -6,7 +6,8 @@ package com.ms.middleware.autonomy.insight.tool;
  * <p>所有方法返回 LLM/聊天友好的文本，内部委托 {@link com.ms.middleware.autonomy.insight.MiddlewareInsightService}，
  * 避免 LLM 层直接依赖 Ledger 或 MsMetrics。</p>
  *
- * <p>扩展方式：实现本接口并注册 Spring Bean（{@code @ConditionalOnMissingBean} 可覆盖默认实现）。</p>
+ * <p>扩展方式：实现本接口并注册 Spring Bean（{@code @ConditionalOnMissingBean} 可覆盖默认实现）。
+ * 控制台 LangChain4j 与 Phase 5.5 只读 MCP（{@code com.ms.middleware.console.agent.mcp}）共用本契约。</p>
  */
 public interface MiddlewareInsightTool {
 

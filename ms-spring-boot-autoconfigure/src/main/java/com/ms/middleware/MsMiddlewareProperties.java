@@ -1422,6 +1422,9 @@ public class MsMiddlewareProperties {
         /** Phase 5.4 轻量 RAG（pgvector；默认关闭） */
         @NestedConfigurationProperty
         private RagProperties rag = new RagProperties();
+        /** Phase 5.5 最小只读 MCP（stdio；默认关闭，不嵌入业务 Web 进程） */
+        @NestedConfigurationProperty
+        private McpProperties mcp = new McpProperties();
 
         public boolean isEnabled() {
             return enabled;
@@ -1502,6 +1505,60 @@ public class MsMiddlewareProperties {
 
         public void setRag(RagProperties rag) {
             this.rag = rag;
+        }
+
+        public McpProperties getMcp() {
+            return mcp;
+        }
+
+        public void setMcp(McpProperties mcp) {
+            this.mcp = mcp;
+        }
+    }
+
+    /**
+     * Phase 5.5 最小只读 MCP Server（stdio 进程，委托 {@code MiddlewareInsightTool}）。
+     *
+     * <p>默认 {@code enabled=false}。该开关仅表示「是否打算用 Cursor 拉起独立进程」；
+     * 真正启动靠入口 {@code com.ms.middleware.mcp.MsInsightMcpApplication}，不在业务 Web JVM 里抢 stdin。</p>
+     *
+     * <p>鉴权：{@code auth-token} 为期望密钥（非空时要求环境变量 {@code MS_MCP_TOKEN} 与之匹配）；
+     * 留空则本地 Demo 放行并 warn。勿把 env 自身当作期望值（避免「自己验自己」）。</p>
+     */
+    public static class McpProperties {
+
+        /** 文档/意图开关：是否配置外部客户端拉起 MCP（不嵌入 Web 自动监听） */
+        private boolean enabled = false;
+        /**
+         * 期望的共享密钥。非空时要求进程环境变量 {@code MS_MCP_TOKEN} 与之匹配。
+         * 留空则不强制鉴权（本地 Demo）。
+         */
+        private String authToken = "";
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getAuthToken() {
+            return authToken;
+        }
+
+        public void setAuthToken(String authToken) {
+            this.authToken = authToken;
+        }
+
+        /**
+         * 解析期望 token：只认配置项，不把 {@code MS_MCP_TOKEN} 当作期望值。
+         */
+        public String resolveExpectedToken() {
+            if (authToken != null && !authToken.isBlank()) {
+                return authToken.trim();
+            }
+            return "";
         }
     }
 

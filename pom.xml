@@ -33,10 +33,19 @@
         <spring-cloud-alibaba.version>2022.0.0.0-RC2</spring-cloud-alibaba.version>
         <langchain4j.version>0.36.2</langchain4j.version>
         <frontend-maven-plugin.version>1.15.1</frontend-maven-plugin.version>
+        <!-- Phase 5.5：官方 MCP Java SDK（Jackson 2 兼容，见 mcp-json-jackson2） -->
+        <mcp.sdk.version>2.0.0</mcp.sdk.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>io.modelcontextprotocol.sdk</groupId>
+                <artifactId>mcp-bom</artifactId>
+                <version>${mcp.sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>org.redisson</groupId>
                 <artifactId>redisson-spring-boot-starter</artifactId>

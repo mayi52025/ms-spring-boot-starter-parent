@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MCP stdio 进程专用：所有日志写 stderr，避免污染 stdout 上的 JSON-RPC。
+  由 MsInsightMcpApplication 通过 logging.config=classpath:mcp-logback.xml 启用。
+-->
+<configuration>
+    <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+    <root level="INFO">
+        <appender-ref ref="STDERR"/>
+    </root>
+    <logger name="com.ms.middleware" level="INFO"/>
+    <logger name="io.modelcontextprotocol" level="WARN"/>
+</configuration>
