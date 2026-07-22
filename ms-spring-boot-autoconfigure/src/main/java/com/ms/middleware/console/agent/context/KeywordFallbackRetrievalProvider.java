@@ -2,15 +2,19 @@ package com.ms.middleware.console.agent.context;
 
 import com.ms.middleware.autonomy.insight.MiddlewareInsightService;
 import com.ms.middleware.autonomy.run.AutonomyRun;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Optional;
 
 /**
- * 5.3 降级检索：关键词过滤相似 run，非向量 RAG（5.4 替换为 pgvector 实现）。
+ * L2 降级检索（Phase 5.3 就有，5.4 仍保留作 fallback）。
+ *
+ * <p>做法：用用户问题里的关键词，调 Insight 扫「相似历史 run」列表——
+ * <strong>不是</strong>语义向量，只是字符串/规则匹配，能力弱但零依赖（不需要 PG / embedding）。
+ *
+ * <p>由 {@link RetrievalAutoConfiguration} 注册 Bean，禁止再加 {@code @Component}，
+ * 以免与 Composite 同时变成两个 {@link RetrievalContextProvider}。
  */
-@Component
 public class KeywordFallbackRetrievalProvider implements RetrievalContextProvider {
 
     private final MiddlewareInsightService insightService;

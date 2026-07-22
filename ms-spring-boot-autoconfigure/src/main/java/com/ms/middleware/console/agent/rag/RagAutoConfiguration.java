@@ -2,16 +2,22 @@ package com.ms.middleware.console.agent.rag;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ms.middleware.MsMiddlewareProperties;
+import com.ms.middleware.autonomy.tenant.AutonomyTenantProvider;
+import com.ms.middleware.console.agent.context.CompositeRetrievalContextProvider;
+import com.ms.middleware.console.agent.context.KeywordFallbackRetrievalProvider;
+import com.ms.middleware.console.agent.context.RetrievalContextProvider;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -92,6 +98,37 @@ public class RagAutoConfiguration {
     @Bean
     public RagBootstrap ragBootstrap(RagVectorStore ragVectorStore, RagIndexer ragIndexer) {
         return new RagBootstrap(ragVectorStore, ragIndexer);
+    }
+
+    /**
+     * 向量检索实现（内部组件）。不直接标成对外 SPI，避免 ContextAssembler 注入到「半截链路」。
+     */
+    @Bean
+    public PgvectorRetrievalContextProvider pgvectorRetrievalContextProvider(
+            EmbeddingClient ragEmbeddingClient,
+            RagVectorStore ragVectorStore,
+            AutonomyTenantProvider tenantProvider,
+            MsMiddlewareProperties properties) {
+        return new PgvectorRetrievalContextProvider(
+                ragEmbeddingClient,
+                ragVectorStore,
+                tenantProvider,
+                properties.getConsole().getRag());
+    }
+
+    /**
+     * rag.enabled=true 时：对外唯一 {@link RetrievalContextProvider}。
+     * <p>@Primary：若将来还有别的同类型 Bean，注入优先选 Composite。
+     * Keyword 仍单独存在，只作本 Composite 的 fallback 依赖。
+     */
+    @Bean
+    @Primary
+    @ConditionalOnBean(KeywordFallbackRetrievalProvider.class)
+    public RetrievalContextProvider compositeRetrievalContextProvider(
+            PgvectorRetrievalContextProvider pgvectorRetrievalContextProvider,
+            KeywordFallbackRetrievalProvider keywordFallbackRetrievalProvider) {
+        return new CompositeRetrievalContextProvider(
+                pgvectorRetrievalContextProvider, keywordFallbackRetrievalProvider);
     }
 
     /** Ready 后建表并扫 classpath 文档 */

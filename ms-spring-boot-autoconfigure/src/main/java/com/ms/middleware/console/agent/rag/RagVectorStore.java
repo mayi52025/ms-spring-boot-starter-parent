@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -91,6 +92,69 @@ public class RagVectorStore {
                 + ")";
         Integer deleted = jdbc.update(sql, nullToEmpty(tenant), RagDocumentKind.RUN.name(), safeKeep);
         return deleted;
+    }
+
+    /**
+     * 向量近邻检索（pgvector 运算符 {@code <=>} = 余弦距离，越小越相似）。
+     *
+     * <p>隔离规则（一期硬约束）：
+     * <ul>
+     *   <li>RUN：必须当前 tenant，禁止串到别的应用的历史故障摘要</li>
+     *   <li>DOC：当前 tenant 或 {@code _global_}（内置 playbook 等）</li>
+     * </ul>
+     *
+     * @param kindFilter 偏置 DOC / RUN；其它值时 RUN+DOC 混合查
+     */
+    public List<RagSearchHit> search(String tenant, RagDocumentKind kindFilter, float[] embedding, int topK) {
+        if (embedding == null || embedding.length == 0) {
+            return List.of();
+        }
+        int limit = Math.max(1, topK);
+        String tenantValue = nullToEmpty(tenant);
+        String sql;
+        Object[] args;
+        if (kindFilter == RagDocumentKind.DOC) {
+            // 手册/规则：可命中全局文档
+            sql = "SELECT kind, ref_id, chunk_no, content FROM " + TABLE
+                    + " WHERE kind = ? AND tenant IN (?, ?) "
+                    + "ORDER BY embedding <=> ?::vector LIMIT ?";
+            args = new Object[]{
+                    RagDocumentKind.DOC.name(),
+                    tenantValue,
+                    "_global_",
+                    toVectorLiteral(embedding),
+                    limit
+            };
+        } else if (kindFilter == RagDocumentKind.RUN) {
+            // 历史 run：严格租户隔离
+            sql = "SELECT kind, ref_id, chunk_no, content FROM " + TABLE
+                    + " WHERE kind = ? AND tenant = ? "
+                    + "ORDER BY embedding <=> ?::vector LIMIT ?";
+            args = new Object[]{
+                    RagDocumentKind.RUN.name(),
+                    tenantValue,
+                    toVectorLiteral(embedding),
+                    limit
+            };
+        } else {
+            sql = "SELECT kind, ref_id, chunk_no, content FROM " + TABLE
+                    + " WHERE (kind = ? AND tenant = ?) OR (kind = ? AND tenant IN (?, ?)) "
+                    + "ORDER BY embedding <=> ?::vector LIMIT ?";
+            args = new Object[]{
+                    RagDocumentKind.RUN.name(),
+                    tenantValue,
+                    RagDocumentKind.DOC.name(),
+                    tenantValue,
+                    "_global_",
+                    toVectorLiteral(embedding),
+                    limit
+            };
+        }
+        return jdbc.query(sql, (rs, rowNum) -> new RagSearchHit(
+                RagDocumentKind.valueOf(rs.getString("kind")),
+                rs.getString("ref_id"),
+                rs.getInt("chunk_no"),
+                rs.getString("content")), args);
     }
 
     /** 供单测 / 诊断：当前表是否存在 */
