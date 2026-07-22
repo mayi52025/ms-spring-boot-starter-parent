@@ -120,15 +120,18 @@ ms:
         wartime-trace-limit: 5
         run-context-cache-seconds: 30
         auto-bind-single-active-run: true   # 仅跟进/诊断意图才绑单活跃 run；主页全局问题不绑
-      # Phase 5.4 RAG（默认关闭；PG 用 102 虚机 pgvector；embedding 用通义，勿复用 DeepSeek）
+      # Phase 5.4 RAG（默认关闭；账号密码必须显式配置，starter 不内置演示密码）
       rag:
         enabled: false
-        jdbc-url: "jdbc:postgresql://192.168.100.102:5432/ms_rag"
-        username: ms
-        password: ms
+        jdbc-url: "jdbc:postgresql://192.168.100.102:5433/ms_autonomy_rag"
+        username: postgres
+        password: ""                       # 演示环境自行填写，例如虚机 Docker 的 msrag123
         top-k: 5
+        max-distance: 0.45                 # 余弦距离上限；过大易污染上下文
         chunk-size: 800
         max-run-docs-per-tenant: 200
+        embedding-cache-size: 64
+        embedding-cache-ttl-seconds: 120
         embedding:
           base-url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
           api-key: ${MS_RAG_EMBEDDING_API_KEY:}

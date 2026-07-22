@@ -41,6 +41,8 @@ class ConsoleLlmChatServiceTest {
     @BeforeEach
     void setUp() {
         MsMiddlewareProperties properties = new MsMiddlewareProperties();
+        // 显式空串：避免本机已 export MS_LLM_API_KEY 时单测误判为「已配置」
+        properties.getConsole().getLlm().setApiKey("");
         InsightToolGateway gateway = new InsightToolGateway(insightTool);
         GroundingPolicy policy = new GroundingPolicy();
         ContextAssembler assembler = new ContextAssembler(

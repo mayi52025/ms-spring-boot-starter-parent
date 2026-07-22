@@ -83,26 +83,30 @@ public class AgentOrchestrationPolicy {
         return containsAny(normalized, "为什么", "为何", "原因", "失败", "trace", "stable", "还没", "messageid");
     }
 
+    /**
+     * 是否走 L2 检索。同义词刻意偏运维场景，避免必须说「文档」才命中手册。
+     */
     static boolean isRetrievalRequested(String normalized, GroundingIntent intent) {
         if (intent == GroundingIntent.SIMILAR_RUNS) {
             return true;
         }
-        return containsAny(normalized, "上次", "历史", "以前", "曾经", "类似", "相似", "文档", "roadmap", "规则");
+        return containsAny(normalized,
+                "上次", "历史", "以前", "曾经", "类似", "相似",
+                "文档", "手册", "playbook", "runbook", "roadmap", "规则",
+                "tick", "限流", "止血", "背压", "throttle", "mttr", "结案");
     }
 
     static String extractRetrievalQuery(String message, String normalized) {
         if (message == null || message.isBlank()) {
             return "MQ";
         }
-        if (containsAny(normalized, "文档", "roadmap", "规则")) {
-            return message.trim();
-        }
         return message.trim();
     }
 
     static RetrievalQuery toRetrievalQuery(AgentOrchestrationDecision decision) {
         String normalized = decision.retrievalQuery() != null ? decision.retrievalQuery().toLowerCase() : "";
-        RetrievalQuery.RetrievalKind kind = containsAny(normalized, "文档", "roadmap", "规则")
+        RetrievalQuery.RetrievalKind kind = containsAny(normalized,
+                "文档", "手册", "playbook", "runbook", "roadmap", "规则", "tick")
                 ? RetrievalQuery.RetrievalKind.DOCUMENT
                 : RetrievalQuery.RetrievalKind.HISTORICAL_RUN;
         return new RetrievalQuery(decision.retrievalQuery(), kind);

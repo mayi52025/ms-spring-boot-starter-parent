@@ -578,7 +578,7 @@ ms:
 | **5.1** | LLM 接入（OpenAI 兼容）✅ | `llm-enabled=true` 走 LangChain4j + Insight Tool；false 仍规则 | DeepSeek + `MS_LLM_API_KEY` |
 | **5.2** | Tool Grounding ✅ | LLM 只调 Insight（run / issues / Trace / metrics）；禁写配置 | 单测：mock LLM 校验 tool 调用 |
 | **5.3** | 短上下文 ✅ | 会话绑 `runId`；战时注入失败 Trace 摘要 | — |
-| **5.4** | 轻量 RAG ✅ | STABLE / `classpath:rag/docs` → embedding → **pgvector**；Composite 降级 Keyword | Docker Postgres+pgvector；独立 embedding API（通义） |
+| **5.4** | 轻量 RAG ✅ | STABLE / `classpath:rag/docs` → embedding → **pgvector**；Composite 降级 Keyword；硬化：距离门槛 / 意图同义词 / embedding 缓存 | Docker Postgres+pgvector；独立 embedding API（通义） |
 | **5.5** | MCP 只读（加分） | 暴露同一批 Tool，Cursor/外部可调 | 可选；时间不够可只写「契约预留」 |
 
 #### Phase 5 DoD（做完即可停、写简历）

@@ -103,58 +103,107 @@ public class RagVectorStore {
      *   <li>DOC：当前 tenant 或 {@code _global_}（内置 playbook 等）</li>
      * </ul>
      *
-     * @param kindFilter 偏置 DOC / RUN；其它值时 RUN+DOC 混合查
+     * <p>质量门闩：仅返回 {@code distance < maxDistance} 的行；过松的 topK 硬塞会污染 LLM 上下文。
+     *
+     * @param kindFilter  偏置 DOC / RUN；其它值时 RUN+DOC 混合查
+     * @param maxDistance 余弦距离上限；≤0 表示不设门槛（仅调试用，生产勿关）
      */
-    public List<RagSearchHit> search(String tenant, RagDocumentKind kindFilter, float[] embedding, int topK) {
+    public List<RagSearchHit> search(String tenant,
+                                     RagDocumentKind kindFilter,
+                                     float[] embedding,
+                                     int topK,
+                                     double maxDistance) {
         if (embedding == null || embedding.length == 0) {
             return List.of();
         }
         int limit = Math.max(1, topK);
         String tenantValue = nullToEmpty(tenant);
+        String vector = toVectorLiteral(embedding);
+        boolean gate = maxDistance > 0d;
         String sql;
         Object[] args;
         if (kindFilter == RagDocumentKind.DOC) {
-            // 手册/规则：可命中全局文档
-            sql = "SELECT kind, ref_id, chunk_no, content FROM " + TABLE
-                    + " WHERE kind = ? AND tenant IN (?, ?) "
-                    + "ORDER BY embedding <=> ?::vector LIMIT ?";
-            args = new Object[]{
-                    RagDocumentKind.DOC.name(),
-                    tenantValue,
-                    "_global_",
-                    toVectorLiteral(embedding),
-                    limit
-            };
+            if (gate) {
+                sql = "SELECT kind, ref_id, chunk_no, content, (embedding <=> ?::vector) AS distance FROM " + TABLE
+                        + " WHERE kind = ? AND tenant IN (?, ?) AND (embedding <=> ?::vector) < ? "
+                        + "ORDER BY distance LIMIT ?";
+                args = new Object[]{
+                        vector,
+                        RagDocumentKind.DOC.name(),
+                        tenantValue,
+                        "_global_",
+                        vector,
+                        maxDistance,
+                        limit
+                };
+            } else {
+                sql = "SELECT kind, ref_id, chunk_no, content, (embedding <=> ?::vector) AS distance FROM " + TABLE
+                        + " WHERE kind = ? AND tenant IN (?, ?) "
+                        + "ORDER BY distance LIMIT ?";
+                args = new Object[]{vector, RagDocumentKind.DOC.name(), tenantValue, "_global_", limit};
+            }
         } else if (kindFilter == RagDocumentKind.RUN) {
-            // 历史 run：严格租户隔离
-            sql = "SELECT kind, ref_id, chunk_no, content FROM " + TABLE
-                    + " WHERE kind = ? AND tenant = ? "
-                    + "ORDER BY embedding <=> ?::vector LIMIT ?";
-            args = new Object[]{
-                    RagDocumentKind.RUN.name(),
-                    tenantValue,
-                    toVectorLiteral(embedding),
-                    limit
-            };
+            if (gate) {
+                sql = "SELECT kind, ref_id, chunk_no, content, (embedding <=> ?::vector) AS distance FROM " + TABLE
+                        + " WHERE kind = ? AND tenant = ? AND (embedding <=> ?::vector) < ? "
+                        + "ORDER BY distance LIMIT ?";
+                args = new Object[]{
+                        vector,
+                        RagDocumentKind.RUN.name(),
+                        tenantValue,
+                        vector,
+                        maxDistance,
+                        limit
+                };
+            } else {
+                sql = "SELECT kind, ref_id, chunk_no, content, (embedding <=> ?::vector) AS distance FROM " + TABLE
+                        + " WHERE kind = ? AND tenant = ? "
+                        + "ORDER BY distance LIMIT ?";
+                args = new Object[]{vector, RagDocumentKind.RUN.name(), tenantValue, limit};
+            }
         } else {
-            sql = "SELECT kind, ref_id, chunk_no, content FROM " + TABLE
-                    + " WHERE (kind = ? AND tenant = ?) OR (kind = ? AND tenant IN (?, ?)) "
-                    + "ORDER BY embedding <=> ?::vector LIMIT ?";
-            args = new Object[]{
-                    RagDocumentKind.RUN.name(),
-                    tenantValue,
-                    RagDocumentKind.DOC.name(),
-                    tenantValue,
-                    "_global_",
-                    toVectorLiteral(embedding),
-                    limit
-            };
+            if (gate) {
+                sql = "SELECT kind, ref_id, chunk_no, content, (embedding <=> ?::vector) AS distance FROM " + TABLE
+                        + " WHERE ((kind = ? AND tenant = ?) OR (kind = ? AND tenant IN (?, ?))) "
+                        + "AND (embedding <=> ?::vector) < ? "
+                        + "ORDER BY distance LIMIT ?";
+                args = new Object[]{
+                        vector,
+                        RagDocumentKind.RUN.name(),
+                        tenantValue,
+                        RagDocumentKind.DOC.name(),
+                        tenantValue,
+                        "_global_",
+                        vector,
+                        maxDistance,
+                        limit
+                };
+            } else {
+                sql = "SELECT kind, ref_id, chunk_no, content, (embedding <=> ?::vector) AS distance FROM " + TABLE
+                        + " WHERE (kind = ? AND tenant = ?) OR (kind = ? AND tenant IN (?, ?)) "
+                        + "ORDER BY distance LIMIT ?";
+                args = new Object[]{
+                        vector,
+                        RagDocumentKind.RUN.name(),
+                        tenantValue,
+                        RagDocumentKind.DOC.name(),
+                        tenantValue,
+                        "_global_",
+                        limit
+                };
+            }
         }
         return jdbc.query(sql, (rs, rowNum) -> new RagSearchHit(
                 RagDocumentKind.valueOf(rs.getString("kind")),
                 rs.getString("ref_id"),
                 rs.getInt("chunk_no"),
-                rs.getString("content")), args);
+                rs.getString("content"),
+                rs.getDouble("distance")), args);
+    }
+
+    /** 兼容旧调用：使用配置侧默认门槛前，先按无门槛查（仅内部/测试） */
+    public List<RagSearchHit> search(String tenant, RagDocumentKind kindFilter, float[] embedding, int topK) {
+        return search(tenant, kindFilter, embedding, topK, 0d);
     }
 
     /** 供单测 / 诊断：当前表是否存在 */

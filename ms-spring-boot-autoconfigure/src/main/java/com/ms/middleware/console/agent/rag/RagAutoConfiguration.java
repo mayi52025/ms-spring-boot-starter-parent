@@ -42,14 +42,24 @@ public class RagAutoConfiguration {
 
     public static final String RAG_DATA_SOURCE = "ragDataSource";
 
+    public RagAutoConfiguration() {
+        log.info(">>> RagAutoConfiguration initialized - RAG 模块已加载 (rag.enabled=true)");
+    }
+
     @Bean(name = RAG_DATA_SOURCE, destroyMethod = "close")
     public HikariDataSource ragDataSource(MsMiddlewareProperties properties) {
         MsMiddlewareProperties.RagProperties rag = properties.getConsole().getRag();
+        if (rag.getJdbcUrl() == null || rag.getJdbcUrl().isBlank()) {
+            throw new IllegalStateException("ms.middleware.console.rag.jdbc-url 未配置");
+        }
+        if (rag.getUsername() == null || rag.getUsername().isBlank()) {
+            throw new IllegalStateException("ms.middleware.console.rag.username 未配置（勿依赖 starter 默认密码）");
+        }
         HikariConfig config = new HikariConfig();
         config.setPoolName("ms-rag");
         config.setJdbcUrl(rag.getJdbcUrl());
         config.setUsername(rag.getUsername());
-        config.setPassword(rag.getPassword());
+        config.setPassword(rag.getPassword() != null ? rag.getPassword() : "");
         config.setDriverClassName("org.postgresql.Driver");
         config.setMaximumPoolSize(3);
         config.setMinimumIdle(0);
@@ -69,7 +79,13 @@ public class RagAutoConfiguration {
 
     @Bean
     public EmbeddingClient ragEmbeddingClient(MsMiddlewareProperties properties, ObjectMapper objectMapper) {
-        return new OpenAiCompatibleEmbeddingClient(properties.getConsole().getRag().getEmbedding(), objectMapper);
+        MsMiddlewareProperties.RagProperties rag = properties.getConsole().getRag();
+        EmbeddingClient raw = new OpenAiCompatibleEmbeddingClient(rag.getEmbedding(), objectMapper);
+        // 对话热路径短缓存：同问复用向量，降延迟与通义费用
+        return new CachingEmbeddingClient(
+                raw,
+                rag.getEmbeddingCacheSize(),
+                rag.getEmbeddingCacheTtlSeconds() * 1000L);
     }
 
     @Bean

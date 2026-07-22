@@ -1515,15 +1515,28 @@ public class MsMiddlewareProperties {
 
         /** 是否启用向量索引与检索 */
         private boolean enabled = false;
-        private String jdbcUrl = "jdbc:postgresql://192.168.100.102:5432/ms_rag";
-        private String username = "ms";
-        private String password = "ms";
+        /**
+         * JDBC URL 占位；开启 rag 时必须在业务 yml 显式配置（勿把演示密码写进 starter 默认值）。
+         */
+        private String jdbcUrl = "jdbc:postgresql://127.0.0.1:5433/ms_autonomy_rag";
+        private String username = "";
+        private String password = "";
         /** 检索 top-K */
         private int topK = 5;
+        /**
+         * 余弦距离上限（pgvector {@code <=>}，越小越相似）。
+         * 超过则视为不相关，不注入 LLM，交给 Keyword 降级——避免「硬塞 topK」污染上下文。
+         * 经验默认 0.45；可按语料调大（更松）或调小（更严）。
+         */
+        private double maxDistance = 0.45d;
         /** 文档分块字符数（Step 2 使用） */
         private int chunkSize = 800;
         /** 每 tenant 最多保留多少条 RUN 类文档，超出删最旧 */
         private int maxRunDocsPerTenant = 200;
+        /** query embedding 缓存条数（对话热路径） */
+        private int embeddingCacheSize = 64;
+        /** query embedding 缓存 TTL 秒 */
+        private int embeddingCacheTtlSeconds = 120;
         @NestedConfigurationProperty
         private RagEmbeddingProperties embedding = new RagEmbeddingProperties();
 
@@ -1567,6 +1580,14 @@ public class MsMiddlewareProperties {
             this.topK = topK;
         }
 
+        public double getMaxDistance() {
+            return maxDistance;
+        }
+
+        public void setMaxDistance(double maxDistance) {
+            this.maxDistance = maxDistance;
+        }
+
         public int getChunkSize() {
             return chunkSize;
         }
@@ -1581,6 +1602,22 @@ public class MsMiddlewareProperties {
 
         public void setMaxRunDocsPerTenant(int maxRunDocsPerTenant) {
             this.maxRunDocsPerTenant = maxRunDocsPerTenant;
+        }
+
+        public int getEmbeddingCacheSize() {
+            return embeddingCacheSize;
+        }
+
+        public void setEmbeddingCacheSize(int embeddingCacheSize) {
+            this.embeddingCacheSize = embeddingCacheSize;
+        }
+
+        public int getEmbeddingCacheTtlSeconds() {
+            return embeddingCacheTtlSeconds;
+        }
+
+        public void setEmbeddingCacheTtlSeconds(int embeddingCacheTtlSeconds) {
+            this.embeddingCacheTtlSeconds = embeddingCacheTtlSeconds;
         }
 
         public RagEmbeddingProperties getEmbedding() {
@@ -1738,7 +1775,11 @@ public class MsMiddlewareProperties {
     public static class LlmProperties {
 
         private String baseUrl = "https://api.deepseek.com";
-        private String apiKey = "";
+        /**
+         * API Key。{@code null}=未在配置中声明（可回退环境变量）；
+         * 空串=已声明为空（不再读 {@code MS_LLM_API_KEY}，便于单测隔离本机环境）。
+         */
+        private String apiKey;
         private String model = "deepseek-chat";
         private double temperature = 0.2;
         private int timeoutSeconds = 60;
@@ -1793,10 +1834,21 @@ public class MsMiddlewareProperties {
             this.groundingMode = groundingMode;
         }
 
-        /** 解析有效 API Key：配置非空优先，否则 {@code MS_LLM_API_KEY}。 */
+        /**
+         * 解析有效 API Key：
+         * <ul>
+         *   <li>配置非空 → 用配置</li>
+         *   <li>配置显式为空串 → 视为未配置，<strong>不</strong>再读环境变量（单测可隔离本机 key）</li>
+         *   <li>配置为 null（未声明）→ 回退 {@code MS_LLM_API_KEY}</li>
+         * </ul>
+         * application.yml 里 {@code api-key: ${MS_LLM_API_KEY:}} 在 env 有值时会绑成非空，不受影响。
+         */
         public String resolveApiKey() {
             if (apiKey != null && !apiKey.isBlank()) {
                 return apiKey.trim();
+            }
+            if (apiKey != null) {
+                return "";
             }
             String env = System.getenv("MS_LLM_API_KEY");
             return env != null ? env.trim() : "";
