@@ -579,7 +579,7 @@ ms:
 | **5.2** | Tool Grounding ✅ | LLM 只调 Insight（run / issues / Trace / metrics）；禁写配置 | 单测：mock LLM 校验 tool 调用 |
 | **5.3** | 短上下文 ✅ | 会话绑 `runId`；战时注入失败 Trace 摘要 | — |
 | **5.4** | 轻量 RAG ✅ | STABLE / `classpath:rag/docs` → embedding → **pgvector**；Composite 降级 Keyword；硬化：距离门槛 / 意图同义词 / embedding 缓存 | Docker Postgres+pgvector；独立 embedding API（通义） |
-| **5.5** | MCP 只读（加分） | 暴露同一批 Tool，Cursor/外部可调 | 可选；时间不够可只写「契约预留」 |
+| **5.5** | MCP 只读（加分）✅ | stdio 暴露 3 个只读 Tool（委托 `MiddlewareInsightTool`）；默认关 | Cursor `mcp.json` 样例见 README / `middleware-demo/mcp/` |
 
 #### Phase 5 DoD（做完即可停、写简历）
 
@@ -587,7 +587,7 @@ ms:
 - [x] `llm-enabled=true` 时自然语言可问：当前问题 / 指定 run / 失败 Trace / 为何 STABLE（有 Tool 证据）
 - [x] 至少一次 RAG 问答命中历史或文档摘要（Composite：`PGVECTOR`；失败降级 `KEYWORD_FALLBACK`；演示见 `middleware-demo/rag/README.md`）
 - [x] README：启动步骤、配置样例、演示脚本（主仓 README + `middleware-demo/rag/`；可选 Ollama 仍见既有说明）
-- [ ] （加分）MCP 只读可调通一个 Tool
+- [x] （加分）MCP 只读可调通一个 Tool（`list_active_issues` / `describe_run` / `get_metrics_summary`；入口 `MsInsightMcpApplication`）
 
 #### 刻意不做
 

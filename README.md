@@ -58,7 +58,7 @@
 - **自治引擎**：定时扫描 Redis/RabbitMQ 健康、缓存命中率、MQ 失败等指标，自动生成处置计划
 - **智能决策**：按 `auto-execute-max-risk`（LOW/MEDIUM/HIGH）决定自动执行或仅建议
 - **AI 控制台**：访问 `/ms-console` 可视化界面，实时查看问题列表、自治时间线、优化推荐与规则聊天
-- **运维 Agent**：LangChain4j + Insight Tool（接地）；短工作上下文（5.3）；可选 **pgvector RAG**（5.4，默认关闭）
+- **运维 Agent**：LangChain4j + Insight Tool（接地）；短工作上下文（5.3）；可选 **pgvector RAG**（5.4，默认关闭）；可选 **只读 MCP**（5.5，默认关闭）
 - **默认关闭**：`ms.middleware.autonomy.enabled=false`，零侵入现有功能
 - **可审计**：所有动作记录在 Ledger（Redisson），支持 SSE 实时推送
 
@@ -71,6 +71,31 @@
 - Embedding 使用独立环境变量 `MS_RAG_EMBEDDING_API_KEY`（通义等），**不要**复用 DeepSeek chat 的 `MS_LLM_API_KEY`
 
 检索路径：向量命中标 `PGVECTOR`；库/embedding 不可用时降级 `KEYWORD_FALLBACK`。
+
+#### Phase 5.5 最小只读 MCP（可选）
+
+默认 `ms.middleware.console.mcp.enabled=false`。**不**嵌入业务 Web 进程；独立 stdio 进程直调同一 `MiddlewareInsightTool`（与控制台共用语义，无写工具）。
+
+| Tool | 委托 |
+|------|------|
+| `list_active_issues` | `listActiveIssues()` |
+| `describe_run` | `describeRun(runId)` |
+| `get_metrics_summary` | `getMetricsSummary()` |
+
+**鉴权：** 配置 `ms.middleware.console.mcp.auth-token` 或环境变量 `MS_MCP_TOKEN`；未配置则本地 Demo 放行并 warn。Cursor 侧在 `mcp.json` 的 `env` 里设同一 `MS_MCP_TOKEN`。
+
+**启动（推荐预构建 classpath，避免每次 `mvn exec`）：**
+
+```powershell
+cd middleware-demo/mcp
+.\prepare-classpath.ps1          # 依赖变更后跑一次
+# Cursor 配 mcp.json.example → run-mcp.ps1
+# 或: .\run-mcp.ps1
+```
+
+配置见 `middleware-demo/mcp/application-mcp.yml`。日志走 **stderr**（`mcp-logback.xml`），勿向 stdout 打印。
+
+自动化烟雾：`MsInsightMcpStdioSmokeTest`（stdio 调通 `list_active_issues`，不依赖 Redis）。
 
 ## 快速开始
 
