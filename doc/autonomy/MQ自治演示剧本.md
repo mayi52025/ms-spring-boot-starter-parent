@@ -193,7 +193,23 @@ Invoke-RestMethod -Uri http://localhost:8080/ms-console/api/issues -Headers $h
 
 ---
 
-## 6. 常见问题
+## 6. （可选）Phase 5.4 RAG：问历史 / 文档
+
+完整步骤见 Demo 仓：`middleware-demo/rag/README.md`。
+
+摘要：
+
+1. `docker compose -f middleware-demo/rag/docker-compose.yml up -d`（或连已有 `192.168.100.102:5432/ms_rag`）
+2. 设置 `MS_RAG_EMBEDDING_API_KEY`（通义 embedding，**不是** DeepSeek chat key）
+3. `order-system` 将 `ms.middleware.console.rag.enabled` 改为 `true` 并重启
+4. 控制台提问示例：
+   - 「文档里 MQ 自治怎么止血」→ 期望上下文来源 **`PGVECTOR`**
+   - 「以前类似 MQ 故障怎么处理」（跑完本节 STABLE 后）→ **`PGVECTOR`** 或文档兜底
+5. 关掉 rag / 停 PG → 仍可聊，可能 **`KEYWORD_FALLBACK`**
+
+---
+
+## 7. 常见问题
 
 | 现象 | 排查 |
 |------|------|
@@ -201,8 +217,9 @@ Invoke-RestMethod -Uri http://localhost:8080/ms-console/api/issues -Headers $h
 | 无 AUTO 只有 ADVISE | 证据强度低于 `auto-execute-min-confidence` |
 | 控制台无 SSE | 检查 `console.enabled` 与浏览器 Network → EventSource |
 | 指标为 0 | 需完整跑完 PLAN → STABLE 或人工采纳后才会累加 |
+| RAG 一直 Keyword | 见 `middleware-demo/rag/README.md`「常见问题」 |
 
 ---
 
-完成时间：Phase 3 Step 6  
-关联文档：`AUTONOMY_ROADMAP.md`、`doc/autonomy/自治与AI控制台功能完成链路.md`
+完成时间：Phase 3 Step 6（RAG 补充：Phase 5.4）  
+关联文档：`AUTONOMY_ROADMAP.md`、`doc/autonomy/自治与AI控制台功能完成链路.md`、`middleware-demo/rag/README.md`

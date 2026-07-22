@@ -58,8 +58,19 @@
 - **自治引擎**：定时扫描 Redis/RabbitMQ 健康、缓存命中率、MQ 失败等指标，自动生成处置计划
 - **智能决策**：按 `auto-execute-max-risk`（LOW/MEDIUM/HIGH）决定自动执行或仅建议
 - **AI 控制台**：访问 `/ms-console` 可视化界面，实时查看问题列表、自治时间线、优化推荐与规则聊天
+- **运维 Agent**：LangChain4j + Insight Tool（接地）；短工作上下文（5.3）；可选 **pgvector RAG**（5.4，默认关闭）
 - **默认关闭**：`ms.middleware.autonomy.enabled=false`，零侵入现有功能
-- **可审计**：所有动作记录在内存 Ledger（后续支持 Redisson 持久化），支持 SSE 实时推送
+- **可审计**：所有动作记录在 Ledger（Redisson），支持 SSE 实时推送
+
+#### Phase 5.4 RAG（可选）
+
+默认 `ms.middleware.console.rag.enabled=false`。演示步骤见 Demo 仓：
+
+- Compose：`middleware-demo/rag/docker-compose.yml`（Postgres + pgvector）
+- 说明与验收：`middleware-demo/rag/README.md`
+- Embedding 使用独立环境变量 `MS_RAG_EMBEDDING_API_KEY`（通义等），**不要**复用 DeepSeek chat 的 `MS_LLM_API_KEY`
+
+检索路径：向量命中标 `PGVECTOR`；库/embedding 不可用时降级 `KEYWORD_FALLBACK`。
 
 ## 快速开始
 

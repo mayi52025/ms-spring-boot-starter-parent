@@ -578,15 +578,15 @@ ms:
 | **5.1** | LLM 接入（OpenAI 兼容）✅ | `llm-enabled=true` 走 LangChain4j + Insight Tool；false 仍规则 | DeepSeek + `MS_LLM_API_KEY` |
 | **5.2** | Tool Grounding ✅ | LLM 只调 Insight（run / issues / Trace / metrics）；禁写配置 | 单测：mock LLM 校验 tool 调用 |
 | **5.3** | 短上下文 ✅ | 会话绑 `runId`；战时注入失败 Trace 摘要 | — |
-| **5.4** | 轻量 RAG | 历史 run / `doc/autonomy` → embedding → **pgvector** 检索 | Docker Postgres+pgvector；embedding API 或本地 embed |
+| **5.4** | 轻量 RAG ✅ | STABLE / `classpath:rag/docs` → embedding → **pgvector**；Composite 降级 Keyword | Docker Postgres+pgvector；独立 embedding API（通义） |
 | **5.5** | MCP 只读（加分） | 暴露同一批 Tool，Cursor/外部可调 | 可选；时间不够可只写「契约预留」 |
 
 #### Phase 5 DoD（做完即可停、写简历）
 
 - [x] React 控制台可经 IP + token 打开，功能不低于现静态页（源码 `ms-console-ui`，构建产物已进 jar）
 - [x] `llm-enabled=true` 时自然语言可问：当前问题 / 指定 run / 失败 Trace / 为何 STABLE（有 Tool 证据）
-- [ ] 至少一次 RAG 问答命中历史或文档摘要
-- [ ] README：启动步骤、配置样例、演示脚本；可选 Ollama 说明
+- [x] 至少一次 RAG 问答命中历史或文档摘要（Composite：`PGVECTOR`；失败降级 `KEYWORD_FALLBACK`；演示见 `middleware-demo/rag/README.md`）
+- [x] README：启动步骤、配置样例、演示脚本（主仓 README + `middleware-demo/rag/`；可选 Ollama 仍见既有说明）
 - [ ] （加分）MCP 只读可调通一个 Tool
 
 #### 刻意不做
@@ -653,7 +653,7 @@ com.ms.middleware.autonomy/
 com.ms.middleware.redis/        # RedissonConnectionManager、RedissonProbes（统一恢复）
 
 com.ms.middleware.console/      # 控制台 API；React 构建产物静态托管
-com.ms.middleware.console.agent/ # Phase 5：LangChain4j / Tool / RAG（待建）
+com.ms.middleware.console.agent/ # Phase 5：LangChain4j / Tool / context / rag（5.4 Composite 检索）
 ```
 
 `ai/HotKey*` 仍为统计信号，与 `autonomy` 并列，不合并包名。
