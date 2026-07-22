@@ -80,7 +80,9 @@ public class PgvectorRetrievalContextProvider implements RetrievalContextProvide
             }
             sb.append('\n');
             if (hit.content() != null && !hit.content().isBlank()) {
-                sb.append(hit.content().trim()).append("\n\n");
+                // 单条再截一刀：命中块可能仍偏长，避免 topK 条把预算吃光
+                int perHit = Math.max(64, ragProperties.getMaxCharsPerHit());
+                sb.append(truncate(hit.content().trim(), perHit)).append("\n\n");
             }
         }
         return Optional.of(truncate(sb.toString().trim(), Math.max(128, budgetChars)));

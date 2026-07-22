@@ -1529,8 +1529,16 @@ public class MsMiddlewareProperties {
          * 经验默认 0.45；可按语料调大（更松）或调小（更严）。
          */
         private double maxDistance = 0.45d;
-        /** 文档分块字符数（Step 2 使用） */
-        private int chunkSize = 800;
+        /**
+         * 文档分块目标大小（字符）。偏小 → 检索更贴句子、注入更省 token；过小会碎。
+         */
+        private int chunkSize = 420;
+        /** 相邻文档块重叠字符，减轻关键句落在切缝上 */
+        private int chunkOverlap = 80;
+        /**
+         * 注入 LLM 时单条命中正文上限（字符）。总预算仍由 Assembler 的 budget 约束。
+         */
+        private int maxCharsPerHit = 280;
         /** 每 tenant 最多保留多少条 RUN 类文档，超出删最旧 */
         private int maxRunDocsPerTenant = 200;
         /** query embedding 缓存条数（对话热路径） */
@@ -1594,6 +1602,22 @@ public class MsMiddlewareProperties {
 
         public void setChunkSize(int chunkSize) {
             this.chunkSize = chunkSize;
+        }
+
+        public int getChunkOverlap() {
+            return chunkOverlap;
+        }
+
+        public void setChunkOverlap(int chunkOverlap) {
+            this.chunkOverlap = chunkOverlap;
+        }
+
+        public int getMaxCharsPerHit() {
+            return maxCharsPerHit;
+        }
+
+        public void setMaxCharsPerHit(int maxCharsPerHit) {
+            this.maxCharsPerHit = maxCharsPerHit;
         }
 
         public int getMaxRunDocsPerTenant() {

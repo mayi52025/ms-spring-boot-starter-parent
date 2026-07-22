@@ -128,7 +128,9 @@ ms:
         password: ""                       # 演示环境自行填写，例如虚机 Docker 的 msrag123
         top-k: 5
         max-distance: 0.45                 # 余弦距离上限；过大易污染上下文
-        chunk-size: 800
+        chunk-size: 420                    # 分句装箱目标大小
+        chunk-overlap: 80                  # 块间重叠，防关键句落缝
+        max-chars-per-hit: 280             # 注入 LLM 时单条命中正文上限
         max-run-docs-per-tenant: 200
         embedding-cache-size: 64
         embedding-cache-ttl-seconds: 120

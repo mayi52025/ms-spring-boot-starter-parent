@@ -81,6 +81,17 @@ public class RagVectorStore {
     }
 
     /**
+     * 删除某文档/某 run 的全部 chunk（重分块前调用，避免旧 chunk_no 残留）。
+     */
+    public int deleteByRef(String tenant, RagDocumentKind kind, String refId) {
+        return jdbc.update(
+                "DELETE FROM " + TABLE + " WHERE tenant = ? AND kind = ? AND ref_id = ?",
+                nullToEmpty(tenant),
+                kind.name(),
+                nullToEmpty(refId));
+    }
+
+    /**
      * 每 tenant 仅保留最近 {@code keep} 条 RUN 文档，超出删最旧。
      */
     public int trimOldRuns(String tenant, int keep) {

@@ -8,11 +8,13 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * 索引 STABLE run 摘要与 classpath 运维文档。
+ *
+ * <p>文档走 {@link TextChunker}（分句 + 重叠），便于检索只命中核心段落、控制注入 token；
+ * STABLE 摘要本身短，整段一条向量即可。
  */
 public class RagIndexer {
 
@@ -47,7 +49,8 @@ public class RagIndexer {
     }
 
     public void indexClasspathDocs() {
-        int chunkSize = Math.max(200, ragProperties.getChunkSize());
+        int chunkSize = Math.max(120, ragProperties.getChunkSize());
+        int overlap = Math.max(0, ragProperties.getChunkOverlap());
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
         try {
             Resource[] resources = resolver.getResources(DOC_PATTERN);
@@ -58,7 +61,9 @@ public class RagIndexer {
                 }
                 String filename = resource.getFilename() != null ? resource.getFilename() : "doc.md";
                 String body = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-                List<String> chunks = chunk(body, chunkSize);
+                // 重分块前清掉该文档旧 chunk，避免 chunk_no 变少后残留长块
+                store.deleteByRef("_global_", RagDocumentKind.DOC, filename);
+                List<String> chunks = TextChunker.chunk(body, chunkSize, overlap);
                 for (int i = 0; i < chunks.size(); i++) {
                     String chunk = chunks.get(i);
                     float[] vector = embeddingClient.embed(chunk);
@@ -66,37 +71,15 @@ public class RagIndexer {
                     indexed++;
                 }
             }
-            log.info("RAG indexed classpath docs chunks={}", indexed);
+            log.info("RAG indexed classpath docs chunks={} chunkSize={} overlap={}",
+                    indexed, chunkSize, overlap);
         } catch (Exception ex) {
             log.warn("RAG indexClasspathDocs failed: {}", ex.getMessage());
         }
     }
 
+    /** @deprecated 请用 {@link TextChunker#chunk(String, int, int)}；保留给旧单测兼容 */
     static List<String> chunk(String text, int chunkSize) {
-        List<String> chunks = new ArrayList<>();
-        if (text == null || text.isBlank()) {
-            return chunks;
-        }
-        String normalized = text.replace("\r\n", "\n").trim();
-        if (normalized.length() <= chunkSize) {
-            chunks.add(normalized);
-            return chunks;
-        }
-        int from = 0;
-        while (from < normalized.length()) {
-            int to = Math.min(normalized.length(), from + chunkSize);
-            if (to < normalized.length()) {
-                int breakAt = normalized.lastIndexOf('\n', to);
-                if (breakAt > from + chunkSize / 2) {
-                    to = breakAt;
-                }
-            }
-            String piece = normalized.substring(from, to).trim();
-            if (!piece.isEmpty()) {
-                chunks.add(piece);
-            }
-            from = Math.max(to, from + 1);
-        }
-        return chunks;
+        return TextChunker.chunk(text, chunkSize, 0);
     }
 }
