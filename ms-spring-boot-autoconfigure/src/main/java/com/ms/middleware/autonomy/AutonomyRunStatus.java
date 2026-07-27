@@ -8,7 +8,7 @@ package com.ms.middleware.autonomy;
  *   <li>PLANNED — 已有 AutonomyPlan</li>
  *   <li>EXECUTING — 动作已评估/执行中</li>
  *   <li>STABLE — 指标恢复正常，可计算 MTTR</li>
- *   <li>ESCALATED — 预留：需人工升级（Phase 3+）</li>
+ *   <li>ESCALATED — 限流后无改善，升级人工（停止继续 AUTO 加压）</li>
  *   <li>CLOSED — 预留：人工关闭</li>
  * </ul>
  */

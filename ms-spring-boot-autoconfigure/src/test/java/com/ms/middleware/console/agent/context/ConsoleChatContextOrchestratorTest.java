@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -60,10 +61,34 @@ class ConsoleChatContextOrchestratorTest {
     }
 
     @Test
+    void followUpDoesNotAutoBindWhenMultipleActiveRuns() {
+        AutonomyRun a = new AutonomyRun();
+        a.setRunId("run-a");
+        AutonomyRun b = new AutonomyRun();
+        b.setRunId("run-b");
+        when(insightService.listActiveRuns()).thenReturn(List.of(a, b));
+
+        var prepared = orchestrator.prepare("为何还没 STABLE", null, "sess-multi", GroundingMode.RELAXED);
+
+        assertNull(prepared.effectiveRunId());
+    }
+
+    @Test
     void homeGlobalQuestionDoesNotAutoBind() {
         var prepared = orchestrator.prepare("当前有什么问题", null, "sess-1", GroundingMode.RELAXED);
 
         assertNull(prepared.effectiveRunId());
+    }
+
+    @Test
+    void homeGlobalQuestionDoesNotBindEvenWithSingleActiveRun() {
+        AutonomyRun run = new AutonomyRun();
+        run.setRunId("run-only");
+        // 若误把「问题/指标」当成跟进意图，会走到 listActive 并错误 bind；lenient 防止正确路径下 stub 未使用报错
+        lenient().when(insightService.listActiveRuns()).thenReturn(List.of(run));
+
+        assertNull(orchestrator.prepare("当前有什么问题", null, "sess-g1", GroundingMode.RELAXED).effectiveRunId());
+        assertNull(orchestrator.prepare("看一下指标", null, "sess-g2", GroundingMode.RELAXED).effectiveRunId());
     }
 
     @Test

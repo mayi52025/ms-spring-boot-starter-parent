@@ -47,6 +47,17 @@ public class AutonomyRun {
     private AutonomyContext incidentBaseline;
     /** STABLE 时写入的恢复证据，供 API/控制台展示 */
     private RecoveryEvidence recoveryEvidence;
+    /**
+     * AUTO 启用 MQ 限流时的时刻（账本持久化，供超时回撤判定）。
+     * 与 {@link com.ms.middleware.autonomy.act.MqConsumerThrottle#getEnabledAt()} 对齐写入。
+     */
+    private Instant mqThrottleEnabledAt;
+    /** 启用限流当刻的 mqFailedCount，用于「无改善」对比 */
+    private long mqFailedCountAtThrottle = -1;
+    /** 限流开启后连续未改善的 tick 计数 */
+    private int throttleNoImproveTicks;
+    /** 本 run 已做过超时回撤或无改善升级，避免重复触发 */
+    private boolean mqThrottleSafetyConsumed;
 
     public String getRunId() {
         return runId;
@@ -148,6 +159,39 @@ public class AutonomyRun {
 
     public void setRecoveryEvidence(RecoveryEvidence recoveryEvidence) {
         this.recoveryEvidence = recoveryEvidence;
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Instant getMqThrottleEnabledAt() {
+        return mqThrottleEnabledAt;
+    }
+
+    public void setMqThrottleEnabledAt(Instant mqThrottleEnabledAt) {
+        this.mqThrottleEnabledAt = mqThrottleEnabledAt;
+    }
+
+    public long getMqFailedCountAtThrottle() {
+        return mqFailedCountAtThrottle;
+    }
+
+    public void setMqFailedCountAtThrottle(long mqFailedCountAtThrottle) {
+        this.mqFailedCountAtThrottle = mqFailedCountAtThrottle;
+    }
+
+    public int getThrottleNoImproveTicks() {
+        return throttleNoImproveTicks;
+    }
+
+    public void setThrottleNoImproveTicks(int throttleNoImproveTicks) {
+        this.throttleNoImproveTicks = throttleNoImproveTicks;
+    }
+
+    public boolean isMqThrottleSafetyConsumed() {
+        return mqThrottleSafetyConsumed;
+    }
+
+    public void setMqThrottleSafetyConsumed(boolean mqThrottleSafetyConsumed) {
+        this.mqThrottleSafetyConsumed = mqThrottleSafetyConsumed;
     }
 
     @JsonProperty("issues")

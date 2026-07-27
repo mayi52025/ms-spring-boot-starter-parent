@@ -41,6 +41,8 @@ class AutonomyMetricsTest {
         metrics.recordRecommendationAccepted("order-system", "MQ_DEGRADED");
         metrics.recordRecommendationRejected("order-system", "REDIS_UNAVAILABLE");
         metrics.recordPlanConfidence("order-system", "MQ_DEGRADED", 0.82);
+        metrics.recordThrottleSafetyUnwind("order-system", "MQ_DEGRADED");
+        metrics.recordRunEscalated("order-system", "MQ_DEGRADED", "throttle_no_improve");
 
         assertEquals(1.0, registry.get("ms.autonomy.action.auto.total")
                 .tag("trigger", "auto").counter().count());
@@ -48,5 +50,8 @@ class AutonomyMetricsTest {
         assertEquals(1.0, registry.get("ms.autonomy.recommendation.accepted.total").counter().count());
         assertEquals(1.0, registry.get("ms.autonomy.recommendation.rejected.total").counter().count());
         assertEquals(1, registry.get("ms.autonomy.plan.confidence").summary().count());
+        assertEquals(1.0, registry.get("ms.autonomy.throttle.safety_unwind.total").counter().count());
+        assertEquals(1.0, registry.get("ms.autonomy.run.escalated.total")
+                .tag("reason", "throttle_no_improve").counter().count());
     }
 }

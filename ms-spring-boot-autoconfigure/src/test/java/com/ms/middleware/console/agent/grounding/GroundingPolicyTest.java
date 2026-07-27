@@ -2,6 +2,8 @@ package com.ms.middleware.console.agent.grounding;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -27,6 +29,24 @@ class GroundingPolicyTest {
 
         assertEquals(GroundingIntent.ACTIVE_ISSUES, resolution.intent());
         assertEquals(InsightToolName.LIST_ACTIVE_ISSUES, resolution.requiredTools().get(0).tool());
+    }
+
+    @Test
+    void faultWordingAlsoMapsToListActiveIssues() {
+        GroundingResolution resolution = policy.resolve("当前有什么故障", null);
+
+        assertEquals(GroundingIntent.ACTIVE_ISSUES, resolution.intent());
+        assertEquals(InsightToolName.LIST_ACTIVE_ISSUES, resolution.requiredTools().get(0).tool());
+    }
+
+    @Test
+    void vagueUtteranceStaysChitchatWithoutOpsKeywords() {
+        for (String q : List.of("在吗", "帮我看看", "你好呀")) {
+            GroundingResolution resolution = policy.resolve(q, null);
+            assertEquals(GroundingIntent.CHITCHAT, resolution.intent(), q);
+            assertFalse(resolution.opsQuestion(), q);
+            assertTrue(resolution.requiredTools().isEmpty(), q);
+        }
     }
 
     @Test

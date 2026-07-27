@@ -37,4 +37,12 @@ class AgentOrchestrationPolicyTest {
         assertEquals(RetrievalQuery.RetrievalKind.DOCUMENT,
                 AgentOrchestrationPolicy.toRetrievalQuery(decision).kind());
     }
+
+    @Test
+    void bleedControlRoutesToDocumentKind() {
+        AgentOrchestrationDecision decision = new AgentOrchestrationDecision(
+                null, ContextScope.GLOBAL, List.of(), true, "限流止血怎么做");
+        assertEquals(RetrievalQuery.RetrievalKind.DOCUMENT,
+                AgentOrchestrationPolicy.toRetrievalQuery(decision).kind());
+    }
 }

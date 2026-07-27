@@ -66,12 +66,27 @@ public class AutonomyActuator {
         }
     }
 
-    /** MQ 故障恢复后关闭消费限流 */
+    /** MQ 故障恢复后关闭消费限流（幂等） */
     public void clearMqThrottle() {
         MqConsumerThrottle throttle = consumerThrottleProvider.getIfAvailable();
         if (throttle != null) {
             throttle.disable();
         }
+    }
+
+    /** 当前是否处于 MQ 消费限流 */
+    public boolean isMqThrottleEnabled() {
+        MqConsumerThrottle throttle = consumerThrottleProvider.getIfAvailable();
+        return throttle != null && throttle.isEnabled();
+    }
+
+    /** 限流启用时刻；未启用返回 empty */
+    public java.util.Optional<java.time.Instant> getMqThrottleEnabledAt() {
+        MqConsumerThrottle throttle = consumerThrottleProvider.getIfAvailable();
+        if (throttle == null || throttle.getEnabledAt() == null) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of(throttle.getEnabledAt());
     }
 
     private void executeWarmup(PlannedAction action) {

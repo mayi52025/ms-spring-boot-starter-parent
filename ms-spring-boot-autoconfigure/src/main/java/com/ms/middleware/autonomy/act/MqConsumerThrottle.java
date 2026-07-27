@@ -5,6 +5,7 @@ import com.ms.middleware.rate.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -29,6 +30,8 @@ public class MqConsumerThrottle {
     private volatile int limit;
     /** 限流时间窗口（秒） */
     private volatile long windowSeconds;
+    /** 最近一次 enable 的时刻；disable 后清空 */
+    private volatile Instant enabledAt;
 
     public MqConsumerThrottle(RateLimiter rateLimiter, MsMiddlewareProperties properties) {
         this.rateLimiter = rateLimiter;
@@ -47,17 +50,19 @@ public class MqConsumerThrottle {
         this.limit = limit > 0 ? limit : mq.getThrottleLimit();
         this.windowSeconds = windowSeconds > 0 ? windowSeconds : mq.getThrottleWindowSeconds();
         rateLimiter.reset(RATE_LIMIT_KEY);
+        this.enabledAt = Instant.now();
         this.enabled = true;
-        logger.info("MQ 消费限流已启用: limit={}/{}s", this.limit, this.windowSeconds);
+        logger.info("MQ 消费限流已启用: limit={}/{}s enabledAt={}", this.limit, this.windowSeconds, this.enabledAt);
         return true;
     }
 
-    /** 关闭限流并清理 Redis 计数（STABLE 或人工恢复时调用） */
+    /** 关闭限流并清理 Redis 计数（STABLE / 安全回撤 / 升级时调用，幂等） */
     public void disable() {
         if (!enabled) {
             return;
         }
         enabled = false;
+        enabledAt = null;
         rateLimiter.reset(RATE_LIMIT_KEY);
         logger.info("MQ 消费限流已关闭");
     }
@@ -65,6 +70,11 @@ public class MqConsumerThrottle {
     /** 是否处于限流状态 */
     public boolean isEnabled() {
         return enabled;
+    }
+
+    /** 限流启用时刻；未启用时为 null */
+    public Instant getEnabledAt() {
+        return enabledAt;
     }
 
     /**

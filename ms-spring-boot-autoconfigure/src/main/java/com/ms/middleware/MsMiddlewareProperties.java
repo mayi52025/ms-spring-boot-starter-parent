@@ -1315,6 +1315,16 @@ public class MsMiddlewareProperties {
         private int delayedRetryBatchSize = 10;
         /** 延迟重试投递延迟（毫秒） */
         private long delayedRetryDelayMs = 5000;
+        /**
+         * AUTO 限流最长持续时间（秒）。超时强制关闭限流并写 SAFETY_UNWIND，防止误杀常态化。
+         * ≤0 表示关闭超时保护。
+         */
+        private long throttleMaxDurationSeconds = 300;
+        /**
+         * 限流开启后连续多少次 tick，若 mqFailedCount 相对启用时未下降（或仍 ≥ 告警阈值），
+         * 则关闭限流并将 run 置 ESCALATED。≤0 表示关闭无改善升级。
+         */
+        private int throttleNoImproveTicks = 3;
 
         public int getThrottleLimit() {
             return throttleLimit;
@@ -1346,6 +1356,22 @@ public class MsMiddlewareProperties {
 
         public void setDelayedRetryDelayMs(long delayedRetryDelayMs) {
             this.delayedRetryDelayMs = delayedRetryDelayMs;
+        }
+
+        public long getThrottleMaxDurationSeconds() {
+            return throttleMaxDurationSeconds;
+        }
+
+        public void setThrottleMaxDurationSeconds(long throttleMaxDurationSeconds) {
+            this.throttleMaxDurationSeconds = throttleMaxDurationSeconds;
+        }
+
+        public int getThrottleNoImproveTicks() {
+            return throttleNoImproveTicks;
+        }
+
+        public void setThrottleNoImproveTicks(int throttleNoImproveTicks) {
+            this.throttleNoImproveTicks = throttleNoImproveTicks;
         }
     }
 
@@ -1582,10 +1608,10 @@ public class MsMiddlewareProperties {
         private int topK = 5;
         /**
          * 余弦距离上限（pgvector {@code <=>}，越小越相似）。
-         * 超过则视为不相关，不注入 LLM，交给 Keyword 降级——避免「硬塞 topK」污染上下文。
-         * 经验默认 0.45；可按语料调大（更松）或调小（更严）。
+         * 超过则视为不相关；DOC 还可词法补召回，再不行交给 Keyword——避免「硬塞 topK」污染上下文。
+         * 中文短问句对 terse 手册经验默认 0.55；可按语料调大（更松）或调小（更严）。
          */
-        private double maxDistance = 0.45d;
+        private double maxDistance = 0.55d;
         /**
          * 文档分块目标大小（字符）。偏小 → 检索更贴句子、注入更省 token；过小会碎。
          */

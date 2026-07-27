@@ -97,6 +97,14 @@ cd middleware-demo/mcp
 
 自动化烟雾：`MsInsightMcpStdioSmokeTest`（stdio 调通 `list_active_issues`，不依赖 Redis）。
 
+## 面试金路径（Phase 6）
+
+从零复现「MQ 故障 → AUTO → STABLE → 控制台问答」见 Demo 仓：
+
+- **`middleware-demo/demo/README.md`**（主入口；含简历条目草稿）
+- 细剧本：`doc/autonomy/MQ自治演示剧本.md`
+- RAG / MCP 加分：`middleware-demo/rag/`、`middleware-demo/mcp/`
+
 ## 快速开始
 
 ### 1. 添加依赖

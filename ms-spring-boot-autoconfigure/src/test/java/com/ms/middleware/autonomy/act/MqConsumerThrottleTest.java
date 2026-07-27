@@ -56,6 +56,7 @@ class MqConsumerThrottleTest {
         assertTrue(throttle.isEnabled());
         assertEquals(20, throttle.getLimit());
         assertEquals(30, throttle.getWindowSeconds());
+        assertTrue(throttle.getEnabledAt() != null);
         verify(rateLimiter).reset(MqConsumerThrottle.RATE_LIMIT_KEY);
     }
 
@@ -67,6 +68,7 @@ class MqConsumerThrottleTest {
         throttle.disable();
 
         assertFalse(throttle.isEnabled());
+        assertTrue(throttle.getEnabledAt() == null);
         verify(rateLimiter, org.mockito.Mockito.atLeast(2)).reset(MqConsumerThrottle.RATE_LIMIT_KEY);
     }
 

@@ -221,10 +221,11 @@ public class AutonomyAutoConfiguration {
                                                      AutonomyTenantProvider tenantProvider,
                                                      AutonomyMetrics autonomyMetrics,
                                                      MsMetrics msMetrics,
+                                                     MsMiddlewareProperties properties,
                                                      AutonomyTickLock tickLock,
                                                      ApplicationEventPublisher eventPublisher) {
         return new AutonomyOrchestrator(contextBuilder, decisionEngine, policy, actuator, ledger,
-                tenantProvider, autonomyMetrics, msMetrics, tickLock, eventPublisher);
+                tenantProvider, autonomyMetrics, msMetrics, properties, tickLock, eventPublisher);
     }
 
     @Bean

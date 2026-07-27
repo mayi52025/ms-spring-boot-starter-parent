@@ -6,6 +6,7 @@ package com.ms.middleware.autonomy.run;
  * <p>一次故障 run 的典型事件顺序：</p>
  * <pre>
  * DETECT → PLAN → (AUTO | ADVISE) → RECOMMEND → [ACCEPTED] → STABLE
+ *                              ↘ SAFETY_UNWIND / ESCALATE（限流安全兜底）
  * </pre>
  *
  * <ul>
@@ -16,6 +17,8 @@ package com.ms.middleware.autonomy.run;
  *   <li>{@link #RECOMMEND} — 配置级优化推荐（控制台推荐区）</li>
  *   <li>{@link #ACCEPTED} — 运维采纳某条推荐（采纳 API 写入）</li>
  *   <li>{@link #PUBLISH} — nacos-draft 模式下二次确认发布生产配置</li>
+ *   <li>{@link #SAFETY_UNWIND} — 限流超时保护，强制关闭限流（防误杀常态化）</li>
+ *   <li>{@link #ESCALATE} — 限流后无改善，升级人工，停止继续自动加压</li>
  *   <li>{@link #STABLE} — 主 incident 恢复，记录 MTTR，本次自治结束</li>
  * </ul>
  *
@@ -37,6 +40,10 @@ public enum AutonomyTimelinePhase {
     ACCEPTED,
     /** 确认发布 Nacos 草稿到生产 */
     PUBLISH,
+    /** 限流超时安全回撤 */
+    SAFETY_UNWIND,
+    /** 限流无改善升级人工 */
+    ESCALATE,
     /** 故障恢复，结案 */
     STABLE;
 

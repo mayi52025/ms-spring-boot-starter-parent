@@ -1,5 +1,6 @@
 package com.ms.middleware.autonomy;
 
+import com.ms.middleware.MsMiddlewareProperties;
 import com.ms.middleware.autonomy.act.AutonomyActuator;
 import com.ms.middleware.autonomy.context.AutonomyContext;
 import com.ms.middleware.autonomy.context.AutonomyContextBuilder;
@@ -12,6 +13,7 @@ import com.ms.middleware.autonomy.plan.PlannedAction;
 import com.ms.middleware.autonomy.policy.AutonomyPolicy;
 import com.ms.middleware.autonomy.run.AutonomyLedger;
 import com.ms.middleware.autonomy.run.AutonomyRun;
+import com.ms.middleware.autonomy.run.AutonomyTimelinePhase;
 import com.ms.middleware.autonomy.orchestrator.AutonomyTickLock;
 import com.ms.middleware.autonomy.metrics.AutonomyMetrics;
 import com.ms.middleware.autonomy.tenant.AutonomyTenantProvider;
@@ -21,6 +23,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,7 +38,8 @@ import java.util.UUID;
  *   <li>同一故障周期内复用同一个 run（{@link #activeRunId}），避免每次扫描都新建记录</li>
  *   <li>指标恢复正常时写入 STABLE 并计算 MTTR，然后清空 activeRunId</li>
  *   <li>高风险动作只写 ADVISE 时间线，不调用 Actuator（见 {@link AutonomyPolicy}）</li>
- *   <li>多实例时由 {@link AutonomyTickLock} 保证集群内仅一个 JVM 执行 {@link #tick()}（Step 5）</li>
+ *   <li>MQ AUTO 限流后：超时 {@code SAFETY_UNWIND} / 无改善 {@code ESCALATE}，不经 LLM、不自动 publish</li>
+ *   <li>多实例时由 {@link AutonomyTickLock} 保证集群内仅一个 JVM 执行 {@link #tick()}</li>
  * </ul>
  */
 public class AutonomyOrchestrator {
@@ -48,10 +54,13 @@ public class AutonomyOrchestrator {
     private final AutonomyTenantProvider tenantProvider;
     private final AutonomyMetrics autonomyMetrics;
     private final MsMetrics msMetrics;
+    private final MsMiddlewareProperties properties;
     /** 集群 tick 互斥；单机为 noop，多实例为 Redisson 实现 */
     private final AutonomyTickLock tickLock;
     /** 可选：STABLE 后发布事件供 RAG 等旁路消费；单测可传 null */
     private final ApplicationEventPublisher eventPublisher;
+    /** 可注入 Clock，单测用 fixed/offset 验证超时回撤 */
+    private Clock clock;
 
     /** 当前 JVM 内正在处理的故障 run；稳定后置 null（只管本进程，不管多 Pod） */
     private volatile String activeRunId;
@@ -65,7 +74,21 @@ public class AutonomyOrchestrator {
                                 AutonomyMetrics autonomyMetrics,
                                 MsMetrics msMetrics) {
         this(contextBuilder, decisionEngine, policy, actuator, ledger, tenantProvider,
-                autonomyMetrics, msMetrics, AutonomyTickLock.noop(), null);
+                autonomyMetrics, msMetrics, new MsMiddlewareProperties(),
+                AutonomyTickLock.noop(), null, Clock.systemUTC());
+    }
+
+    public AutonomyOrchestrator(AutonomyContextBuilder contextBuilder,
+                                AutonomyDecisionEngine decisionEngine,
+                                AutonomyPolicy policy,
+                                AutonomyActuator actuator,
+                                AutonomyLedger ledger,
+                                AutonomyTenantProvider tenantProvider,
+                                AutonomyMetrics autonomyMetrics,
+                                MsMetrics msMetrics,
+                                MsMiddlewareProperties properties) {
+        this(contextBuilder, decisionEngine, policy, actuator, ledger, tenantProvider,
+                autonomyMetrics, msMetrics, properties, AutonomyTickLock.noop(), null, Clock.systemUTC());
     }
 
     public AutonomyOrchestrator(AutonomyContextBuilder contextBuilder,
@@ -78,7 +101,7 @@ public class AutonomyOrchestrator {
                                 MsMetrics msMetrics,
                                 AutonomyTickLock tickLock) {
         this(contextBuilder, decisionEngine, policy, actuator, ledger, tenantProvider,
-                autonomyMetrics, msMetrics, tickLock, null);
+                autonomyMetrics, msMetrics, new MsMiddlewareProperties(), tickLock, null, Clock.systemUTC());
     }
 
     public AutonomyOrchestrator(AutonomyContextBuilder contextBuilder,
@@ -91,6 +114,37 @@ public class AutonomyOrchestrator {
                                 MsMetrics msMetrics,
                                 AutonomyTickLock tickLock,
                                 ApplicationEventPublisher eventPublisher) {
+        this(contextBuilder, decisionEngine, policy, actuator, ledger, tenantProvider,
+                autonomyMetrics, msMetrics, new MsMiddlewareProperties(), tickLock, eventPublisher, Clock.systemUTC());
+    }
+
+    public AutonomyOrchestrator(AutonomyContextBuilder contextBuilder,
+                                AutonomyDecisionEngine decisionEngine,
+                                AutonomyPolicy policy,
+                                AutonomyActuator actuator,
+                                AutonomyLedger ledger,
+                                AutonomyTenantProvider tenantProvider,
+                                AutonomyMetrics autonomyMetrics,
+                                MsMetrics msMetrics,
+                                MsMiddlewareProperties properties,
+                                AutonomyTickLock tickLock,
+                                ApplicationEventPublisher eventPublisher) {
+        this(contextBuilder, decisionEngine, policy, actuator, ledger, tenantProvider,
+                autonomyMetrics, msMetrics, properties, tickLock, eventPublisher, Clock.systemUTC());
+    }
+
+    public AutonomyOrchestrator(AutonomyContextBuilder contextBuilder,
+                                AutonomyDecisionEngine decisionEngine,
+                                AutonomyPolicy policy,
+                                AutonomyActuator actuator,
+                                AutonomyLedger ledger,
+                                AutonomyTenantProvider tenantProvider,
+                                AutonomyMetrics autonomyMetrics,
+                                MsMetrics msMetrics,
+                                MsMiddlewareProperties properties,
+                                AutonomyTickLock tickLock,
+                                ApplicationEventPublisher eventPublisher,
+                                Clock clock) {
         this.contextBuilder = contextBuilder;
         this.decisionEngine = decisionEngine;
         this.policy = policy;
@@ -99,20 +153,25 @@ public class AutonomyOrchestrator {
         this.tenantProvider = tenantProvider;
         this.autonomyMetrics = autonomyMetrics;
         this.msMetrics = msMetrics;
+        this.properties = properties != null ? properties : new MsMiddlewareProperties();
         this.tickLock = tickLock != null ? tickLock : AutonomyTickLock.noop();
         this.eventPublisher = eventPublisher;
+        this.clock = clock != null ? clock : Clock.systemUTC();
+    }
+
+    /** 单测注入时钟（超时回撤） */
+    void useClock(Clock clock) {
+        this.clock = clock != null ? clock : Clock.systemUTC();
     }
 
     /**
      * 单次自治扫描入口，由 {@link AutonomyScheduler} 定时调用。
-     * <p>先经 {@link AutonomyTickLock} 抢集群锁，获锁后才进入 {@link #doTick()}；
-     * 未获锁则本轮什么都不做（follower 实例）。</p>
      */
     public void tick() {
         tickLock.runIfLeader(tenantProvider.getTenant(), this::doTick);
     }
 
-    /** tick 实际业务：检测 → 计划 → 门控 → 执行 → STABLE 判定（原 tick 方法体） */
+    /** tick 实际业务：检测 → 计划 → 门控 → 执行 → 安全回撤/升级 → STABLE */
     private void doTick() {
         AutonomyContext context = contextBuilder.build();
 
@@ -132,11 +191,34 @@ public class AutonomyOrchestrator {
 
         AutonomyRun run = resolveOrCreateRun(context);
 
-        // 同一故障周期内已 EXECUTING：先尝试自愈，再用最新快照判定是否 STABLE
+        // ESCALATED：不再 AUTO 加压；仅当 incident 恢复时允许 STABLE 清限流结案
+        if (run.getStatus() == AutonomyRunStatus.ESCALATED) {
+            String incidentType = run.getPlan() != null ? run.getPlan().getIncidentType() : null;
+            AutonomyContext latest = contextBuilder.build();
+            run.setContext(latest);
+            if (contextBuilder.isIncidentResolved(incidentType, latest)) {
+                activeRunId = run.getRunId();
+                stabilizeActiveRunIfNeeded(latest);
+            } else {
+                ledger.update(run);
+            }
+            return;
+        }
+
+        // 同一故障周期内已 EXECUTING：安全兜底 → 自愈 → STABLE 判定
         if (run.getStatus() == AutonomyRunStatus.EXECUTING || run.getStatus() == AutonomyRunStatus.PLANNED) {
             String incidentType = run.getPlan() != null ? run.getPlan().getIncidentType() : null;
-            retryRecoveryForActiveRun(context, run);
             AutonomyContext latest = contextBuilder.build();
+            run.setContext(latest);
+            if (applyMqThrottleSafetyGuards(run, latest)) {
+                return;
+            }
+            if (run.getStatus() == AutonomyRunStatus.ESCALATED) {
+                ledger.update(run);
+                return;
+            }
+            retryRecoveryForActiveRun(latest, run);
+            latest = contextBuilder.build();
             run.setContext(latest);
             if (contextBuilder.isIncidentResolved(incidentType, latest)) {
                 activeRunId = run.getRunId();
@@ -163,7 +245,7 @@ public class AutonomyOrchestrator {
         recordPlanMetrics(run, plan);
 
         run.setStatus(AutonomyRunStatus.EXECUTING);
-        executePlanActions(run, plan);
+        executePlanActions(run, plan, context);
 
         for (var rec : plan.getRecommendations()) {
             ledger.appendTimeline(run, "RECOMMEND", rec.getTitle() + " — " + rec.getDescription());
@@ -175,6 +257,114 @@ public class AutonomyOrchestrator {
                 run.getRunId(), run.getTenant(), run.getStatus(), plan.getIncidentType());
     }
 
+    /**
+     * MQ 限流安全兜底（规则化，无 LLM）：
+     * <ol>
+     *   <li>超时 → disable + SAFETY_UNWIND，保持 EXECUTING 待恢复或继续观测</li>
+     *   <li>连续 N tick 无改善 → disable + ESCALATED + ADVISE</li>
+     * </ol>
+     *
+     * @return true 表示本 tick 已处理完毕（调用方应 return）
+     */
+    private boolean applyMqThrottleSafetyGuards(AutonomyRun run, AutonomyContext context) {
+        if (run.isMqThrottleSafetyConsumed()) {
+            return false;
+        }
+        String incidentType = run.getPlan() != null ? run.getPlan().getIncidentType() : null;
+        if (!"MQ_DEGRADED".equals(incidentType)) {
+            return false;
+        }
+        Instant enabledAt = run.getMqThrottleEnabledAt();
+        if (enabledAt == null && actuator.isMqThrottleEnabled()) {
+            enabledAt = Optional.ofNullable(actuator.getMqThrottleEnabledAt())
+                    .orElse(Optional.empty())
+                    .orElse(null);
+            if (enabledAt != null) {
+                run.setMqThrottleEnabledAt(enabledAt);
+            }
+        }
+        if (enabledAt == null && !actuator.isMqThrottleEnabled()) {
+            return false;
+        }
+
+        MsMiddlewareProperties.MqActuatorProperties mq = properties.getAutonomy().getMq();
+        Instant now = clock.instant();
+
+        // 1) 超时强制回撤
+        long maxSeconds = mq.getThrottleMaxDurationSeconds();
+        if (maxSeconds > 0 && enabledAt != null) {
+            long elapsed = Duration.between(enabledAt, now).getSeconds();
+            if (elapsed >= maxSeconds) {
+                safetyUnwindThrottle(run, incidentType,
+                        String.format("限流超时保护（已持续 %ds ≥ %ds），强制关闭限流，防止误杀常态化",
+                                elapsed, maxSeconds));
+                ledger.update(run);
+                return true;
+            }
+        }
+
+        // 2) 无改善升级（仅在限流仍开启或已记录启用基线时统计）
+        int needTicks = mq.getThrottleNoImproveTicks();
+        if (needTicks > 0 && run.getMqFailedCountAtThrottle() >= 0) {
+            long current = context.getMqFailedCount();
+            long baseline = run.getMqFailedCountAtThrottle();
+            // 未下降：相对启用时的失败数没有变好
+            boolean noImprove = current >= baseline;
+            if (noImprove) {
+                run.setThrottleNoImproveTicks(run.getThrottleNoImproveTicks() + 1);
+            } else {
+                run.setThrottleNoImproveTicks(0);
+            }
+            if (run.getThrottleNoImproveTicks() >= needTicks) {
+                long threshold = context.getMqFailedWarnThreshold();
+                escalateForNoImprove(run, incidentType, current, baseline, threshold, needTicks);
+                ledger.update(run);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void safetyUnwindThrottle(AutonomyRun run, String incidentType, String message) {
+        actuator.clearMqThrottle();
+        run.setMqThrottleSafetyConsumed(true);
+        ledger.appendTimeline(run, AutonomyTimelinePhase.SAFETY_UNWIND.code(), message);
+        autonomyMetrics.recordThrottleSafetyUnwind(run.getTenant(), incidentType);
+        logger.warn("Autonomy run {} SAFETY_UNWIND: {}", run.getRunId(), message);
+    }
+
+    private void escalateForNoImprove(AutonomyRun run,
+                                      String incidentType,
+                                      long current,
+                                      long baseline,
+                                      long threshold,
+                                      int needTicks) {
+        actuator.clearMqThrottle();
+        run.setMqThrottleSafetyConsumed(true);
+        run.setStatus(AutonomyRunStatus.ESCALATED);
+        String escalateMsg = String.format(
+                "限流后连续 %d 次 tick 无改善（mqFailedCount=%d，启用时=%d，阈值=%d），已关闭限流并升级人工",
+                needTicks, current, baseline, threshold);
+        ledger.appendTimeline(run, AutonomyTimelinePhase.ESCALATE.code(), escalateMsg);
+        ledger.appendTimeline(run, AutonomyTimelinePhase.ADVISE.code(),
+                "需人工排查消费端/幂等/下游，勿继续自动加压；恢复后可自然 STABLE 或人工结案");
+        autonomyMetrics.recordRunEscalated(run.getTenant(), incidentType, "throttle_no_improve");
+        logger.warn("Autonomy run {} ESCALATED: {}", run.getRunId(), escalateMsg);
+        if (run.getRunId().equals(activeRunId)) {
+            // 保持 activeRunId，便于后续恢复走 STABLE；不再新建 AUTO run
+            activeRunId = run.getRunId();
+        }
+    }
+
+    private void recordThrottleEnabled(AutonomyRun run, AutonomyContext context) {
+        // 以编排时钟为准写入账本，便于单测用 fixed Clock 验证超时
+        Instant at = clock.instant();
+        run.setMqThrottleEnabledAt(at);
+        run.setMqFailedCountAtThrottle(context != null ? context.getMqFailedCount() : 0);
+        run.setThrottleNoImproveTicks(0);
+        run.setMqThrottleSafetyConsumed(false);
+    }
+
     /** 应用重启后 activeRunId 丢失时，账本中仍 EXECUTING 的 run 若已恢复则补写 STABLE */
     private void reconcileStaleActiveRuns(AutonomyContext context) {
         for (AutonomyRun run : ledger.listActive()) {
@@ -182,6 +372,12 @@ public class AutonomyOrchestrator {
                 continue;
             }
             String incidentType = run.getPlan() != null ? run.getPlan().getIncidentType() : null;
+            if (run.getStatus() == AutonomyRunStatus.EXECUTING || run.getStatus() == AutonomyRunStatus.PLANNED) {
+                AutonomyContext latest = contextBuilder.build();
+                if (applyMqThrottleSafetyGuards(run, latest)) {
+                    continue;
+                }
+            }
             retryRecoveryForActiveRun(context, run);
             AutonomyContext latest = contextBuilder.build();
             if (contextBuilder.isIncidentResolved(incidentType, latest)) {
@@ -208,9 +404,8 @@ public class AutonomyOrchestrator {
 
     /**
      * 执行计划动作：仅 rank#1 且通过 Policy 的动作为 AUTO，其余写入 ADVISE。
-     * rank#2 及以后的候选作为备选方案展示，不自动执行。
      */
-    private void executePlanActions(AutonomyRun run, AutonomyPlan plan) {
+    private void executePlanActions(AutonomyRun run, AutonomyPlan plan, AutonomyContext context) {
         for (PlannedAction action : plan.getActions()) {
             AutonomyPolicyDecision decision;
             if (action.getRank() == 1) {
@@ -230,6 +425,10 @@ public class AutonomyOrchestrator {
                         plan.getIncidentType(),
                         action.getActionType().name(),
                         "auto");
+                if (action.getActionType() == AutonomyActionType.THROTTLE_CONSUMER
+                        && "SUCCESS".equals(action.getExecutionStatus())) {
+                    recordThrottleEnabled(run, context);
+                }
             } else {
                 action.setExecutionStatus("ADVISE");
                 String detail = action.getRank() == 1
@@ -287,7 +486,8 @@ public class AutonomyOrchestrator {
     private AutonomyRun resolveOrCreateRun(AutonomyContext context) {
         if (activeRunId != null) {
             Optional<AutonomyRun> existing = ledger.get(activeRunId);
-            if (existing.isPresent() && existing.get().getStatus() != AutonomyRunStatus.STABLE) {
+            if (existing.isPresent() && existing.get().getStatus() != AutonomyRunStatus.STABLE
+                    && existing.get().getStatus() != AutonomyRunStatus.CLOSED) {
                 AutonomyRun run = existing.get();
                 ensureIncidentBaseline(run, context);
                 run.setContext(context);

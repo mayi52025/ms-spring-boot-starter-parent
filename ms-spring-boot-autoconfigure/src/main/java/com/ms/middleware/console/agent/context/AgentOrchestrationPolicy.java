@@ -93,7 +93,8 @@ public class AgentOrchestrationPolicy {
         return containsAny(normalized,
                 "上次", "历史", "以前", "曾经", "类似", "相似",
                 "文档", "手册", "playbook", "runbook", "roadmap", "规则",
-                "tick", "限流", "止血", "背压", "throttle", "mttr", "结案");
+                "tick", "限流", "止血", "背压", "throttle", "mttr", "结案",
+                "redisson", "mq_degraded", "degraded", "throttle_consumer");
     }
 
     static String extractRetrievalQuery(String message, String normalized) {
@@ -106,7 +107,9 @@ public class AgentOrchestrationPolicy {
     static RetrievalQuery toRetrievalQuery(AgentOrchestrationDecision decision) {
         String normalized = decision.retrievalQuery() != null ? decision.retrievalQuery().toLowerCase() : "";
         RetrievalQuery.RetrievalKind kind = containsAny(normalized,
-                "文档", "手册", "playbook", "runbook", "roadmap", "规则", "tick")
+                "文档", "手册", "playbook", "runbook", "roadmap", "规则",
+                "tick", "止血", "限流", "背压", "throttle",
+                "redisson", "mq_degraded", "degraded", "throttle_consumer")
                 ? RetrievalQuery.RetrievalKind.DOCUMENT
                 : RetrievalQuery.RetrievalKind.HISTORICAL_RUN;
         return new RetrievalQuery(decision.retrievalQuery(), kind);

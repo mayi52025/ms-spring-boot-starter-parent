@@ -5,8 +5,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * pgvector 存储：建表、upsert、按 tenant 裁剪旧 RUN。
@@ -215,6 +218,65 @@ public class RagVectorStore {
     /** 兼容旧调用：使用配置侧默认门槛前，先按无门槛查（仅内部/测试） */
     public List<RagSearchHit> search(String tenant, RagDocumentKind kindFilter, float[] embedding, int topK) {
         return search(tenant, kindFilter, embedding, topK, 0d);
+    }
+
+    /**
+     * DOC 词法补召回：向量距离未过阈时，用运维锚点词（tick / 止血等）扫手册正文。
+     * <p>distance 记为 {@code 1.0} 以区分向量命中；仍走同一张表，避免只靠 Keyword 扫历史 run。
+     */
+    public List<RagSearchHit> searchLexical(String tenant, RagDocumentKind kindFilter, String query, int topK) {
+        List<String> terms = extractLexicalTerms(query);
+        if (terms.isEmpty() || kindFilter != RagDocumentKind.DOC) {
+            return List.of();
+        }
+        int limit = Math.max(1, topK);
+        String tenantValue = nullToEmpty(tenant);
+        StringBuilder sql = new StringBuilder(
+                "SELECT kind, ref_id, chunk_no, content, 1.0 AS distance FROM " + TABLE
+                        + " WHERE kind = ? AND tenant IN (?, ?) AND (");
+        List<Object> args = new ArrayList<>();
+        args.add(RagDocumentKind.DOC.name());
+        args.add(tenantValue);
+        args.add("_global_");
+        for (int i = 0; i < terms.size(); i++) {
+            if (i > 0) {
+                sql.append(" OR ");
+            }
+            sql.append("content ILIKE ?");
+            args.add("%" + escapeLike(terms.get(i)) + "%");
+        }
+        sql.append(") ORDER BY created_at DESC LIMIT ?");
+        args.add(limit);
+        return jdbc.query(sql.toString(), (rs, rowNum) -> new RagSearchHit(
+                RagDocumentKind.valueOf(rs.getString("kind")),
+                rs.getString("ref_id"),
+                rs.getInt("chunk_no"),
+                rs.getString("content"),
+                rs.getDouble("distance")), args.toArray());
+    }
+
+    /** 从问句抽出运维锚点；无锚点则不词法扫，避免把无关手册硬塞进去。 */
+    static List<String> extractLexicalTerms(String query) {
+        if (query == null || query.isBlank()) {
+            return List.of();
+        }
+        String lower = query.toLowerCase(Locale.ROOT);
+        String[] anchors = {
+                "tick", "redisson", "止血", "限流", "throttle", "背压",
+                "mttr", "stable", "mq", "手册", "分布式", "锁",
+                "mq_degraded", "degraded", "throttle_consumer", "结案"
+        };
+        Set<String> found = new LinkedHashSet<>();
+        for (String anchor : anchors) {
+            if (lower.contains(anchor.toLowerCase(Locale.ROOT))) {
+                found.add(anchor);
+            }
+        }
+        return List.copyOf(found);
+    }
+
+    private static String escapeLike(String term) {
+        return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /** 供单测 / 诊断：当前表是否存在 */

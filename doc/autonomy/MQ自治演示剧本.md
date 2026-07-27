@@ -18,6 +18,9 @@ ms:
       mq:
         throttle-limit: 20
         throttle-window-seconds: 60
+        # 限流安全兜底（规则化，非 LLM）：超时关限流 / 连续无改善升级人工
+        throttle-max-duration-seconds: 300
+        throttle-no-improve-ticks: 3
     console:
       enabled: true
       base-path: /ms-console
@@ -118,9 +121,13 @@ Invoke-RestMethod http://localhost:8080/ms-console/api/issues
 | 看什么 | 含义 |
 |--------|------|
 | `[AUTO] ... SUCCESS` | **动作已执行**（限流/自愈等），不等于故障已结束 |
+| `[SAFETY_UNWIND]` | 限流超过 `throttle-max-duration-seconds`，强制关限流（防误杀常态化） |
+| `[ESCALATE]` + ADVISE | 限流后连续 `throttle-no-improve-ticks` 次失败数未下降，升级人工 |
 | `[STABLE] ... MTTR=xxs \| MQ窗口失败 5→0（阈值<3）` | **指标已恢复**，系统认定本次故障周期结束 |
 | 控制台「恢复依据」卡片 | API 字段 `recoveryEvidence`，展示前后指标与判定条件 |
 | 左侧「当前问题」变「系统正常」 | 无活跃 run |
+
+**STABLE ≠ 业务订单无损**；安全回撤是规则化兜底，不是 LLM 根据 Trace 反思后自动回滚，也不会自动 publish 配置。
 
 **演示闭环：** 看到 AUTO 后，关闭 chaos 消费者 → 等 STABLE → 时间线应含 `5→0` 类摘要，右侧历史可查 `recoveryEvidence`。
 

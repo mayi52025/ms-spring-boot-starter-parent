@@ -115,6 +115,23 @@ public class AutonomyMetrics {
                 .record(confidence);
     }
 
+    /** MQ 限流超时安全回撤 */
+    public void recordThrottleSafetyUnwind(String tenant, String incidentType) {
+        meterRegistry.counter("ms.autonomy.throttle.safety_unwind.total",
+                        "tenant", safeTenant(tenant),
+                        "incident_type", safeIncident(incidentType))
+                .increment();
+    }
+
+    /** run 因限流无改善进入 ESCALATED */
+    public void recordRunEscalated(String tenant, String incidentType, String reason) {
+        meterRegistry.counter("ms.autonomy.run.escalated.total",
+                        "tenant", safeTenant(tenant),
+                        "incident_type", safeIncident(incidentType),
+                        "reason", safeTag(reason))
+                .increment();
+    }
+
     public long getLastMttrSeconds() {
         return lastMttrSeconds.get();
     }

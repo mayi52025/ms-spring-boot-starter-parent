@@ -80,7 +80,8 @@ class AutonomyGoldenPathTest {
                 ledger,
                 tenantProvider,
                 autonomyMetrics,
-                msMetrics);
+                msMetrics,
+                properties);
     }
 
     @Test
