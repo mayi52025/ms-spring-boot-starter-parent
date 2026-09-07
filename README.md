@@ -62,7 +62,7 @@
 - **默认关闭**：`ms.middleware.autonomy.enabled=false`，零侵入现有功能
 - **可审计**：所有动作记录在 Ledger（Redisson），支持 SSE 实时推送
 
-#### Phase 5.4 RAG（可选）
+#### Phase 5.4 RAG
 
 默认 `ms.middleware.console.rag.enabled=false`。演示步骤见 Demo 仓：
 
@@ -72,7 +72,7 @@
 
 检索路径：向量命中标 `PGVECTOR`；库/embedding 不可用时降级 `KEYWORD_FALLBACK`。
 
-#### Phase 5.5 最小只读 MCP（可选）
+#### Phase 5.5 最小只读 MCP
 
 默认 `ms.middleware.console.mcp.enabled=false`。**不**嵌入业务 Web 进程；独立 stdio 进程直调同一 `MiddlewareInsightTool`（与控制台共用语义，无写工具）。
 
@@ -97,13 +97,6 @@ cd middleware-demo/mcp
 
 自动化烟雾：`MsInsightMcpStdioSmokeTest`（stdio 调通 `list_active_issues`，不依赖 Redis）。
 
-## 面试金路径（Phase 6）
-
-从零复现「MQ 故障 → AUTO → STABLE → 控制台问答」见 Demo 仓：
-
-- **`middleware-demo/demo/README.md`**（主入口；含简历条目草稿）
-- 细剧本：`doc/autonomy/MQ自治演示剧本.md`
-- RAG / MCP 加分：`middleware-demo/rag/`、`middleware-demo/mcp/`
 
 ## 快速开始
 
